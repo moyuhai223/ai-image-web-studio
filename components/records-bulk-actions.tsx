@@ -86,13 +86,14 @@ export function RecordsSelectionProvider({ ids, children }: { ids: string[]; chi
 
 export function RecordSelectCheckbox({ id }: { id: string }) {
   const { loading, selectedIds, toggleId } = useRecordsSelection();
+  const selected = selectedIds.has(id);
 
   return (
-    <label className="record-select-control" aria-label="选择记录">
+    <label className={`record-select-control${selected ? " selected" : ""}`} aria-label={selected ? "取消选择记录" : "选择记录"}>
       <input
         data-record-select
         type="checkbox"
-        checked={selectedIds.has(id)}
+        checked={selected}
         disabled={loading}
         onChange={(event) => toggleId(id, event.target.checked)}
       />

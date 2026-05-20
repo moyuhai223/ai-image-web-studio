@@ -1797,27 +1797,68 @@ button.status:hover {
   position: relative;
 }
 
+.record-card:has(.record-select-control.selected) {
+  outline: 2px solid color-mix(in srgb, var(--brand) 74%, transparent);
+  outline-offset: -2px;
+}
+
 .record-select-control {
   position: absolute;
   top: 10px;
   left: 10px;
-  z-index: 2;
+  z-index: 8;
   display: grid;
   place-items: center;
   width: 34px;
   height: 34px;
-  border: 1px solid var(--glass-border);
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--glass-border));
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--glass-bg-strong) 84%, transparent);
+  background: color-mix(in srgb, var(--glass-bg-strong) 88%, rgba(0, 0, 0, 0.28));
   box-shadow: var(--shadow-sm);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
 }
 
 .record-select-control input {
-  width: 17px;
-  height: 17px;
-  accent-color: var(--brand);
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.record-select-control::after {
+  content: "";
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid color-mix(in srgb, var(--text) 62%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
+  color: #06151f;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+  transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+}
+
+.record-select-control:hover,
+.record-select-control:focus-within,
+.record-select-control.selected {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 20%, var(--glass-bg-strong));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent), var(--shadow-sm);
+}
+
+.record-select-control.selected::after {
+  content: "✓";
+  border-color: var(--brand);
+  background: var(--brand);
 }
 
 .settings-main {
