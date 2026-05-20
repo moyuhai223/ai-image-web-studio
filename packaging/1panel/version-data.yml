@@ -168,7 +168,7 @@ additionalProperties:
         zh-Hant: 每日生成限制
       required: true
       type: number
-    - default: 600000
+    - default: 900000
       edit: true
       envKey: GENERATION_TIMEOUT_MS
       labelEn: Generation Timeout MS

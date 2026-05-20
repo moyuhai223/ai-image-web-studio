@@ -1,4 +1,4 @@
-const DEFAULT_GENERATION_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_GENERATION_TIMEOUT_MS = 15 * 60 * 1000;
 const DEFAULT_TIME_ZONE = "Asia/Shanghai";
 
 function optionalUrlEnv(...values: Array<string | undefined>) {
