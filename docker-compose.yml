@@ -22,8 +22,8 @@ services:
       GITHUB_REPOSITORY_SLUG: ${GITHUB_REPOSITORY_SLUG:-moyuhai223/ai-image-web-studio}
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to your existing 1Panel PostgreSQL connection string}
       AUTH_SECRET: ${AUTH_SECRET:-replace-with-a-long-random-secret}
-      AI_ZH_CI_BASE_URL: ${AI_ZH_CI_BASE_URL:-https://ai.zh.ci}
-      AI_ZH_CI_API_KEY: ${AI_ZH_CI_API_KEY:?Set AI_ZH_CI_API_KEY in 1Panel env}
+      PROVIDER_BASE_URL: ${PROVIDER_BASE_URL:?Set PROVIDER_BASE_URL in 1Panel env}
+      PROVIDER_API_KEY: ${PROVIDER_API_KEY:?Set PROVIDER_API_KEY in 1Panel env}
       IMAGE_MODEL_GPT: ${IMAGE_MODEL_GPT:-gpt-image-2}
       IMAGE_MODEL_NANO_BANANA: ${IMAGE_MODEL_NANO_BANANA:-Nano Banana 2}
       LOCAL_STORAGE_ROOT: /app/storage

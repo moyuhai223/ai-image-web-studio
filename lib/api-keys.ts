@@ -356,7 +356,7 @@ export async function getNextAiApiKey(excludedKeyIds: string[] = []): Promise<Ai
   if (selected) return selected;
 
   return {
-    apiKey: requireEnv(config.aiApiKey, "AI_ZH_CI_API_KEY"),
+    apiKey: requireEnv(config.aiApiKey, "PROVIDER_API_KEY"),
     keyId: null,
     keyLabel: "环境变量 Key",
     keyPreview: null,

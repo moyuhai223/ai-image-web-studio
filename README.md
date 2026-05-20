@@ -1,6 +1,6 @@
 # AI Image Web Studio
 
-AI Image Web Studio 是一个适合 3-5 人小团队部署的私有 AI 图片生成工作台。应用通过服务端调用 `https://ai.zh.ci/`，前端不暴露 API Key；生成记录写入 PostgreSQL，生成图、参考图、缩略图和备份包保存在服务器本地磁盘。
+AI Image Web Studio 是一个适合 3-5 人小团队部署的私有 AI 图片生成工作台。应用通过服务端调用兼容图片接口的 Provider Base URL，前端不暴露 API Key；生成记录写入 PostgreSQL，生成图、参考图、缩略图和备份包保存在服务器本地磁盘。
 
 更新记录见 [CHANGELOG.md](./CHANGELOG.md)。
 
@@ -96,8 +96,8 @@ TZ=Asia/Shanghai
 APP_TIME_ZONE=Asia/Shanghai
 NPM_REGISTRY=https://registry.npmmirror.com
 GITHUB_REPOSITORY_SLUG=moyuhai223/ai-image-web-studio
-AI_ZH_CI_BASE_URL=https://ai.zh.ci
-AI_ZH_CI_API_KEY=
+PROVIDER_BASE_URL=
+PROVIDER_API_KEY=
 IMAGE_MODEL_GPT=gpt-image-2
 IMAGE_MODEL_NANO_BANANA=Nano Banana 2
 LOCAL_STORAGE_ROOT=./storage
@@ -119,8 +119,8 @@ GENERATION_TIMEOUT_MS=600000
 | `APP_TIME_ZONE` | 页面显示时区，默认 `Asia/Shanghai` |
 | `NPM_REGISTRY` | Docker 构建时 npm 镜像源，默认 `https://registry.npmmirror.com` |
 | `GITHUB_REPOSITORY_SLUG` | 检查更新使用的 GitHub 仓库，默认 `moyuhai223/ai-image-web-studio` |
-| `AI_ZH_CI_BASE_URL` | Provider 地址默认值，默认 `https://ai.zh.ci`；部署后也可在设置页“运行设置”里修改 |
-| `AI_ZH_CI_API_KEY` | 默认备用 API Key，设置页可继续添加多 Key |
+| `PROVIDER_BASE_URL` | Provider 地址默认值；部署后也可在设置页“运行设置”里修改 |
+| `PROVIDER_API_KEY` | 默认备用 API Key，设置页可继续添加多 Key |
 | `LOCAL_STORAGE_ROOT` | 图片、缩略图和备份包保存目录 |
 | `MAX_UPLOAD_MB` | 参考图上传大小限制 |
 | `MAX_GENERATION_CONCURRENCY` | 后台生成并发数 |
@@ -169,7 +169,7 @@ ai-image-web-studio-1panel-local-app.zip
 - Web 访问端口，默认 `3100`
 - PostgreSQL 连接串
 - 登录密钥 `AUTH_SECRET`
-- `ai.zh.ci` API Key
+- Provider Base URL 和 API Key
 - 初始管理员账号和密码
 - 并发、队列、每日限制、超时时间等参数
 

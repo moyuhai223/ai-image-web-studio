@@ -80,9 +80,9 @@ additionalProperties:
       random: true
       rule: paramComplexity
       type: password
-    - default: https://ai.zh.ci
+    - default: ""
       edit: true
-      envKey: AI_ZH_CI_BASE_URL
+      envKey: PROVIDER_BASE_URL
       labelEn: Provider Base URL
       labelZh: Provider 地址
       label:
@@ -93,7 +93,7 @@ additionalProperties:
       type: text
     - default: ""
       edit: true
-      envKey: AI_ZH_CI_API_KEY
+      envKey: PROVIDER_API_KEY
       labelEn: Default API Key
       labelZh: 默认 API Key
       label:

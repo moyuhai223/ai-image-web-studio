@@ -1787,25 +1787,38 @@ button.status:hover {
   scrollbar-width: thin;
 }
 
-.settings-nav a {
+.settings-nav a,
+.settings-nav button {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 34px;
   padding: 0 10px;
+  border: 0;
   border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--muted);
+  font: inherit;
   font-size: 13px;
+  text-align: left;
+  cursor: pointer;
   transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
-.settings-nav a:hover {
+.settings-nav a:hover,
+.settings-nav button:hover,
+.settings-nav button.active {
   background: var(--panel-2);
   color: var(--text);
   transform: translateX(2px);
 }
 
-.settings-nav a svg {
+.settings-nav button.active {
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+
+.settings-nav a svg,
+.settings-nav button svg {
   flex: 0 0 auto;
 }
 
@@ -1823,6 +1836,31 @@ button.status:hover {
 
 .settings-section {
   scroll-margin-top: 84px;
+}
+
+.settings-tab-panel {
+  gap: 12px;
+}
+
+.settings-tab-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 2px;
+  color: var(--text);
+}
+
+.settings-tab-heading h1 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.settings-tab-body {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
 }
 
 .settings-fold > summary {
@@ -2055,6 +2093,26 @@ button.status:hover {
 .audit-log-list {
   display: grid;
   gap: 10px;
+}
+
+.audit-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(100px, 0.7fr) minmax(120px, 0.8fr) minmax(130px, 0.8fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.audit-filter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+.audit-filter-actions .button {
+  min-height: 36px;
 }
 
 .audit-log-row {
@@ -3576,6 +3634,7 @@ code {
 
   .records-bulk-bar,
   .backup-policy-grid,
+  .audit-filter-grid,
   .audit-log-row {
     grid-template-columns: 1fr;
   }
@@ -3755,7 +3814,8 @@ code {
     display: none;
   }
 
-  .settings-nav a {
+  .settings-nav a,
+  .settings-nav button {
     flex: 0 0 42px;
     justify-content: center;
     width: 42px;
@@ -3763,7 +3823,8 @@ code {
     padding: 0;
   }
 
-  .settings-nav a span {
+  .settings-nav a span,
+  .settings-nav button span {
     position: absolute;
     width: 1px;
     height: 1px;

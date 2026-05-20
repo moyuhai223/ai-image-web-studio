@@ -38,7 +38,7 @@ create table if not exists generation_jobs (
   size text not null default '1024x1024',
   count integer not null default 1 check (count between 1 and 4),
   status text not null check (status in ('queued', 'running', 'succeeded', 'failed', 'canceled')) default 'queued',
-  provider text not null default 'ai.zh.ci',
+  provider text not null default 'provider',
   provider_request_id text,
   error_message text,
   request_metadata jsonb not null default '{}'::jsonb,
@@ -53,6 +53,7 @@ create table if not exists generation_jobs (
 alter table generation_jobs add column if not exists started_at timestamptz;
 alter table generation_jobs add column if not exists completed_at timestamptz;
 alter table generation_jobs add column if not exists duration_ms integer;
+alter table generation_jobs alter column provider set default 'provider';
 
 create table if not exists reference_images (
   id uuid primary key default gen_random_uuid(),

@@ -57,7 +57,7 @@ export function ProviderSettingsForm({ aiBaseUrl, source }: Props) {
             type="url"
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            placeholder="https://ai.zh.ci"
+            placeholder="https://provider.example.com"
             required
           />
           <button className="button secondary" type="submit" disabled={loading}>

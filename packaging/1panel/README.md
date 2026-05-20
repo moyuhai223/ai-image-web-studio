@@ -17,7 +17,7 @@ AI Image Web Studio 是一个适合 3-5 人小团队使用的私有 AI 图片生
 需要提前准备：
 
 - 已安装并可连接的 PostgreSQL
-- `ai.zh.ci` API Key
+- Provider Base URL 和 API Key
 - 一个初始管理员账号和密码
 
 ## 数据目录

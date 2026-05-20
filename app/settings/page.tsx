@@ -1,4 +1,3 @@
-import { DatabaseZap, FileClock, FileText, ImageIcon, KeyRound, ShieldCheck, Users } from "lucide-react";
 import { AppNav } from "@/components/app-nav";
 import { AiKeysForm } from "@/components/ai-keys-form";
 import { AuditLogPanel } from "@/components/audit-log-panel";
@@ -7,6 +6,7 @@ import { DataBackupPanel } from "@/components/data-backup-panel";
 import { PromptTemplatesPanel } from "@/components/prompt-templates-panel";
 import { ProviderSettingsForm } from "@/components/provider-settings-form";
 import { ReferenceImagesPanel } from "@/components/reference-images-panel";
+import { SettingsTabs } from "@/components/settings-tabs";
 import { StorageMaintenancePanel } from "@/components/storage-maintenance-panel";
 import { SystemHealthCard } from "@/components/system-health-card";
 import { UpdateCheckPanel } from "@/components/update-check-panel";
@@ -39,43 +39,9 @@ export default async function SettingsPage() {
     <div className="shell" data-theme={themePreference.theme}>
       <AppNav user={user} themeMode={themePreference.mode} />
       <main className="main settings-main">
-        <div className="settings-layout">
-          <aside className="settings-nav" aria-label="设置分组">
-            <a href="#settings-system" aria-label="系统状态" title="系统状态">
-              <ShieldCheck size={15} />
-              <span>系统状态</span>
-            </a>
-            <a href="#settings-keys" aria-label="Key 管理" title="Key 管理">
-              <KeyRound size={15} />
-              <span>Key 管理</span>
-            </a>
-            <a href="#settings-users" aria-label="用户管理" title="用户管理">
-              <Users size={15} />
-              <span>用户管理</span>
-            </a>
-            <a href="#settings-templates" aria-label="提示词模板" title="提示词模板">
-              <FileText size={15} />
-              <span>提示词模板</span>
-            </a>
-            <a href="#settings-references" aria-label="参考图" title="参考图">
-              <ImageIcon size={15} />
-              <span>参考图</span>
-            </a>
-            <a href="#settings-maintenance" aria-label="维护操作" title="维护操作">
-              <DatabaseZap size={15} />
-              <span>维护操作</span>
-            </a>
-            <a href="#settings-audit" aria-label="审计日志" title="审计日志">
-              <FileClock size={15} />
-              <span>审计日志</span>
-            </a>
-          </aside>
-          <div className="settings-sections">
-            <details className="settings-section settings-fold" id="settings-system" open>
-              <summary>
-                <ShieldCheck size={15} />
-                <span>系统状态</span>
-              </summary>
+        <SettingsTabs
+          system={
+            <>
               <SystemHealthCard health={health} />
               <UpdateCheckPanel currentVersion={APP_VERSION_LABEL.replace(/^v/, "")} repository={config.githubRepositorySlug} />
               <section className="panel">
@@ -95,66 +61,38 @@ export default async function SettingsPage() {
                   </div>
                 </div>
               </section>
-            </details>
-
-            <details className="settings-section settings-fold" id="settings-keys" open>
-              <summary>
-                <KeyRound size={15} />
-                <span>Key 管理</span>
-              </summary>
-              <AiKeysForm
-                keys={aiKeys.keys}
-                hasEnvFallback={Boolean(config.aiApiKey)}
-                autoDisableEnabled={aiKeys.autoDisableEnabled}
-                autoDisableFailureThreshold={aiKeys.autoDisableFailureThreshold}
-              />
-            </details>
-
-            <details className="settings-section settings-fold" id="settings-users" open>
-              <summary>
-                <Users size={15} />
-                <span>用户管理</span>
-              </summary>
+            </>
+          }
+          keys={
+            <AiKeysForm
+              keys={aiKeys.keys}
+              hasEnvFallback={Boolean(config.aiApiKey)}
+              autoDisableEnabled={aiKeys.autoDisableEnabled}
+              autoDisableFailureThreshold={aiKeys.autoDisableFailureThreshold}
+            />
+          }
+          users={
+            <>
               <CreateUserForm />
               <UserSecurityPanel users={users.rows} currentUserId={user.id} dailyLimit={config.dailyGenerationLimit} />
-            </details>
-
-            <details className="settings-section settings-fold" id="settings-templates" open>
-              <summary>
-                <FileText size={15} />
-                <span>提示词模板</span>
-              </summary>
-              <PromptTemplatesPanel templates={promptTemplates} />
-            </details>
-
-            <details className="settings-section settings-fold" id="settings-references" open>
-              <summary>
-                <ImageIcon size={15} />
-                <span>参考图</span>
-              </summary>
-              <ReferenceImagesPanel />
-            </details>
-
-            <details className="settings-section settings-fold" id="settings-maintenance">
-              <summary>
-                <DatabaseZap size={15} />
-                <span>维护操作</span>
-              </summary>
-              <div className="maintenance-stack">
-                <StorageMaintenancePanel />
-                <DataBackupPanel />
-              </div>
-            </details>
-
-            <details className="settings-section settings-fold" id="settings-audit" open>
-              <summary>
-                <FileClock size={15} />
-                <span>审计日志</span>
-              </summary>
-              <AuditLogPanel />
-            </details>
-          </div>
-        </div>
+            </>
+          }
+          templates={
+            <PromptTemplatesPanel templates={promptTemplates} />
+          }
+          references={
+            <ReferenceImagesPanel />
+          }
+          maintenance={
+            <div className="maintenance-stack">
+              <StorageMaintenancePanel />
+              <DataBackupPanel />
+            </div>
+          }
+          audit={
+            <AuditLogPanel />
+          }
+        />
       </main>
     </div>
   );

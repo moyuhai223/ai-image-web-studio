@@ -374,7 +374,7 @@ export function Workspace({
       size: String(formData.get("size") ?? ""),
       count: 1,
       status: "queued",
-      provider: "ai.zh.ci",
+      provider: "provider",
       provider_request_id: null,
       error_message: null,
       request_metadata: {
@@ -622,7 +622,7 @@ export function Workspace({
       <form className="panel generation-panel" onSubmit={submit}>
         <div className="panel-header">
           <h1 className="panel-title">生成图片</h1>
-          <span className="status">ai.zh.ci</span>
+          <span className="status">Provider</span>
         </div>
         <div className="panel-body generation-form">
           <section className="form-section prompt-section">

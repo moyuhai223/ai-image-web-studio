@@ -1,6 +1,11 @@
 const DEFAULT_GENERATION_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_TIME_ZONE = "Asia/Shanghai";
 
+function optionalUrlEnv(...values: Array<string | undefined>) {
+  const value = values.find((item) => typeof item === "string" && item.trim());
+  return value ? value.replace(/\/$/, "") : "";
+}
+
 function numberEnv(value: string | undefined, fallback: number, min = 1) {
   const parsed = Number(value ?? fallback);
   return Number.isFinite(parsed) && parsed >= min ? Math.trunc(parsed) : fallback;
@@ -10,8 +15,8 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL ?? "",
   authSecret: process.env.AUTH_SECRET ?? "dev-only-change-me",
   timeZone: process.env.APP_TIME_ZONE ?? process.env.TZ ?? DEFAULT_TIME_ZONE,
-  aiBaseUrl: (process.env.AI_ZH_CI_BASE_URL ?? "https://ai.zh.ci").replace(/\/$/, ""),
-  aiApiKey: process.env.AI_ZH_CI_API_KEY ?? "",
+  aiBaseUrl: optionalUrlEnv(process.env.PROVIDER_BASE_URL),
+  aiApiKey: process.env.PROVIDER_API_KEY ?? "",
   imageModelGpt: process.env.IMAGE_MODEL_GPT ?? "gpt-image-2",
   imageModelNano: process.env.IMAGE_MODEL_NANO_BANANA ?? "Nano Banana 2",
   storageRoot: process.env.LOCAL_STORAGE_ROOT ?? "./storage",

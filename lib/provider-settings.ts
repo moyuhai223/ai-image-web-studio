@@ -45,7 +45,7 @@ export function normalizeAiBaseUrl(value: unknown) {
 function defaultSettings(): StoredProviderSettings {
   return {
     version: 1,
-    aiBaseUrl: normalizeAiBaseUrl(config.aiBaseUrl)
+    aiBaseUrl: config.aiBaseUrl ? normalizeAiBaseUrl(config.aiBaseUrl) : ""
   };
 }
 
@@ -96,7 +96,11 @@ export async function getProviderSettings(): Promise<ProviderSettingsSummary> {
 }
 
 export async function getProviderBaseUrl() {
-  return (await getProviderSettings()).aiBaseUrl;
+  const baseUrl = (await getProviderSettings()).aiBaseUrl;
+  if (!baseUrl) {
+    throw new Error("Provider Base URL 未配置");
+  }
+  return baseUrl;
 }
 
 export async function setProviderBaseUrl(input: { aiBaseUrl: string; userId: string }) {
