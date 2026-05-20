@@ -9,6 +9,7 @@ import { JobControlButton } from "@/components/job-control-button";
 import { PageSelect } from "@/components/page-select";
 import { RecordsFilterMemory } from "@/components/records-filter-memory";
 import { RecordSelectCheckbox, RecordsBulkActions, RecordsSelectionProvider } from "@/components/records-bulk-actions";
+import { RecordsToolPanels } from "@/components/records-tool-panels";
 import { requireUser } from "@/lib/auth";
 import { generationStatusLabel } from "@/lib/generation-status";
 import { countJobs, listJobsPage, type JobListFilters } from "@/lib/repository";
@@ -134,6 +135,7 @@ export default async function RecordsPage({
   const jobs = await listJobsPage(user, page, PAGE_SIZE, filtersForQuery);
   const imageJobs = jobs.filter((job) => job.thumbnail_id);
   const filterCount = activeFilterCount(filtersForQuery);
+  const searchSummary = filtersForQuery.tag ? `#${filtersForQuery.tag}` : filterCount > 0 ? `已筛选 ${filterCount} 项` : "展开选项";
   const previousLightboxPageHref = page > 1 ? pageHref(page - 1, filterQuery, "last") : undefined;
   const nextLightboxPageHref = page < totalPages ? pageHref(page + 1, filterQuery, "first") : undefined;
   const lightboxItems: LightboxItem[] = imageJobs.map((job) => ({
@@ -157,14 +159,10 @@ export default async function RecordsPage({
           </div>
           <div className="panel-body">
             <RecordsSelectionProvider ids={jobs.map((job) => job.id)}>
-              <div className="record-tool-row">
-                <details className="record-tool-panel record-filter-panel" open={filterCount > 0}>
-                  <summary>
-                    <span>搜索</span>
-                    <span className="record-filter-summary-meta">
-                      {filtersForQuery.tag ? `#${filtersForQuery.tag}` : filterCount > 0 ? `已筛选 ${filterCount} 项` : "展开选项"}
-                    </span>
-                  </summary>
+              <RecordsToolPanels
+                searchSummary={searchSummary}
+                initialActive={filterCount > 0 ? "search" : null}
+                search={
                   <form className="record-filters" action="/records" method="get">
                     <div className="field">
                       <label htmlFor="record-q">关键词</label>
@@ -221,9 +219,9 @@ export default async function RecordsPage({
                       <a className="status" href="/records?reset=1">重置</a>
                     </div>
                   </form>
-                </details>
-                <RecordsBulkActions />
-              </div>
+                }
+                tags={<RecordsBulkActions />}
+              />
               <div className="records-grid">
                 {jobs.map((job) => {
                   const galleryIndex = job.thumbnail_id ? imageJobs.findIndex((imageJob) => imageJob.id === job.id) : 0;

@@ -32,7 +32,7 @@ type RecordsSelectionContextValue = {
 
 const RecordsSelectionContext = createContext<RecordsSelectionContextValue | null>(null);
 
-function useRecordsSelection() {
+export function useRecordsSelection() {
   const context = useContext(RecordsSelectionContext);
   if (!context) {
     throw new Error("Records selection context is missing");
@@ -102,7 +102,7 @@ export function RecordSelectCheckbox({ id }: { id: string }) {
 
 export function RecordsBulkActions() {
   const router = useRouter();
-  const { ids, selectedIds, selectedCount, allSelected, loading, setLoading, togglePage, clearSelection } = useRecordsSelection();
+  const { ids, selectedIds, selectedCount, allSelected, loading, setLoading, toggleId, togglePage, clearSelection } = useRecordsSelection();
   const [tags, setTags] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -110,6 +110,10 @@ export function RecordsBulkActions() {
 
   function selectedIdList() {
     return Array.from(selectedIds);
+  }
+
+  function clearSingle(id: string) {
+    toggleId(id, false);
   }
 
   useEffect(() => {
@@ -160,60 +164,68 @@ export function RecordsBulkActions() {
 
   return (
     <>
-      <details className="record-tool-panel records-bulk-panel">
-        <summary>
-          <span>
-            <Tags size={14} />
-            标签
-          </span>
-          <span className="record-filter-summary-meta">已选 {selectedCount}</span>
-        </summary>
-        <form id={RECORDS_BULK_FORM_ID} className="records-bulk-bar" onSubmit={(event) => event.preventDefault()}>
-          <div className="records-bulk-main">
-            <label className="toggle-field records-bulk-select-all">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                disabled={ids.length === 0 || loading}
-                onChange={(event) => togglePage(event.target.checked)}
-              />
-              <span>本页全选</span>
-            </label>
-            <span className="status">已选 {selectedCount}</span>
-            {message ? <span className="small muted">{message}</span> : null}
-            {error ? <span className="small failed-text">{error}</span> : null}
-          </div>
-          <div className="records-bulk-actions">
+      <form id={RECORDS_BULK_FORM_ID} className="records-bulk-bar" onSubmit={(event) => event.preventDefault()}>
+        <div className="records-bulk-main">
+          <label className="toggle-field records-bulk-select-all">
             <input
-              className="input"
-              value={tags}
-              disabled={loading}
-              placeholder="批量添加标签，逗号分隔"
-              onChange={(event) => setTags(event.target.value)}
+              type="checkbox"
+              checked={allSelected}
+              disabled={ids.length === 0 || loading}
+              onChange={(event) => togglePage(event.target.checked)}
             />
-            <button
-              className="button secondary"
-              type="button"
-              disabled={loading || selectedCount === 0 || !tags.trim()}
-              onClick={() => {
-                void runBulk("add_tags");
-              }}
-            >
-              <Tags size={16} />
-              加标签
+            <span>本页全选</span>
+          </label>
+          <span className="status">已选 {selectedCount}</span>
+          {selectedCount > 0 ? (
+            <button className="status" type="button" disabled={loading} onClick={clearSelection}>
+              清空选择
             </button>
-            <button
-              className="button danger"
-              type="button"
-              disabled={loading || selectedCount === 0}
-              onClick={() => setConfirmDeleteOpen(true)}
-            >
-              <Trash2 size={16} />
-              批量删除
-            </button>
+          ) : null}
+          {message ? <span className="small muted">{message}</span> : null}
+          {error ? <span className="small failed-text">{error}</span> : null}
+        </div>
+        {selectedCount > 0 ? (
+          <div className="records-selected-list" aria-label="已选择记录">
+            {Array.from(selectedIds).map((id) => (
+              <button className="record-selected-chip" type="button" key={id} disabled={loading} onClick={() => clearSingle(id)}>
+                {id.slice(0, 8)}
+                <span aria-hidden="true">×</span>
+              </button>
+            ))}
           </div>
-        </form>
-      </details>
+        ) : (
+          <p className="small muted records-selected-empty">勾选图片卡片左上角选择框，或点击本页全选后再取消不需要的记录。</p>
+        )}
+        <div className="records-bulk-actions">
+          <input
+            className="input"
+            value={tags}
+            disabled={loading}
+            placeholder="批量添加标签，逗号分隔"
+            onChange={(event) => setTags(event.target.value)}
+          />
+          <button
+            className="button secondary"
+            type="button"
+            disabled={loading || selectedCount === 0 || !tags.trim()}
+            onClick={() => {
+              void runBulk("add_tags");
+            }}
+          >
+            <Tags size={16} />
+            加标签
+          </button>
+          <button
+            className="button danger"
+            type="button"
+            disabled={loading || selectedCount === 0}
+            onClick={() => setConfirmDeleteOpen(true)}
+          >
+            <Trash2 size={16} />
+            批量删除
+          </button>
+        </div>
+      </form>
       <DangerConfirmDialog
         open={confirmDeleteOpen}
         title="确认批量删除"
