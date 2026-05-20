@@ -87,6 +87,7 @@ AUTH_SECRET=replace-with-a-long-random-secret
 TZ=Asia/Shanghai
 APP_TIME_ZONE=Asia/Shanghai
 NPM_REGISTRY=https://registry.npmmirror.com
+GITHUB_REPOSITORY_SLUG=moyuhai223/ai-image-web-studio
 AI_ZH_CI_BASE_URL=https://ai.zh.ci
 AI_ZH_CI_API_KEY=
 IMAGE_MODEL_GPT=gpt-image-2
@@ -108,6 +109,7 @@ GENERATION_TIMEOUT_MS=600000
 | `TZ` | 容器时区，默认 `Asia/Shanghai` |
 | `APP_TIME_ZONE` | 页面显示时区，默认 `Asia/Shanghai` |
 | `NPM_REGISTRY` | Docker 构建时 npm 镜像源，默认 `https://registry.npmmirror.com` |
+| `GITHUB_REPOSITORY_SLUG` | 检查更新使用的 GitHub 仓库，默认 `moyuhai223/ai-image-web-studio` |
 | `AI_ZH_CI_BASE_URL` | Provider 地址默认值，默认 `https://ai.zh.ci`；部署后也可在设置页“运行设置”里修改 |
 | `AI_ZH_CI_API_KEY` | 默认备用 API Key，设置页可继续添加多 Key |
 | `LOCAL_STORAGE_ROOT` | 图片、缩略图和备份包保存目录 |
@@ -184,6 +186,49 @@ postgres://用户名:密码@1Panel-postgresql-xxxx:5432/数据库名
 ```
 
 如果出现 `getaddrinfo ENOTFOUND PostgreSQL容器名`，通常是应用容器和数据库容器不在同一个 Docker 网络。
+
+## 在线更新
+
+项目支持 GitHub Release 更新流。
+
+### 发布新版本
+
+本地完成代码更新并推送后，打标签即可触发 GitHub Actions：
+
+```bash
+git tag v0.4.16
+git push origin v0.4.16
+```
+
+Actions 会自动：
+
+- 安装依赖
+- 执行 `npm run build`
+- 生成只包含最新版本的 1Panel 本地应用 zip
+- 创建或更新 GitHub Release
+- 上传 `ai-image-web-studio-1panel-local-app-v版本号.zip`
+
+### 检查更新
+
+管理员可在设置页“系统状态”里的“版本更新”卡片点击“检查更新”。
+
+卡片会显示：
+
+- 当前版本
+- GitHub 最新 Release
+- 是否有新版本
+- Release 页面链接
+- 1Panel zip 附件下载链接
+- 服务器更新命令提示
+
+源码部署的服务器可在项目目录执行：
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+1Panel 本地应用部署可下载最新 Release 附件里的 zip 后，在 1Panel 中手动导入更新。
 
 ## 上传文件说明
 

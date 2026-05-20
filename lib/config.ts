@@ -19,7 +19,8 @@ export const config = {
   maxGenerationConcurrency: numberEnv(process.env.MAX_GENERATION_CONCURRENCY, 2),
   maxGenerationQueueSize: numberEnv(process.env.MAX_GENERATION_QUEUE_SIZE, 20),
   dailyGenerationLimit: numberEnv(process.env.DAILY_GENERATION_LIMIT, 50, 0),
-  generationTimeoutMs: numberEnv(process.env.GENERATION_TIMEOUT_MS, DEFAULT_GENERATION_TIMEOUT_MS)
+  generationTimeoutMs: numberEnv(process.env.GENERATION_TIMEOUT_MS, DEFAULT_GENERATION_TIMEOUT_MS),
+  githubRepositorySlug: process.env.GITHUB_REPOSITORY_SLUG ?? "moyuhai223/ai-image-web-studio"
 };
 
 export function requireEnv(value: string, label: string) {

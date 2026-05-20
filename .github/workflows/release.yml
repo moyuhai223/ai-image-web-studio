@@ -1,0 +1,108 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            TAG="${GITHUB_REF_NAME}"
+          else
+            VERSION="$(node -p "require('./package.json').version")"
+            TAG="v${VERSION}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Build 1Panel local app package
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          APP_ROOT="release-build/ai-image-web-studio"
+          SOURCE="${APP_ROOT}/${VERSION}/source"
+          mkdir -p "${SOURCE}"
+
+          cp -R .claude app components lib public scripts "${SOURCE}/"
+          cp \
+            .dockerignore \
+            .env.example \
+            .gitignore \
+            CHANGELOG.md \
+            docker-compose.yml \
+            Dockerfile \
+            LICENSE \
+            next-env.d.ts \
+            next.config.mjs \
+            package-lock.json \
+            package.json \
+            README.md \
+            SECURITY.md \
+            tsconfig.json \
+            "${SOURCE}/"
+
+          (cd release-build && zip -qr "../ai-image-web-studio-1panel-local-app-v${VERSION}.zip" ai-image-web-studio)
+
+      - name: Extract release notes
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+
+          const version = process.env.VERSION;
+          const changelog = fs.readFileSync("CHANGELOG.md", "utf8");
+          const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const pattern = new RegExp(`## \\[${escaped}\\][\\s\\S]*?(?=\\n## \\[|$)`);
+          const match = changelog.match(pattern);
+          fs.writeFileSync(
+            "release-notes.md",
+            match ? match[0].trim() : `Release v${version}`
+          );
+          NODE
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          ASSET="ai-image-web-studio-1panel-local-app-v${VERSION}.zip"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" "${ASSET}" --clobber
+            gh release edit "${TAG}" --title "${TAG}" --notes-file release-notes.md
+          else
+            gh release create "${TAG}" "${ASSET}" --title "${TAG}" --notes-file release-notes.md
+          fi

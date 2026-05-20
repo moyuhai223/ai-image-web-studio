@@ -9,6 +9,7 @@ import { ProviderSettingsForm } from "@/components/provider-settings-form";
 import { ReferenceImagesPanel } from "@/components/reference-images-panel";
 import { StorageMaintenancePanel } from "@/components/storage-maintenance-panel";
 import { SystemHealthCard } from "@/components/system-health-card";
+import { UpdateCheckPanel } from "@/components/update-check-panel";
 import { UserSecurityPanel } from "@/components/user-security-panel";
 import { requireAdmin } from "@/lib/auth";
 import { query } from "@/lib/db";
@@ -76,6 +77,7 @@ export default async function SettingsPage() {
                 <span>系统状态</span>
               </summary>
               <SystemHealthCard health={health} />
+              <UpdateCheckPanel currentVersion={APP_VERSION_LABEL.replace(/^v/, "")} repository={config.githubRepositorySlug} />
               <section className="panel">
                 <div className="panel-header">
                   <h1 className="panel-title">运行设置</h1>

@@ -2,6 +2,19 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.4.16] - 2026-05-20
+
+### 新增
+
+- 新增 GitHub Actions Release 工作流，推送 `v*.*.*` 标签后自动构建并发布 1Panel 本地应用 zip。
+- 设置页新增“版本更新”卡片，可检查 GitHub 最新 Release、查看更新说明和下载附件。
+- 新增 `/api/update-check`，管理员可通过网页检查当前版本与 GitHub 最新版本。
+
+### 优化
+
+- 新增 `GITHUB_REPOSITORY_SLUG` 配置，默认指向 `moyuhai223/ai-image-web-studio`，方便 fork 后改为自己的仓库。
+- README 增加在线更新和 Release 发布说明。
+
 ## [0.4.15] - 2026-05-20
 
 ### 新增

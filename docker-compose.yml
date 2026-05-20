@@ -17,6 +17,7 @@ services:
       HOSTNAME: 0.0.0.0
       TZ: ${TZ:-Asia/Shanghai}
       APP_TIME_ZONE: ${APP_TIME_ZONE:-Asia/Shanghai}
+      GITHUB_REPOSITORY_SLUG: ${GITHUB_REPOSITORY_SLUG:-moyuhai223/ai-image-web-studio}
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to your existing 1Panel PostgreSQL connection string}
       AUTH_SECRET: ${AUTH_SECRET:-replace-with-a-long-random-secret}
       AI_ZH_CI_BASE_URL: ${AI_ZH_CI_BASE_URL:-https://ai.zh.ci}

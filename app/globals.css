@@ -2203,6 +2203,18 @@ button.status:hover {
   gap: 12px;
 }
 
+.code-block {
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 70%, var(--text) 4%);
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
 .storage-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
