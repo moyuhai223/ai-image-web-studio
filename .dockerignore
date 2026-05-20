@@ -2,6 +2,7 @@
 .env*.local
 .git/
 .github/
+.claude/
 .next/
 node_modules/
 npm-debug.log

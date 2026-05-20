@@ -2,6 +2,16 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.4.17] - 2026-05-20
+
+### 优化
+
+- 参照 `1panel-app-adapter` 的规则优先思路刷新 1Panel 本地应用包结构。
+- 新增可追踪的 `packaging/1panel` 模板，包含根 `data.yml`、版本级 `data.yml`、`source-evidence.json`、README、logo 和生命周期脚本。
+- Release 自动打包会同时输出版本根目录的 `docker-compose.yml`、`.env.sample` 和 `scripts/*.sh`，并保留 `source/` 源码构建方式。
+- `docker-compose.yml` 改用 `PANEL_APP_PORT_HTTP` 作为 1Panel 表单端口变量，并保留 `1panel-network` 外部网络。
+- 1Panel 包和 Docker 构建上下文排除 `.claude/` 本地工具配置，避免上传到公开包或仓库。
+
 ## [0.4.16] - 2026-05-20
 
 ### 新增

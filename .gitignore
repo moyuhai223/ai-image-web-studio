@@ -5,6 +5,7 @@
 
 .next/
 node_modules/
+.claude/
 coverage/
 dist/
 out/

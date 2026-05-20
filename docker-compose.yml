@@ -5,12 +5,14 @@ services:
       dockerfile: Dockerfile
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
-    container_name: ai-image-web-studio
+    container_name: ${CONTAINER_NAME:-ai-image-web-studio}
     restart: unless-stopped
+    labels:
+      createdBy: Apps
     networks:
       - 1panel-network
     ports:
-      - "${APP_PORT:-3100}:3000"
+      - "${PANEL_APP_PORT_HTTP:-3100}:3000"
     environment:
       NODE_ENV: production
       PORT: 3000

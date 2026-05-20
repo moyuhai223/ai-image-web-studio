@@ -37,6 +37,13 @@ AI Image Web Studio 是一个适合 3-5 人小团队部署的私有 AI 图片生
 
 本地应用包只保留最新版本目录，历史版本不再随 zip 一起上传，避免包体随着迭代持续变大。
 
+本地应用包参照 `1panel-app-adapter` 的结构刷新：
+
+- 应用根目录包含 `data.yml`、`README.md`、`logo.png` 和 `source-evidence.json`。
+- 版本目录包含 `data.yml`、`docker-compose.yml`、`.env.sample` 和 `scripts/*.sh`。
+- 版本目录仍保留 `source/` 源码，继续支持本地 Dockerfile 构建。
+- Compose 继续接入外部 `1panel-network`，方便连接已有 1Panel PostgreSQL 容器。
+
 ## 数据保存位置
 
 默认本地开发：
@@ -84,6 +91,7 @@ http://localhost:3000
 ```text
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/ai_image_web_studio
 AUTH_SECRET=replace-with-a-long-random-secret
+PANEL_APP_PORT_HTTP=3100
 TZ=Asia/Shanghai
 APP_TIME_ZONE=Asia/Shanghai
 NPM_REGISTRY=https://registry.npmmirror.com
@@ -106,6 +114,7 @@ GENERATION_TIMEOUT_MS=600000
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL 连接串 |
 | `AUTH_SECRET` | 登录 Cookie 签名密钥，生产环境必须使用长随机字符串 |
+| `PANEL_APP_PORT_HTTP` | Web 访问端口，默认 `3100` |
 | `TZ` | 容器时区，默认 `Asia/Shanghai` |
 | `APP_TIME_ZONE` | 页面显示时区，默认 `Asia/Shanghai` |
 | `NPM_REGISTRY` | Docker 构建时 npm 镜像源，默认 `https://registry.npmmirror.com` |
@@ -466,6 +475,7 @@ storage/              本地图片、缩略图、备份数据
 
 - 生产环境必须更换 `AUTH_SECRET`。
 - 不要把 `.env`、`storage/`、备份包提交到公开仓库。
+- 不要把 `.claude/` 等本地 AI 工具配置提交到公开仓库。
 - API Key 建议在设置页分多个 Key 管理，便于禁用和轮询。
 - 恢复备份前先确认没有运行中的任务。
 - 定期下载离线备份包。
@@ -479,6 +489,7 @@ storage/              本地图片、缩略图、备份数据
 建议提交源码前确认：
 
 - `.env` 没有进入 Git。
+- `.claude/` 等本地工具配置没有进入 Git。
 - `storage/` 没有进入 Git。
 - `1panel-local-app/` 和 zip 打包产物没有进入 Git。
 - 真实 API Key、数据库备份、生成图片和参考图没有进入 Git。

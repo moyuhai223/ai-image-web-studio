@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/moyuhai223/ai-image-web-studio",
+  "dockerDocs": "https://docs.docker.com/compose/",
+  "composeFile": "https://github.com/moyuhai223/ai-image-web-studio/blob/main/docker-compose.yml",
+  "adapterReference": "https://github.com/okxlin/1panel-app-adapter/blob/main/README.zh-CN.md",
+  "notes": "The local app package embeds the ai-image-web-studio source and builds it locally during 1Panel installation. Package metadata follows the rule-first adapter structure where practical while preserving source-based local builds."
+}

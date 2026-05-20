@@ -50,9 +50,22 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           APP_ROOT="release-build/ai-image-web-studio"
           SOURCE="${APP_ROOT}/${VERSION}/source"
-          mkdir -p "${SOURCE}"
+          mkdir -p "${SOURCE}" "${APP_ROOT}/${VERSION}/scripts"
 
-          cp -R .claude app components lib public scripts "${SOURCE}/"
+          cp \
+            packaging/1panel/data.yml \
+            packaging/1panel/README.md \
+            packaging/1panel/source-evidence.json \
+            packaging/1panel/logo.png \
+            "${APP_ROOT}/"
+
+          cp packaging/1panel/version-data.yml "${APP_ROOT}/${VERSION}/data.yml"
+          cp packaging/1panel/scripts/*.sh "${APP_ROOT}/${VERSION}/scripts/"
+          chmod +x "${APP_ROOT}/${VERSION}/scripts/"*.sh
+          cp docker-compose.yml "${APP_ROOT}/${VERSION}/docker-compose.yml"
+          cp .env.example "${APP_ROOT}/${VERSION}/.env.sample"
+
+          cp -R app components lib public scripts "${SOURCE}/"
           cp \
             .dockerignore \
             .env.example \

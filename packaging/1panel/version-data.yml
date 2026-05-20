@@ -1,0 +1,203 @@
+additionalProperties:
+  formFields:
+    - default: 3100
+      edit: true
+      envKey: PANEL_APP_PORT_HTTP
+      labelEn: Web Port
+      labelZh: Web 访问端口
+      label:
+        en: Web Port
+        zh: Web 访问端口
+        zh-Hant: Web 存取連接埠
+      required: true
+      rule: paramPort
+      type: number
+    - default: https://registry.npmmirror.com
+      edit: true
+      envKey: NPM_REGISTRY
+      labelEn: NPM Registry
+      labelZh: NPM 镜像源
+      label:
+        en: NPM Registry
+        zh: NPM 镜像源
+        zh-Hant: NPM 鏡像源
+      required: true
+      type: text
+    - default: Asia/Shanghai
+      edit: true
+      envKey: TZ
+      labelEn: Container Timezone
+      labelZh: 容器时区
+      label:
+        en: Container Timezone
+        zh: 容器时区
+        zh-Hant: 容器時區
+      required: true
+      type: text
+    - default: Asia/Shanghai
+      edit: true
+      envKey: APP_TIME_ZONE
+      labelEn: Display Timezone
+      labelZh: 页面显示时区
+      label:
+        en: Display Timezone
+        zh: 页面显示时区
+        zh-Hant: 頁面顯示時區
+      required: true
+      type: text
+    - default: moyuhai223/ai-image-web-studio
+      edit: true
+      envKey: GITHUB_REPOSITORY_SLUG
+      labelEn: GitHub Repository
+      labelZh: GitHub 仓库
+      label:
+        en: GitHub Repository
+        zh: GitHub 仓库
+        zh-Hant: GitHub 倉庫
+      required: true
+      type: text
+    - default: ""
+      edit: true
+      envKey: DATABASE_URL
+      labelEn: PostgreSQL Connection URL
+      labelZh: PostgreSQL 连接串
+      label:
+        en: PostgreSQL Connection URL
+        zh: PostgreSQL 连接串
+        zh-Hant: PostgreSQL 連線字串
+      required: true
+      type: text
+    - default: ""
+      edit: true
+      envKey: AUTH_SECRET
+      labelEn: Auth Secret
+      labelZh: 登录密钥
+      label:
+        en: Auth Secret
+        zh: 登录密钥
+        zh-Hant: 登入密鑰
+      required: true
+      random: true
+      rule: paramComplexity
+      type: password
+    - default: https://ai.zh.ci
+      edit: true
+      envKey: AI_ZH_CI_BASE_URL
+      labelEn: Provider Base URL
+      labelZh: Provider 地址
+      label:
+        en: Provider Base URL
+        zh: Provider 地址
+        zh-Hant: Provider 位址
+      required: true
+      type: text
+    - default: ""
+      edit: true
+      envKey: AI_ZH_CI_API_KEY
+      labelEn: Default API Key
+      labelZh: 默认 API Key
+      label:
+        en: Default API Key
+        zh: 默认 API Key
+        zh-Hant: 預設 API Key
+      required: true
+      type: password
+    - default: gpt-image-2
+      edit: true
+      envKey: IMAGE_MODEL_GPT
+      labelEn: GPT Image Model
+      labelZh: GPT 图片模型
+      label:
+        en: GPT Image Model
+        zh: GPT 图片模型
+        zh-Hant: GPT 圖片模型
+      required: true
+      type: text
+    - default: Nano Banana 2
+      edit: true
+      envKey: IMAGE_MODEL_NANO_BANANA
+      labelEn: Nano Banana Model
+      labelZh: Nano Banana 模型
+      label:
+        en: Nano Banana Model
+        zh: Nano Banana 模型
+        zh-Hant: Nano Banana 模型
+      required: true
+      type: text
+    - default: 20
+      edit: true
+      envKey: MAX_UPLOAD_MB
+      labelEn: Max Upload MB
+      labelZh: 最大上传 MB
+      label:
+        en: Max Upload MB
+        zh: 最大上传 MB
+        zh-Hant: 最大上傳 MB
+      required: true
+      type: number
+    - default: 2
+      edit: true
+      envKey: MAX_GENERATION_CONCURRENCY
+      labelEn: Generation Concurrency
+      labelZh: 生成并发数
+      label:
+        en: Generation Concurrency
+        zh: 生成并发数
+        zh-Hant: 生成併發數
+      required: true
+      type: number
+    - default: 20
+      edit: true
+      envKey: MAX_GENERATION_QUEUE_SIZE
+      labelEn: Queue Size
+      labelZh: 队列最大数量
+      label:
+        en: Queue Size
+        zh: 队列最大数量
+        zh-Hant: 佇列最大數量
+      required: true
+      type: number
+    - default: 50
+      edit: true
+      envKey: DAILY_GENERATION_LIMIT
+      labelEn: Daily Generation Limit
+      labelZh: 每日生成限制
+      label:
+        en: Daily Generation Limit
+        zh: 每日生成限制
+        zh-Hant: 每日生成限制
+      required: true
+      type: number
+    - default: 600000
+      edit: true
+      envKey: GENERATION_TIMEOUT_MS
+      labelEn: Generation Timeout MS
+      labelZh: 生成超时毫秒
+      label:
+        en: Generation Timeout MS
+        zh: 生成超时毫秒
+        zh-Hant: 生成逾時毫秒
+      required: true
+      type: number
+    - default: admin
+      edit: true
+      envKey: ADMIN_USERNAME
+      labelEn: Initial Admin Username
+      labelZh: 初始管理员账号
+      label:
+        en: Initial Admin Username
+        zh: 初始管理员账号
+        zh-Hant: 初始管理員帳號
+      required: true
+      type: text
+    - default: ""
+      edit: true
+      envKey: ADMIN_PASSWORD
+      labelEn: Initial Admin Password
+      labelZh: 初始管理员密码
+      label:
+        en: Initial Admin Password
+        zh: 初始管理员密码
+        zh-Hant: 初始管理員密碼
+      required: false
+      type: password

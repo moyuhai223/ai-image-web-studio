@@ -1,0 +1,25 @@
+name: AI Image Web Studio
+tags:
+  - AI
+title: AI Image Web Studio
+description: 小团队私有 AI 图片生成、参考图修图和生成记录管理工具。
+additionalProperties:
+  key: ai-image-web-studio
+  name: AI Image Web Studio
+  tags:
+    - AI
+  shortDescZh: 小团队私有 AI 图片生成工作台
+  shortDescEn: Private AI image generation workspace for small teams
+  description:
+    en: Private AI image generation, image editing, records, local storage, backups, and key rotation for small teams.
+    zh: 面向小团队的私有 AI 图片生成、参考图修图、生成记录、本地存储、备份和多 Key 轮询工作台。
+    zh-Hant: 面向小團隊的私有 AI 圖片生成、參考圖修圖、生成記錄、本地儲存、備份和多 Key 輪詢工作台。
+  type: tool
+  crossVersionUpdate: true
+  limit: 0
+  website: https://github.com/moyuhai223/ai-image-web-studio
+  github: https://github.com/moyuhai223/ai-image-web-studio
+  document: https://github.com/moyuhai223/ai-image-web-studio/blob/main/README.md
+  architectures:
+    - amd64
+    - arm64
