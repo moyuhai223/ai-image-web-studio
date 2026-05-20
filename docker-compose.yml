@@ -1,0 +1,44 @@
+services:
+  ai-image-web-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    container_name: ai-image-web-studio
+    restart: unless-stopped
+    networks:
+      - 1panel-network
+    ports:
+      - "${APP_PORT:-3100}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      TZ: ${TZ:-Asia/Shanghai}
+      APP_TIME_ZONE: ${APP_TIME_ZONE:-Asia/Shanghai}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to your existing 1Panel PostgreSQL connection string}
+      AUTH_SECRET: ${AUTH_SECRET:-replace-with-a-long-random-secret}
+      AI_ZH_CI_BASE_URL: ${AI_ZH_CI_BASE_URL:-https://ai.zh.ci}
+      AI_ZH_CI_API_KEY: ${AI_ZH_CI_API_KEY:?Set AI_ZH_CI_API_KEY in 1Panel env}
+      IMAGE_MODEL_GPT: ${IMAGE_MODEL_GPT:-gpt-image-2}
+      IMAGE_MODEL_NANO_BANANA: ${IMAGE_MODEL_NANO_BANANA:-Nano Banana 2}
+      LOCAL_STORAGE_ROOT: /app/storage
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}
+      MAX_GENERATION_CONCURRENCY: ${MAX_GENERATION_CONCURRENCY:-2}
+      MAX_GENERATION_QUEUE_SIZE: ${MAX_GENERATION_QUEUE_SIZE:-20}
+      DAILY_GENERATION_LIMIT: ${DAILY_GENERATION_LIMIT:-50}
+      GENERATION_TIMEOUT_MS: ${GENERATION_TIMEOUT_MS:-600000}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - ./storage:/app/storage
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+networks:
+  1panel-network:
+    external: true

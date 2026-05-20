@@ -1,0 +1,60 @@
+import { z } from "zod";
+import { config } from "./config";
+
+export const modelOptions = [
+  { label: "GPT Image 2", value: config.imageModelGpt },
+  { label: "Nano Banana 2", value: config.imageModelNano }
+];
+
+export const generateSchema = z.object({
+  prompt: z.string().trim().min(1, "请输入提示词").max(4000, "提示词太长"),
+  model: z.string().trim().min(1),
+  size: z.enum(["auto", "1024x1024", "1024x1824", "1824x1024", "1360x1024", "1024x1360"]),
+  count: z.coerce.number().int().min(1).max(4)
+});
+
+export const loginSchema = z.object({
+  username: z.string().trim().min(1),
+  password: z.string().min(1)
+});
+
+export const createUserSchema = z.object({
+  username: z.string().trim().min(2).max(64),
+  password: z.string().min(8).max(128),
+  role: z.enum(["admin", "member"])
+});
+
+export const updateUserSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("setActive"),
+    active: z.boolean()
+  }),
+  z.object({
+    action: z.literal("resetPassword"),
+    password: z.string().min(8).max(128)
+  }),
+  z.object({
+    action: z.literal("setRole"),
+    role: z.enum(["admin", "member"])
+  })
+]);
+
+export const promptTemplateSchema = z.object({
+  title: z.string().trim().min(1, "请输入模板名称").max(80, "模板名称太长"),
+  category: z.string().trim().max(40, "分类太长").default("通用"),
+  content: z.string().trim().min(1, "请输入模板内容").max(4000, "模板内容太长")
+});
+
+export const updatePromptTemplateSchema = promptTemplateSchema.extend({
+  id: z.string().uuid("模板 ID 无效")
+});
+
+export const deletePromptTemplateSchema = z.object({
+  id: z.string().uuid("模板 ID 无效")
+});
+
+export const allowedImageTypes = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpg"],
+  ["image/webp", "webp"]
+]);

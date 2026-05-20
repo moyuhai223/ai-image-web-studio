@@ -1,0 +1,11 @@
+.env
+.env*.local
+.next/
+node_modules/
+npm-debug.log
+storage/
+1panel-local-app/
+ai-image-web-studio-1panel-local-app.zip
+Dockerfile
+docker-compose*.yml
+README.md

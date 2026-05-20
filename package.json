@@ -1,0 +1,31 @@
+{
+  "name": "ai-image-web-studio",
+  "version": "0.4.15",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "start": "next start",
+    "db:init": "node scripts/init-db.mjs",
+    "db:migrate": "node scripts/init-db.mjs",
+    "user:create": "node scripts/create-admin.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "next": "^16.2.4",
+    "pg": "^8.13.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "sharp": "^0.34.5",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.3"
+  }
+}
