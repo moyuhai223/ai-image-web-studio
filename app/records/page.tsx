@@ -251,7 +251,10 @@ export default async function RecordsPage({
                       )}
                       <footer className="record-card-footer">
                         <div className="record-card-body">
-                          <span className={`status ${job.status}`}>{generationStatusLabel(job.status)}</span>
+                          <div className="record-card-status-row">
+                            <span className={`status ${job.status}`}>{generationStatusLabel(job.status)}</span>
+                            <a className="status" href={`/records/${job.id}`}>详情</a>
+                          </div>
                           {job.thumbnail_id ? (
                             <ImageTagsEditor imageId={job.thumbnail_id} initialTags={job.thumbnail_tags ?? job.tags ?? []} />
                           ) : null}
@@ -262,10 +265,12 @@ export default async function RecordsPage({
                           </div>
                         </div>
                         <div className="actions image-card-actions">
-                          <a className="status" href={rerunHref(job)}>
-                            <RefreshCcw size={13} />
-                            重做
-                          </a>
+                          {job.status === "failed" || job.status === "canceled" || job.status === "queued" || job.status === "running" ? null : (
+                            <a className="status" href={rerunHref(job)}>
+                              <RefreshCcw size={13} />
+                              重做
+                            </a>
+                          )}
                           {job.thumbnail_id ? (
                             <FavoriteImageButton imageId={job.thumbnail_id} initialFavorite={job.thumbnail_favorite ?? false} />
                           ) : null}
@@ -281,7 +286,6 @@ export default async function RecordsPage({
                           {job.status === "queued" || job.status === "running" ? (
                             <JobControlButton action="cancel" recordId={job.id} />
                           ) : null}
-                          <a className="status" href={`/records/${job.id}`}>详情</a>
                           {job.status === "queued" || job.status === "running" ? null : <DeleteRecordButton recordId={job.id} />}
                         </div>
                       </footer>

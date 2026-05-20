@@ -925,9 +925,13 @@ export function Workspace({
             {!historyLoading && historyLoaded && history.length === 0 ? <p className="muted small">还没有生成记录。</p> : null}
             {history.map((recent) => (
               <article className="history-item" key={recent.id}>
-                {recent.thumbnail_id && !recent.localOnly ? (
+                {!recent.localOnly ? (
                   <a className="thumb-link" href={`/records/${recent.id}`} aria-label="查看记录详情">
-                    <ImageWithSkeleton className="thumb" wrapperClassName="thumb-skeleton" src={imageThumbnailUrl(recent.thumbnail_id)} alt="" />
+                    {recent.thumbnail_id ? (
+                      <ImageWithSkeleton className="thumb" wrapperClassName="thumb-skeleton" src={imageThumbnailUrl(recent.thumbnail_id)} alt="" />
+                    ) : (
+                      <div className="thumb" />
+                    )}
                   </a>
                 ) : recent.thumbnail_id ? (
                   <ImageWithSkeleton className="thumb" wrapperClassName="thumb-skeleton" src={imageThumbnailUrl(recent.thumbnail_id)} alt="" />
@@ -944,9 +948,7 @@ export function Workspace({
                   <div className="actions">
                     {recent.localOnly ? (
                       <span className={`status ${recent.status}`}>{generationStatusLabel(recent.status)}</span>
-                    ) : (
-                      <a className="status" href={`/records/${recent.id}`}>详情</a>
-                    )}
+                    ) : null}
                     {!recent.localOnly && (recent.status === "failed" || recent.status === "canceled") ? (
                       <JobControlButton action="requeue" recordId={recent.id} onDone={refreshJobLists} />
                     ) : null}
@@ -965,10 +967,12 @@ export function Workspace({
                     {!recent.localOnly && recent.status !== "queued" && recent.status !== "running" ? (
                       <DeleteRecordButton recordId={recent.id} onDeleted={() => removeHistoryItem(recent.id)} />
                     ) : null}
-                    <button className="status" type="button" onClick={() => applyTaskParams(recent)} disabled={loading}>
-                      <RefreshCcw size={13} />
-                      重做
-                    </button>
+                    {recent.status === "failed" || recent.status === "canceled" || recent.status === "queued" || recent.status === "running" ? null : (
+                      <button className="status" type="button" onClick={() => applyTaskParams(recent)} disabled={loading}>
+                        <RefreshCcw size={13} />
+                        重做
+                      </button>
+                    )}
                   </div>
                 </div>
               </article>

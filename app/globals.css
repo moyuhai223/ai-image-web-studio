@@ -1266,12 +1266,41 @@ button.status:hover {
 }
 
 .image-card-actions {
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: auto;
+  align-items: center;
+}
+
+.image-card-actions .status {
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  padding-inline: 6px;
 }
 
 .record-card-footer {
   min-height: 154px;
+}
+
+.record-card-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding-bottom: 7px;
+  border-bottom: 1px solid color-mix(in srgb, var(--glass-border) 70%, transparent);
+}
+
+.record-card-status-row .status:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.record-card-status-row .status:last-child {
+  flex: 0 0 auto;
 }
 
 .record-card-prompt {
@@ -1551,36 +1580,18 @@ button.status:hover {
 }
 
 .history-item .actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: center;
   gap: 6px;
 }
 
 .history-item .actions .status {
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
   min-height: 28px;
-  padding: 0 9px;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .history-item .actions {
-    position: absolute;
-    right: 10px;
-    bottom: 10px;
-    left: 10px;
-    justify-content: flex-end;
-    padding-top: 24px;
-    background: linear-gradient(180deg, transparent, var(--glass-bg-strong) 45%);
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(4px);
-    transition: opacity 160ms ease, transform 160ms ease;
-  }
-
-  .history-item:hover .actions,
-  .history-item:focus-within .actions {
-    opacity: 1;
-    pointer-events: auto;
-    transform: translateY(0);
-  }
+  padding: 0 6px;
 }
 
 .muted {
@@ -3258,15 +3269,15 @@ button.status:hover {
 }
 
 .shell[data-theme="gallery"] .history-item .actions {
-  opacity: 0;
-  transform: translateY(4px);
+  opacity: 1;
+  transform: none;
   transition: opacity 160ms ease, transform 160ms ease;
 }
 
 .shell[data-theme="gallery"] .history-item:hover .actions,
 .shell[data-theme="gallery"] .history-item:focus-within .actions {
   opacity: 1;
-  transform: translateY(0);
+  transform: none;
 }
 
 .shell[data-theme="gallery"] .history-prompt {
