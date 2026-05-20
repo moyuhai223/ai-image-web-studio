@@ -1265,7 +1265,7 @@ button.status:hover {
   gap: 8px;
 }
 
-.image-card-actions {
+.actions.image-card-actions {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: auto;
@@ -1277,6 +1277,8 @@ button.status:hover {
   width: 100%;
   min-width: 0;
   padding-inline: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .record-card-footer {
