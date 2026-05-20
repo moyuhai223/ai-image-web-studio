@@ -10,6 +10,7 @@ export type GenerationRunInput = {
   size: string;
   count: number;
   referenceDataUrl?: string;
+  referenceDataUrls?: string[];
   parentImageId?: string;
 };
 
@@ -67,10 +68,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
-async function getReferenceInfo(requestMetadata: Record<string, unknown>) {
-  const reference = asRecord(requestMetadata.reference);
-  if (!reference) return {};
-
+async function referenceToDataUrl(reference: Record<string, unknown>) {
   const localPath = typeof reference.localPath === "string" ? reference.localPath : "";
   const mimeType = typeof reference.mimeType === "string" ? reference.mimeType : "";
   const sourceImageId = typeof reference.sourceImageId === "string" ? reference.sourceImageId : undefined;
@@ -78,8 +76,27 @@ async function getReferenceInfo(requestMetadata: Record<string, unknown>) {
 
   const file = await readStoredFile(localPath);
   return {
-    referenceDataUrl: `data:${mimeType};base64,${file.buffer.toString("base64")}`,
+    dataUrl: `data:${mimeType};base64,${file.buffer.toString("base64")}`,
     parentImageId: sourceImageId
+  };
+}
+
+async function getReferenceInfo(requestMetadata: Record<string, unknown>) {
+  const references = Array.isArray(requestMetadata.references)
+    ? requestMetadata.references.map(asRecord).filter((item): item is Record<string, unknown> => Boolean(item))
+    : [];
+  const legacyReference = asRecord(requestMetadata.reference);
+  const orderedReferences = references.length > 0 ? references : legacyReference ? [legacyReference] : [];
+  if (orderedReferences.length === 0) return {};
+
+  const loaded = await Promise.all(orderedReferences.map(referenceToDataUrl));
+  const referenceDataUrls = loaded.map((item) => item.dataUrl).filter((item): item is string => Boolean(item));
+  const parentImageId = loaded.find((item) => item.parentImageId)?.parentImageId;
+
+  return {
+    referenceDataUrl: referenceDataUrls[0],
+    referenceDataUrls,
+    parentImageId
   };
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, ImagePlus, Pencil, Play, RefreshCcw, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, ImagePlus, Pencil, Play, RefreshCcw, X } from "lucide-react";
 import { CopyPromptButton } from "./copy-prompt-button";
 import { DeleteRecordButton } from "./delete-record-button";
 import { FavoriteImageButton } from "./favorite-image-button";
@@ -39,12 +39,18 @@ type QueueSnapshot = {
   jobs: QueueJob[];
 };
 
-type ReferenceFileInfo = {
-  name: string;
-  byteSize: number;
-};
-
 type RecentReferenceImage = Pick<ReferenceImage, "id" | "byte_size">;
+
+type SelectedReference = {
+  key: string;
+  type: "upload" | "generated" | "library";
+  id?: string;
+  file?: File;
+  title: string;
+  detail: string;
+  imageSrc?: string;
+  objectUrl?: string;
+};
 
 type GenerateResponse = {
   job?: JobWithImages | null;
@@ -60,6 +66,7 @@ const countValues = new Set(["1", "2", "3", "4"]);
 const ACTIVE_QUEUE_POLL_MS = 3500;
 const IDLE_QUEUE_POLL_MS = 25000;
 const ACTIVE_JOB_POLL_MS = 1800;
+const MAX_REFERENCE_IMAGES = 4;
 
 const initialQueueSnapshot: QueueSnapshot = { queued: 0, running: 0, concurrency: 1, jobs: [] };
 function isTerminalStatus(status: GenerationJob["status"]) {
@@ -133,6 +140,16 @@ function formatFileSize(byteSize: number) {
   return `${(byteSize / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function referenceSourceLabel(type: SelectedReference["type"]) {
+  if (type === "upload") return "上传文件";
+  if (type === "generated") return "生成图";
+  return "参考图库";
+}
+
+function createReferenceKey(prefix: string) {
+  return `${prefix}:${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
+}
+
 function waitFor(ms: number, signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
     const timer = window.setTimeout(resolve, ms);
@@ -174,9 +191,7 @@ export function Workspace({
   const [size, setSize] = useState("auto");
   const [count, setCount] = useState("1");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [referenceImageId, setReferenceImageId] = useState("");
-  const [refImageId, setRefImageId] = useState("");
-  const [referenceFileInfo, setReferenceFileInfo] = useState<ReferenceFileInfo | null>(null);
+  const [selectedReferences, setSelectedReferences] = useState<SelectedReference[]>([]);
   const autoRunStarted = useRef(false);
   const mountedRef = useRef(false);
   const pollTokenRef = useRef(0);
@@ -188,37 +203,14 @@ export function Workspace({
   const recentControllerRef = useRef<AbortController | null>(null);
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
   const referenceFileInputRef = useRef<HTMLInputElement>(null);
+  const referenceObjectUrlsRef = useRef<Set<string>>(new Set());
 
   const activeJobs = useMemo(() => (batchJobs.length > 0 ? batchJobs : job ? [job] : []), [batchJobs, job]);
   const activeImages = useMemo(() => activeJobs.flatMap((currentJob) => currentJob.images), [activeJobs]);
   const activeLightboxItems = useMemo(() => activeImages.map(imageToLightboxItem), [activeImages]);
   const activeSummary = useMemo(() => summarizeJobs(activeJobs), [activeJobs]);
   const modelLabel = models.find((item) => item.value === model)?.label ?? model;
-  const referenceSummary = referenceFileInfo
-    ? {
-        title: "当前参考图",
-        source: "上传文件",
-        detail: `${referenceFileInfo.name} · ${formatFileSize(referenceFileInfo.byteSize)}`,
-        imageSrc: "",
-        icon: "upload"
-      }
-    : referenceImageId
-      ? {
-          title: "当前参考图",
-          source: "从生成图编辑",
-          detail: "将已生成图片作为修图参考",
-          imageSrc: imageThumbnailUrl(referenceImageId),
-          icon: "image"
-        }
-      : refImageId
-        ? {
-            title: "当前参考图",
-            source: "参考图库",
-            detail: "使用已保存的参考图",
-            imageSrc: `/api/reference-images/${refImageId}?thumb=1`,
-            icon: "image"
-          }
-        : null;
+  const referenceSummary = selectedReferences.length > 0 ? `${selectedReferences.length} 张参考图` : "无参考图";
 
   useEffect(() => {
     mountedRef.current = true;
@@ -251,11 +243,14 @@ export function Workspace({
     setSize(nextSize);
     setCount(nextCount);
 
+    const urlReferences: Array<{ type: "generated" | "library"; id: string }> = [];
     if (editImageId) {
-      setReferenceImageId(editImageId);
+      addGeneratedReference(editImageId);
+      urlReferences.push({ type: "generated", id: editImageId });
     }
     if (existingRefId) {
-      setRefImageId(existingRefId);
+      addLibraryReference(existingRefId);
+      urlReferences.push({ type: "library", id: existingRefId });
     }
 
     if (params.get("autorun") === "1" && nextPrompt && !autoRunStarted.current) {
@@ -265,8 +260,12 @@ export function Workspace({
       formData.set("model", nextModel);
       formData.set("size", nextSize);
       formData.set("count", nextCount);
-      if (editImageId) formData.set("referenceImageId", editImageId);
-      if (existingRefId) formData.set("existingRefId", existingRefId);
+      if (urlReferences.length > 0) {
+        formData.set("referenceItems", JSON.stringify(urlReferences));
+        for (const reference of urlReferences) {
+          formData.append(reference.type === "generated" ? "referenceImageIds" : "existingRefIds", reference.id);
+        }
+      }
       void startGeneration(formData);
     }
 
@@ -281,6 +280,8 @@ export function Workspace({
       pollControllerRef.current?.abort();
       queueControllerRef.current?.abort();
       recentControllerRef.current?.abort();
+      for (const url of referenceObjectUrlsRef.current) URL.revokeObjectURL(url);
+      referenceObjectUrlsRef.current.clear();
     };
   }, []);
 
@@ -451,7 +452,9 @@ export function Workspace({
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await startGeneration(new FormData(event.currentTarget));
+    const formData = new FormData(event.currentTarget);
+    appendSelectedReferences(formData);
+    await startGeneration(formData);
   }
 
   async function pollJobs(jobIds: string[]) {
@@ -520,9 +523,7 @@ export function Workspace({
   }
 
   function editFromImage(imageId: string) {
-    clearReferenceFile();
-    setRefImageId("");
-    setReferenceImageId(imageId);
+    addGeneratedReference(imageId);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -583,38 +584,140 @@ export function Workspace({
     selectTemplatePlaceholder(nextPrompt, prefix.length);
   }
 
-  function handleReferenceFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
-    if (file) {
-      setReferenceImageId("");
-      setRefImageId("");
-    }
-    setReferenceFileInfo(file ? { name: file.name, byteSize: file.size } : null);
+  function addSelectedReferences(nextReferences: SelectedReference[]) {
+    if (nextReferences.length === 0) return;
+    setSelectedReferences((current) => {
+      const next = [...current];
+      let skipped = 0;
+      for (const reference of nextReferences) {
+        if (next.some((item) => item.key === reference.key)) continue;
+        if (next.length >= MAX_REFERENCE_IMAGES) {
+          skipped += 1;
+          if (reference.objectUrl) {
+            URL.revokeObjectURL(reference.objectUrl);
+            referenceObjectUrlsRef.current.delete(reference.objectUrl);
+          }
+          continue;
+        }
+        next.push(reference);
+      }
+      if (skipped > 0) {
+        window.setTimeout(() => setError(`最多选择 ${MAX_REFERENCE_IMAGES} 张参考图，多余图片已忽略`), 0);
+      }
+      return next;
+    });
   }
 
-  function clearReferenceFile() {
+  function removeSelectedReference(key: string) {
+    setSelectedReferences((current) => {
+      const removed = current.find((item) => item.key === key);
+      if (removed?.objectUrl) {
+        URL.revokeObjectURL(removed.objectUrl);
+        referenceObjectUrlsRef.current.delete(removed.objectUrl);
+      }
+      return current.filter((item) => item.key !== key);
+    });
+  }
+
+  function clearAllReferences() {
+    setSelectedReferences((current) => {
+      for (const reference of current) {
+        if (reference.objectUrl) {
+          URL.revokeObjectURL(reference.objectUrl);
+          referenceObjectUrlsRef.current.delete(reference.objectUrl);
+        }
+      }
+      return [];
+    });
+  }
+
+  function moveSelectedReference(key: string, direction: -1 | 1) {
+    setSelectedReferences((current) => {
+      const index = current.findIndex((item) => item.key === key);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+      const next = [...current];
+      const [item] = next.splice(index, 1);
+      next.splice(nextIndex, 0, item);
+      return next;
+    });
+  }
+
+  function addGeneratedReference(imageId: string) {
+    addSelectedReferences([
+      {
+        key: `generated:${imageId}`,
+        type: "generated",
+        id: imageId,
+        title: "生成图参考",
+        detail: "将已生成图片作为修图参考",
+        imageSrc: imageThumbnailUrl(imageId)
+      }
+    ]);
+  }
+
+  function addLibraryReference(referenceId: string, byteSize?: number) {
+    addSelectedReferences([
+      {
+        key: `library:${referenceId}`,
+        type: "library",
+        id: referenceId,
+        title: "参考图库",
+        detail: byteSize ? formatFileSize(byteSize) : "使用已保存的参考图",
+        imageSrc: `/api/reference-images/${referenceId}?thumb=1`
+      }
+    ]);
+  }
+
+  function toggleLibraryReference(reference: RecentReferenceImage) {
+    const key = `library:${reference.id}`;
+    if (selectedReferences.some((item) => item.key === key)) {
+      removeSelectedReference(key);
+      return;
+    }
+    addLibraryReference(reference.id, reference.byte_size);
+  }
+
+  function handleReferenceFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.currentTarget.files ?? []);
+    const nextReferences = files.map((file) => {
+      const objectUrl = URL.createObjectURL(file);
+      referenceObjectUrlsRef.current.add(objectUrl);
+      return {
+        key: createReferenceKey("upload"),
+        type: "upload" as const,
+        file,
+        title: file.name,
+        detail: formatFileSize(file.size),
+        imageSrc: objectUrl,
+        objectUrl
+      };
+    });
+    addSelectedReferences(nextReferences);
     if (referenceFileInputRef.current) {
       referenceFileInputRef.current.value = "";
     }
-    setReferenceFileInfo(null);
   }
 
-  function selectReferenceImage(referenceId: string) {
-    clearReferenceFile();
-    setReferenceImageId("");
-    setRefImageId(referenceId);
-  }
-
-  function clearCurrentReference() {
-    if (referenceFileInfo) {
-      clearReferenceFile();
-      return;
+  function appendSelectedReferences(formData: FormData) {
+    const items: Array<{ type: "upload" | "generated" | "library"; id?: string; uploadIndex?: number }> = [];
+    let uploadIndex = 0;
+    for (const reference of selectedReferences) {
+      if (reference.type === "upload" && reference.file) {
+        formData.append("referenceImages", reference.file, reference.file.name);
+        items.push({ type: "upload", uploadIndex });
+        uploadIndex += 1;
+      } else if (reference.type === "generated" && reference.id) {
+        formData.append("referenceImageIds", reference.id);
+        items.push({ type: "generated", id: reference.id });
+      } else if (reference.type === "library" && reference.id) {
+        formData.append("existingRefIds", reference.id);
+        items.push({ type: "library", id: reference.id });
+      }
     }
-    if (referenceImageId) {
-      setReferenceImageId("");
-      return;
+    if (items.length > 0) {
+      formData.set("referenceItems", JSON.stringify(items));
     }
-    setRefImageId("");
   }
 
   return (
@@ -714,28 +817,29 @@ export function Workspace({
           <section className="form-section reference-section">
             <div className="form-section-title">
               <span>参考图</span>
-              <span className="small muted">上传文件优先</span>
+              <span className="small muted">最多 {MAX_REFERENCE_IMAGES} 张，首张为主参考</span>
             </div>
             <div className="reference-picker">
-              <label className={`reference-option upload-reference-option ${referenceFileInfo ? "selected" : ""}`} htmlFor="referenceImage">
+              <label
+                className={`reference-option upload-reference-option ${selectedReferences.some((reference) => reference.type === "upload") ? "selected" : ""}`}
+                htmlFor="referenceImage"
+              >
                 <span className="reference-option-thumb reference-upload-thumb">
                   <ImagePlus size={20} />
                 </span>
-                <span>{referenceFileInfo ? "已上传" : "上传参考"}</span>
-                <small>
-                  {referenceFileInfo ? `${referenceFileInfo.name} · ${formatFileSize(referenceFileInfo.byteSize)}` : "PNG / JPG / WebP"}
-                </small>
+                <span>上传参考</span>
+                <small>PNG / JPG / WebP，可多选</small>
               </label>
               {recentReferenceImages.map((reference, index) => (
                 <button
                   key={reference.id}
-                  className={`reference-option reference-option-image${refImageId === reference.id ? " selected" : ""}`}
+                  className={`reference-option reference-option-image${selectedReferences.some((item) => item.key === `library:${reference.id}`) ? " selected" : ""}`}
                   type="button"
-                  onClick={() => selectReferenceImage(reference.id)}
+                  onClick={() => toggleLibraryReference(reference)}
                 >
                   <img src={`/api/reference-images/${reference.id}?thumb=1`} alt="" />
                   <span>{index === 0 ? "最近参考" : `参考 ${index + 1}`}</span>
-                  <small>{refImageId === reference.id ? "已选择" : formatFileSize(reference.byte_size)}</small>
+                  <small>{selectedReferences.some((item) => item.key === `library:${reference.id}`) ? "已选择" : formatFileSize(reference.byte_size)}</small>
                 </button>
               ))}
             </div>
@@ -743,36 +847,59 @@ export function Workspace({
               ref={referenceFileInputRef}
               className="file-input"
               id="referenceImage"
-              name="referenceImage"
               type="file"
               accept="image/png,image/jpeg,image/webp"
+              multiple
               onChange={handleReferenceFileChange}
             />
             <div className="reference-selection-stack">
-              {referenceSummary ? (
-                <div className={`reference-chip current-reference-chip ${referenceSummary.icon === "upload" ? "upload-reference-chip" : ""}`}>
-                  {referenceSummary.imageSrc ? (
-                    <img src={referenceSummary.imageSrc} alt="" />
-                  ) : (
-                    <div className="reference-chip-icon">
-                      <ImagePlus size={20} />
+              {selectedReferences.length > 0 ? (
+                <>
+                  {selectedReferences.map((reference, index) => (
+                    <div
+                      className={`reference-chip current-reference-chip ${reference.type === "upload" ? "upload-reference-chip" : ""}`}
+                      key={reference.key}
+                    >
+                      {reference.imageSrc ? (
+                        <img src={reference.imageSrc} alt="" />
+                      ) : (
+                        <div className="reference-chip-icon">
+                          <ImagePlus size={20} />
+                        </div>
+                      )}
+                      <div>
+                        <div className="reference-chip-title-row">
+                          <strong>{index === 0 ? "主参考图" : `参考图 ${index + 1}`}</strong>
+                          <span className="status">{referenceSourceLabel(reference.type)}</span>
+                        </div>
+                        <p className="small muted">{reference.title} · {reference.detail}</p>
+                      </div>
+                      <div className="reference-chip-actions">
+                        <button className="status" type="button" disabled={index === 0} onClick={() => moveSelectedReference(reference.key, -1)}>
+                          <ArrowUp size={13} />
+                        </button>
+                        <button
+                          className="status"
+                          type="button"
+                          disabled={index === selectedReferences.length - 1}
+                          onClick={() => moveSelectedReference(reference.key, 1)}
+                        >
+                          <ArrowDown size={13} />
+                        </button>
+                        <button className="status" type="button" onClick={() => removeSelectedReference(reference.key)}>
+                          <X size={13} />
+                          移除
+                        </button>
+                      </div>
                     </div>
-                  )}
-                  <div>
-                    <div className="reference-chip-title-row">
-                      <strong>{referenceSummary.title}</strong>
-                      <span className="status">{referenceSummary.source}</span>
-                    </div>
-                    <p className="small muted">{referenceSummary.detail}</p>
-                  </div>
-                  <button className="status" type="button" onClick={clearCurrentReference}>
-                    <X size={13} />
-                    清除
+                  ))}
+                  <button className="status reference-clear-all" type="button" onClick={clearAllReferences}>
+                    清空参考图
                   </button>
-                </div>
-              ) : null}
-              {referenceImageId ? <input type="hidden" name="referenceImageId" value={referenceImageId} /> : null}
-              {refImageId ? <input type="hidden" name="existingRefId" value={refImageId} /> : null}
+                </>
+              ) : (
+                <p className="small muted reference-empty-copy">未选择参考图。可上传多张、选择最近参考图，或在图片卡片点击“编辑”加入参考图。</p>
+              )}
             </div>
           </section>
 
@@ -782,7 +909,7 @@ export function Workspace({
               <span>{modelLabel}</span>
               <span>{size}</span>
               <span>{count} 张</span>
-              <span>{referenceSummary ? `${referenceSummary.source}已选` : "无参考图"}</span>
+              <span>{referenceSummary}</span>
             </div>
             <button className="button" type="submit" disabled={loading}>
               <Play size={17} />
@@ -840,7 +967,9 @@ export function Workspace({
                       </div>
                       <p className="small muted">{activeSummary.percent}% · 已保存 {activeSummary.saved} / {activeSummary.total} 张</p>
                     </div>
-                  ) : null}
+                  ) : (
+                    null
+                  )}
                 </div>
               </div>
             ) : (

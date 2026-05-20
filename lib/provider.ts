@@ -37,6 +37,7 @@ type GenerateInput = {
   size: string;
   count: number;
   referenceDataUrl?: string;
+  referenceDataUrls?: string[];
 };
 
 const MAX_KEY_ATTEMPTS = 3;
@@ -173,6 +174,11 @@ function parseDataUrl(dataUrl: string) {
   };
 }
 
+function getReferenceDataUrls(input: GenerateInput) {
+  const values = input.referenceDataUrls?.length ? input.referenceDataUrls : input.referenceDataUrl ? [input.referenceDataUrl] : [];
+  return values.filter(Boolean);
+}
+
 function isTransientProviderError(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return [
@@ -271,18 +277,21 @@ function isGptImageModel(model: string) {
 }
 
 async function generateImageEdit(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
-  if (!input.referenceDataUrl) {
+  const referenceDataUrls = getReferenceDataUrls(input);
+  if (referenceDataUrls.length === 0) {
     throw new Error("Reference image is required for image edits");
   }
 
-  const reference = parseDataUrl(input.referenceDataUrl);
   const form = new FormData();
   form.set("model", input.model);
   form.set("prompt", input.prompt);
   form.set("size", input.size);
   form.set("n", String(input.count));
   form.set("response_format", "url");
-  form.set("image", new Blob([reference.buffer], { type: reference.mimeType }), "reference.png");
+  referenceDataUrls.forEach((dataUrl, index) => {
+    const reference = parseDataUrl(dataUrl);
+    form.append("image", new Blob([reference.buffer], { type: reference.mimeType }), `reference-${index + 1}.png`);
+  });
 
   const raw = await retryProvider("image edit generation", deadline, () => postForm("/v1/images/edits", form, apiKey, deadline, baseUrl));
   const normalized = normalizeImageGenerations(raw);
@@ -348,8 +357,8 @@ async function generateChatImage(input: GenerateInput, apiKey: string, deadline:
       text: `${input.prompt}\n\nTarget image size: ${input.size}. Keep the final image dimensions divisible by 16.`
     }
   ];
-  if (input.referenceDataUrl) {
-    content.push({ type: "image_url", image_url: { url: input.referenceDataUrl } });
+  for (const dataUrl of getReferenceDataUrls(input)) {
+    content.push({ type: "image_url", image_url: { url: dataUrl } });
   }
 
   const raw = await retryProvider("chat image generation", deadline, () =>
@@ -367,7 +376,7 @@ async function generateChatImage(input: GenerateInput, apiKey: string, deadline:
 }
 
 async function generateWithSelectedKey(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
-  if (input.referenceDataUrl) {
+  if (getReferenceDataUrls(input).length > 0) {
     try {
       return await generateImageEdit(input, apiKey, deadline, baseUrl);
     } catch (error) {

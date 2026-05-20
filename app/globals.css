@@ -2801,6 +2801,9 @@ button.status:hover {
 
 .reference-chip p {
   margin: 4px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .current-reference-chip {
@@ -2857,6 +2860,38 @@ button.status:hover {
   border-radius: 6px;
   background: color-mix(in srgb, var(--ok-bg) 64%, var(--panel));
   color: var(--ok);
+}
+
+.reference-chip-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reference-chip-actions .status {
+  min-width: 32px;
+  min-height: 30px;
+  justify-content: center;
+  padding-inline: 8px;
+}
+
+.reference-chip-actions .status:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.reference-clear-all {
+  justify-self: end;
+}
+
+.reference-empty-copy {
+  margin: 0;
+  padding: 10px;
+  border: 1px dashed color-mix(in srgb, var(--glass-border) 70%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--panel-2) 58%, transparent);
 }
 
 .flow-panel {
@@ -3732,6 +3767,15 @@ code {
 
   .reference-chip button {
     grid-column: 1 / -1;
+  }
+
+  .reference-chip-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .reference-chip-actions .status {
+    width: auto;
   }
 
   .key-row,

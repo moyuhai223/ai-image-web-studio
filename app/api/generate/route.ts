@@ -11,6 +11,84 @@ import { saveImageBuffer } from "@/lib/storage";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+const MAX_REFERENCE_IMAGES = 4;
+
+type ReferenceMetadata = {
+  localPath: string;
+  mimeType: string;
+  byteSize: number;
+  source: "upload" | "library" | "generated";
+  sourceImageId?: string;
+  referenceImageId?: string;
+};
+
+type ReferenceItem = {
+  type: "upload" | "library" | "generated";
+  id?: string;
+  uploadIndex?: number;
+};
+
+function parseReferenceItems(value: FormDataEntryValue | null): ReferenceItem[] {
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    const items = parsed
+      .map((item): ReferenceItem | null => {
+        if (!item || typeof item !== "object") return null;
+        const record = item as Record<string, unknown>;
+        if (record.type === "upload" && Number.isInteger(record.uploadIndex)) {
+          return { type: "upload", uploadIndex: Number(record.uploadIndex) } satisfies ReferenceItem;
+        }
+        if ((record.type === "library" || record.type === "generated") && typeof record.id === "string") {
+          return { type: record.type, id: record.id } satisfies ReferenceItem;
+        }
+        return null;
+      })
+      .filter((item): item is ReferenceItem => Boolean(item));
+    return items.slice(0, MAX_REFERENCE_IMAGES);
+  } catch {
+    return [];
+  }
+}
+
+async function saveReferenceFile(file: File, userId: string): Promise<ReferenceMetadata | NextResponse> {
+  if (!allowedImageTypes.has(file.type)) {
+    return NextResponse.json({ error: "参考图只支持 PNG、JPEG 或 WebP" }, { status: 400 });
+  }
+  if (file.size > config.maxUploadMb * 1024 * 1024) {
+    return NextResponse.json({ error: `参考图不能超过 ${config.maxUploadMb}MB` }, { status: 400 });
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const checksum = createHash("sha256").update(buffer).digest("hex");
+  const existing = await findReferenceByChecksum(checksum);
+  if (existing) {
+    return {
+      source: "upload",
+      referenceImageId: existing.id,
+      localPath: existing.local_path,
+      mimeType: existing.mime_type,
+      byteSize: existing.byte_size
+    };
+  }
+
+  const stored = await saveImageBuffer(buffer, file.type, "references", `${userId.slice(0, 8)}-ref-${randomUUID()}`);
+  const inserted = await query<{ id: string }>(
+    `insert into reference_images (user_id, local_path, mime_type, byte_size, checksum)
+     values ($1, $2, $3, $4, $5)
+     returning id`,
+    [userId, stored.relativePath, stored.mimeType, stored.byteSize, stored.checksum]
+  );
+  return {
+    source: "upload",
+    referenceImageId: inserted.rows[0]?.id,
+    localPath: stored.relativePath,
+    mimeType: stored.mimeType,
+    byteSize: stored.byteSize
+  };
+}
+
 export async function POST(request: Request) {
   const user = await requireUser();
   const formData = await request.formData();
@@ -47,55 +125,72 @@ export async function POST(request: Request) {
     }
   }
 
-  const referenceFile = formData.get("referenceImage");
-  const referenceImageId = formData.get("referenceImageId");
-  const existingRefId = formData.get("existingRefId");
-  let referenceMetadata: Record<string, unknown> | null = null;
-
-  if (referenceFile instanceof File && referenceFile.size > 0) {
-    if (!allowedImageTypes.has(referenceFile.type)) {
-      return NextResponse.json({ error: "参考图只支持 PNG、JPEG 或 WebP" }, { status: 400 });
-    }
-    if (referenceFile.size > config.maxUploadMb * 1024 * 1024) {
-      return NextResponse.json({ error: `参考图不能超过 ${config.maxUploadMb}MB` }, { status: 400 });
-    }
-    const buffer = Buffer.from(await referenceFile.arrayBuffer());
-    const checksum = createHash("sha256").update(buffer).digest("hex");
-    const existing = await findReferenceByChecksum(checksum);
-    if (existing) {
-      referenceMetadata = { localPath: existing.local_path, mimeType: existing.mime_type, byteSize: existing.byte_size };
-    } else {
-      const stored = await saveImageBuffer(buffer, referenceFile.type, "references", `${user.id.slice(0, 8)}-ref-${randomUUID()}`);
-      await query(
-        `insert into reference_images (user_id, local_path, mime_type, byte_size, checksum)
-         values ($1, $2, $3, $4, $5)`,
-        [user.id, stored.relativePath, stored.mimeType, stored.byteSize, stored.checksum]
-      );
-      referenceMetadata = { localPath: stored.relativePath, mimeType: stored.mimeType, byteSize: stored.byteSize };
-    }
-  } else if (typeof existingRefId === "string" && existingRefId.trim()) {
-    const refImage = await getReferenceImageById(existingRefId.trim());
-    if (!refImage || (user.role !== "admin" && refImage.user_id !== user.id)) {
-      return NextResponse.json({ error: "参考图不存在或无权访问" }, { status: 404 });
-    }
-    referenceMetadata = {
-      localPath: refImage.local_path,
-      mimeType: refImage.mime_type,
-      byteSize: refImage.byte_size
-    };
-  } else if (typeof referenceImageId === "string" && referenceImageId.trim()) {
-    const referenceImage = await getImageForUser(referenceImageId.trim(), user);
-    if (!referenceImage) {
-      return NextResponse.json({ error: "参考图不存在或无权访问" }, { status: 404 });
-    }
-
-    referenceMetadata = {
-      sourceImageId: referenceImage.id,
-      localPath: referenceImage.local_path,
-      mimeType: referenceImage.mime_type,
-      byteSize: referenceImage.byte_size
-    };
+  const uploadFiles = formData
+    .getAll("referenceImages")
+    .filter((value): value is File => value instanceof File && value.size > 0)
+    .slice(0, MAX_REFERENCE_IMAGES);
+  const legacyFile = formData.get("referenceImage");
+  if (legacyFile instanceof File && legacyFile.size > 0 && uploadFiles.length === 0) {
+    uploadFiles.push(legacyFile);
   }
+  const orderedItems = parseReferenceItems(formData.get("referenceItems"));
+  const fallbackItems: ReferenceItem[] =
+    orderedItems.length > 0
+      ? orderedItems
+      : [
+          ...uploadFiles.map((_, uploadIndex) => ({ type: "upload" as const, uploadIndex })),
+          ...formData.getAll("existingRefIds").map((id) => ({ type: "library" as const, id: String(id) })),
+          ...formData.getAll("referenceImageIds").map((id) => ({ type: "generated" as const, id: String(id) })),
+          ...(typeof formData.get("existingRefId") === "string" && String(formData.get("existingRefId")).trim()
+            ? [{ type: "library" as const, id: String(formData.get("existingRefId")) }]
+            : []),
+          ...(typeof formData.get("referenceImageId") === "string" && String(formData.get("referenceImageId")).trim()
+            ? [{ type: "generated" as const, id: String(formData.get("referenceImageId")) }]
+            : [])
+        ].slice(0, MAX_REFERENCE_IMAGES);
+
+  const references: ReferenceMetadata[] = [];
+  const seenReferencePaths = new Set<string>();
+  for (const item of fallbackItems) {
+    let reference: ReferenceMetadata | NextResponse | null = null;
+    if (item.type === "upload") {
+      const file = uploadFiles[item.uploadIndex ?? -1];
+      if (!file) continue;
+      reference = await saveReferenceFile(file, user.id);
+    } else if (item.type === "library" && item.id?.trim()) {
+      const refImage = await getReferenceImageById(item.id.trim());
+      if (!refImage || (user.role !== "admin" && refImage.user_id !== user.id)) {
+        return NextResponse.json({ error: "参考图不存在或无权访问" }, { status: 404 });
+      }
+      reference = {
+        source: "library",
+        referenceImageId: refImage.id,
+        localPath: refImage.local_path,
+        mimeType: refImage.mime_type,
+        byteSize: refImage.byte_size
+      };
+    } else if (item.type === "generated" && item.id?.trim()) {
+      const referenceImage = await getImageForUser(item.id.trim(), user);
+      if (!referenceImage) {
+        return NextResponse.json({ error: "参考图不存在或无权访问" }, { status: 404 });
+      }
+      reference = {
+        source: "generated",
+        sourceImageId: referenceImage.id,
+        localPath: referenceImage.local_path,
+        mimeType: referenceImage.mime_type,
+        byteSize: referenceImage.byte_size
+      };
+    }
+
+    if (reference instanceof NextResponse) return reference;
+    if (reference && !seenReferencePaths.has(reference.localPath)) {
+      seenReferencePaths.add(reference.localPath);
+      references.push(reference);
+    }
+    if (references.length >= MAX_REFERENCE_IMAGES) break;
+  }
+  const referenceMetadata = references[0] ?? null;
 
   const batchId = randomUUID();
   const now = new Date().toISOString();
@@ -120,6 +215,7 @@ export async function POST(request: Request) {
               total: requestedCount
             },
             reference: referenceMetadata,
+            references,
             progress: {
               phase: "queued",
               current: 0,

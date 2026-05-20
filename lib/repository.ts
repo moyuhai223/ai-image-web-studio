@@ -759,6 +759,11 @@ export async function listReferenceImagesWithUsage(page = 1, pageSize = 24) {
          from page_refs pr
          left join generation_jobs j
            on j.request_metadata -> 'reference' ->> 'localPath' = pr.local_path
+              or exists (
+                select 1
+                from jsonb_array_elements(coalesce(j.request_metadata -> 'references', '[]'::jsonb)) as ref(value)
+                where ref.value ->> 'localPath' = pr.local_path
+              )
        ),
        usage as (
          select
@@ -807,6 +812,11 @@ export async function listUnusedReferenceImages() {
      where not exists (
        select 1 from generation_jobs j
        where j.request_metadata -> 'reference' ->> 'localPath' = r.local_path
+          or exists (
+            select 1
+            from jsonb_array_elements(coalesce(j.request_metadata -> 'references', '[]'::jsonb)) as ref(value)
+            where ref.value ->> 'localPath' = r.local_path
+          )
      )`
   );
 }
@@ -874,6 +884,30 @@ export async function mergeDuplicateReferences() {
              to_jsonb($1::text)
            )
            where request_metadata -> 'reference' ->> 'localPath' = $2`,
+          [group.keep_path, dup.local_path]
+        );
+        await client.query(
+          `update generation_jobs j
+           set request_metadata = jsonb_set(
+             request_metadata,
+             '{references}',
+             (
+               select jsonb_agg(
+                 case
+                   when ref.value ->> 'localPath' = $2 then jsonb_set(ref.value, '{localPath}', to_jsonb($1::text), true)
+                   else ref.value
+                 end
+                 order by ref.ordinality
+               )
+               from jsonb_array_elements(coalesce(j.request_metadata -> 'references', '[]'::jsonb)) with ordinality ref(value, ordinality)
+             ),
+             true
+           )
+           where exists (
+             select 1
+             from jsonb_array_elements(coalesce(j.request_metadata -> 'references', '[]'::jsonb)) as ref(value)
+             where ref.value ->> 'localPath' = $2
+           )`,
           [group.keep_path, dup.local_path]
         );
 
