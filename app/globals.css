@@ -1625,15 +1625,22 @@ button.status:hover {
   gap: 14px;
 }
 
-.record-filter-panel {
+.record-tool-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
+  gap: 12px;
   margin-bottom: 16px;
+  align-items: start;
+}
+
+.record-tool-panel {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--panel) 72%, transparent);
   overflow: hidden;
 }
 
-.record-filter-panel summary {
+.record-tool-panel summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1645,11 +1652,18 @@ button.status:hover {
   list-style: none;
 }
 
-.record-filter-panel summary::-webkit-details-marker {
+.record-tool-panel summary span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.record-tool-panel summary::-webkit-details-marker {
   display: none;
 }
 
-.record-filter-panel summary::after {
+.record-tool-panel summary::after {
   content: "展开";
   flex: 0 0 auto;
   padding: 4px 10px;
@@ -1660,11 +1674,11 @@ button.status:hover {
   font-weight: 600;
 }
 
-.record-filter-panel[open] summary {
+.record-tool-panel[open] summary {
   border-bottom: 1px solid var(--glass-border);
 }
 
-.record-filter-panel[open] summary::after {
+.record-tool-panel[open] summary::after {
   content: "收起";
 }
 
@@ -1705,11 +1719,11 @@ button.status:hover {
   grid-template-columns: minmax(0, 1fr) minmax(260px, 0.9fr);
   gap: 12px;
   align-items: center;
-  margin: 0 0 16px;
+  margin: 0;
   padding: 10px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--panel) 74%, transparent);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -3632,6 +3646,7 @@ code {
     justify-content: flex-start;
   }
 
+  .record-tool-row,
   .records-bulk-bar,
   .backup-policy-grid,
   .audit-filter-grid,
