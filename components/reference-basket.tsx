@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { ArrowDown, ArrowUp, Check, ImagePlus, Send, Trash2, X } from "lucide-react";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
 
@@ -136,15 +137,20 @@ export function ReferenceBasketButton({
 export function ReferenceBasketTray() {
   const [items, setItems] = useReferenceBasket();
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const count = items.length;
   const hasItems = count > 0;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (count > 0) setOpen(true);
   }, [count]);
 
   const title = useMemo(() => `参考图 ${count}/${MAX_REFERENCE_BASKET_ITEMS}`, [count]);
-  if (!hasItems) return null;
+  if (!mounted || !hasItems) return null;
 
   function update(next: ReferenceBasketItem[]) {
     const normalized = writeReferenceBasketItems(next);
@@ -179,12 +185,8 @@ export function ReferenceBasketTray() {
     }
   }
 
-  return (
+  const tray = (
     <div className={`reference-basket-tray${open ? " open" : ""}`}>
-      <button className="reference-basket-toggle" type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-        <ImagePlus size={15} />
-        <span>{title}</span>
-      </button>
       {open ? (
         <div className="reference-basket-panel">
           <div className="reference-basket-head">
@@ -232,6 +234,12 @@ export function ReferenceBasketTray() {
           </div>
         </div>
       ) : null}
+      <button className="reference-basket-toggle" type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
+        <ImagePlus size={15} />
+        <span>{title}</span>
+      </button>
     </div>
   );
+
+  return createPortal(tray, document.body);
 }
