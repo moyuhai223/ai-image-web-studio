@@ -81,6 +81,7 @@ export function ImageLightbox({
   const [interaction, setInteraction] = useState<InteractionState>("idle");
   const [mode, setMode] = useState<LightboxMode>("single");
   const imageWrapRef = useRef<HTMLDivElement>(null);
+  const compareViewportRef = useRef<HTMLDivElement>(null);
   const filmstripRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const activePointers = useRef(new Map<number, PointerPoint>());
@@ -103,7 +104,7 @@ export function ImageLightbox({
   }
 
   function getFitMetrics(nextScale: number) {
-    const wrap = imageWrapRef.current;
+    const wrap = compareMode ? compareViewportRef.current : imageWrapRef.current;
     const naturalSize = naturalSizeRef.current;
     if (!wrap || naturalSize.width <= 0 || naturalSize.height <= 0) {
       return { overflowX: 0, overflowY: 0 };
@@ -206,14 +207,13 @@ export function ImageLightbox({
   }
 
   function setZoom(nextScale: number, focus?: PointerPoint) {
-    if (compareMode) return;
     const currentScale = scaleRef.current;
     const currentOffset = offsetRef.current;
     const clampedScale = clamp(nextScale, MIN_SCALE, MAX_SCALE);
     let nextOffset = currentOffset;
 
     if (focus && clampedScale !== currentScale) {
-      const wrap = imageWrapRef.current;
+      const wrap = compareMode ? compareViewportRef.current : imageWrapRef.current;
       const rect = wrap?.getBoundingClientRect();
       if (rect) {
         const centerX = focus.x - (rect.left + rect.width / 2);
@@ -296,6 +296,7 @@ export function ImageLightbox({
     reconcileView();
     const resizeObserver = new ResizeObserver(reconcileView);
     if (imageWrapRef.current) resizeObserver.observe(imageWrapRef.current);
+    if (compareViewportRef.current) resizeObserver.observe(compareViewportRef.current);
     imageWrapRef.current?.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKeyDown);
 
@@ -334,34 +335,28 @@ export function ImageLightbox({
           <div className="lightbox-backdrop" aria-hidden="true" />
           <div className="lightbox-stage">
             <div className="lightbox-toolbar" onClick={(event) => event.stopPropagation()}>
-              {compareMode ? null : (
-                <>
-                  <button
-                    className="lightbox-action"
-                    type="button"
-                    disabled={scale <= MIN_SCALE}
-                    onClick={() => setZoom(scaleRef.current / BUTTON_ZOOM_FACTOR)}
-                  >
-                    <ZoomOut size={18} />
-                    缩小
-                  </button>
-                  <span className="lightbox-meter">{Math.round(scale * 100)}%</span>
-                </>
-              )}
+              <button
+                className="lightbox-action"
+                type="button"
+                disabled={scale <= MIN_SCALE}
+                onClick={() => setZoom(scaleRef.current / BUTTON_ZOOM_FACTOR)}
+              >
+                <ZoomOut size={18} />
+                缩小
+              </button>
+              <span className="lightbox-meter">{Math.round(scale * 100)}%</span>
               {showNavigation ? (
                 <span className="lightbox-meter">{currentIndex + 1} / {galleryItems.length}</span>
               ) : null}
-              {compareMode ? null : (
-                <button
-                  className="lightbox-action"
-                  type="button"
-                  disabled={scale >= MAX_SCALE}
-                  onClick={() => setZoom(scaleRef.current * BUTTON_ZOOM_FACTOR)}
-                >
-                  <ZoomIn size={18} />
-                  放大
-                </button>
-              )}
+              <button
+                className="lightbox-action"
+                type="button"
+                disabled={scale >= MAX_SCALE}
+                onClick={() => setZoom(scaleRef.current * BUTTON_ZOOM_FACTOR)}
+              >
+                <ZoomIn size={18} />
+                放大
+              </button>
               {canCompare ? (
                 <button
                   className="lightbox-action"
@@ -456,18 +451,45 @@ export function ImageLightbox({
                 if (event.pointerType === "mouse") handlePointerEnd(event);
               }}
               style={{
-                cursor: compareMode ? "default" : scale > 1 ? (interaction === "panning" ? "grabbing" : "grab") : "zoom-in"
+                cursor: scale > 1 ? (interaction === "panning" ? "grabbing" : "grab") : "zoom-in"
               }}
             >
               {compareMode && currentItem.compare ? (
                 <div className="lightbox-compare-grid">
                   <figure className="lightbox-compare-pane">
                     <figcaption>{currentItem.compare.beforeLabel ?? "主修改图"}</figcaption>
-                    <img src={currentItem.compare.src} alt={currentItem.compare.alt} draggable={false} />
+                    <div ref={compareViewportRef} className="lightbox-compare-viewport">
+                      <img
+                        className={`lightbox-compare-image ${interaction !== "idle" ? "is-interacting" : ""}`}
+                        src={currentItem.compare.src}
+                        alt={currentItem.compare.alt}
+                        draggable={false}
+                        style={{
+                          transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})`
+                        }}
+                      />
+                    </div>
                   </figure>
                   <figure className="lightbox-compare-pane">
                     <figcaption>{currentItem.compare.afterLabel ?? "成品图"}</figcaption>
-                    <img src={currentItem.src} alt={currentItem.alt} draggable={false} />
+                    <div className="lightbox-compare-viewport">
+                      <img
+                        className={`lightbox-compare-image ${interaction !== "idle" ? "is-interacting" : ""}`}
+                        src={currentItem.src}
+                        alt={currentItem.alt}
+                        draggable={false}
+                        onLoad={(event) => {
+                          naturalSizeRef.current = {
+                            width: event.currentTarget.naturalWidth,
+                            height: event.currentTarget.naturalHeight
+                          };
+                          setView(scaleRef.current, offsetRef.current);
+                        }}
+                        style={{
+                          transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})`
+                        }}
+                      />
+                    </div>
                   </figure>
                 </div>
               ) : (
