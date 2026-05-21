@@ -230,7 +230,15 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
   const lightboxItems: LightboxItem[] = job.images.map((image) => ({
     src: `/api/images/${image.id}`,
     downloadHref: `/api/images/${image.id}/download`,
-    alt: "生成图片"
+    alt: "生成图片",
+    compare: image.parent_image_id
+      ? {
+          src: `/api/images/${image.parent_image_id}`,
+          alt: "主修改图",
+          beforeLabel: "主修改图",
+          afterLabel: "成品图"
+        }
+      : undefined
   }));
 
   return (
@@ -290,7 +298,10 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
                   <footer>
                     <div className="asset-card-head">
                       <span className="small muted">图片 #{index + 1}</span>
-                      <FavoriteImageButton imageId={image.id} initialFavorite={image.is_favorite ?? false} />
+                      <div className="asset-card-head-actions">
+                        {image.parent_image_id ? <span className="status compare-available">可对比</span> : null}
+                        <FavoriteImageButton imageId={image.id} initialFavorite={image.is_favorite ?? false} />
+                      </div>
                     </div>
                     <div className="asset-meta-grid">
                       <div>

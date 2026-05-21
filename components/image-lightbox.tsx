@@ -16,6 +16,12 @@ export type LightboxItem = {
   src: string;
   downloadHref: string;
   alt: string;
+  compare?: {
+    src: string;
+    alt: string;
+    beforeLabel?: string;
+    afterLabel?: string;
+  };
 };
 
 type PointerPoint = {
@@ -24,6 +30,7 @@ type PointerPoint = {
 };
 
 type InteractionState = "idle" | "panning" | "pinching";
+type LightboxMode = "single" | "compare";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -64,14 +71,15 @@ export function ImageLightbox({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const fallbackItem = { src, downloadHref, alt };
-  const galleryItems = items?.length ? items : [fallbackItem];
+  const fallbackItem: LightboxItem = { src, downloadHref, alt };
+  const galleryItems: LightboxItem[] = items?.length ? items : [fallbackItem];
   const safeInitialIndex = clamp(initialIndex, 0, galleryItems.length - 1);
   const [open, setOpen] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(safeInitialIndex);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState<PointerPoint>({ x: 0, y: 0 });
   const [interaction, setInteraction] = useState<InteractionState>("idle");
+  const [mode, setMode] = useState<LightboxMode>("single");
   const imageWrapRef = useRef<HTMLDivElement>(null);
   const filmstripRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -82,6 +90,8 @@ export function ImageLightbox({
   const panStart = useRef<{ pointerId: number; x: number; y: number; offset: PointerPoint } | null>(null);
   const pinchStart = useRef<{ distance: number; focus: PointerPoint; scale: number } | null>(null);
   const currentItem = galleryItems[currentIndex] ?? galleryItems[safeInitialIndex] ?? fallbackItem;
+  const canCompare = Boolean(currentItem.compare);
+  const compareMode = canCompare && mode === "compare";
   const canGoPrevious = currentIndex > 0 || Boolean(previousPageHref);
   const canGoNext = currentIndex < galleryItems.length - 1 || Boolean(nextPageHref);
   const showNavigation = galleryItems.length > 1 || Boolean(previousPageHref || nextPageHref);
@@ -156,16 +166,20 @@ export function ImageLightbox({
 
   function openLightbox() {
     const nextIndex = clamp(initialIndex, 0, galleryItems.length - 1);
+    const nextItem = galleryItems[nextIndex] ?? fallbackItem;
     naturalSizeRef.current = { width: 0, height: 0 };
     setCurrentIndex(nextIndex);
+    setMode(nextItem.compare ? "compare" : "single");
     resetView();
     setOpen(true);
   }
 
   function goToImage(nextIndex: number) {
     if (nextIndex < 0 || nextIndex >= galleryItems.length || nextIndex === currentIndex) return;
+    const nextItem = galleryItems[nextIndex] ?? fallbackItem;
     naturalSizeRef.current = { width: 0, height: 0 };
     setCurrentIndex(nextIndex);
+    setMode(nextItem.compare ? "compare" : "single");
     resetView();
   }
 
@@ -192,6 +206,7 @@ export function ImageLightbox({
   }
 
   function setZoom(nextScale: number, focus?: PointerPoint) {
+    if (compareMode) return;
     const currentScale = scaleRef.current;
     const currentOffset = offsetRef.current;
     const clampedScale = clamp(nextScale, MIN_SCALE, MAX_SCALE);
@@ -290,7 +305,7 @@ export function ImageLightbox({
       imageWrapRef.current?.removeEventListener("wheel", onWheel);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [currentIndex, galleryItems.length, nextPageHref, open, previousPageHref]);
+  }, [compareMode, currentIndex, galleryItems.length, nextPageHref, open, previousPageHref]);
 
   useEffect(() => {
     if (!autoOpen) return;
@@ -319,28 +334,46 @@ export function ImageLightbox({
           <div className="lightbox-backdrop" aria-hidden="true" />
           <div className="lightbox-stage">
             <div className="lightbox-toolbar" onClick={(event) => event.stopPropagation()}>
-              <button
-                className="lightbox-action"
-                type="button"
-                disabled={scale <= MIN_SCALE}
-                onClick={() => setZoom(scaleRef.current / BUTTON_ZOOM_FACTOR)}
-              >
-                <ZoomOut size={18} />
-                缩小
-              </button>
-              <span className="lightbox-meter">{Math.round(scale * 100)}%</span>
+              {compareMode ? null : (
+                <>
+                  <button
+                    className="lightbox-action"
+                    type="button"
+                    disabled={scale <= MIN_SCALE}
+                    onClick={() => setZoom(scaleRef.current / BUTTON_ZOOM_FACTOR)}
+                  >
+                    <ZoomOut size={18} />
+                    缩小
+                  </button>
+                  <span className="lightbox-meter">{Math.round(scale * 100)}%</span>
+                </>
+              )}
               {showNavigation ? (
                 <span className="lightbox-meter">{currentIndex + 1} / {galleryItems.length}</span>
               ) : null}
-              <button
-                className="lightbox-action"
-                type="button"
-                disabled={scale >= MAX_SCALE}
-                onClick={() => setZoom(scaleRef.current * BUTTON_ZOOM_FACTOR)}
-              >
-                <ZoomIn size={18} />
-                放大
-              </button>
+              {compareMode ? null : (
+                <button
+                  className="lightbox-action"
+                  type="button"
+                  disabled={scale >= MAX_SCALE}
+                  onClick={() => setZoom(scaleRef.current * BUTTON_ZOOM_FACTOR)}
+                >
+                  <ZoomIn size={18} />
+                  放大
+                </button>
+              )}
+              {canCompare ? (
+                <button
+                  className="lightbox-action"
+                  type="button"
+                  onClick={() => {
+                    resetView();
+                    setMode((value) => (value === "compare" ? "single" : "compare"));
+                  }}
+                >
+                  {compareMode ? "单图" : "对比"}
+                </button>
+              ) : null}
               <a className="lightbox-action" href={currentItem.downloadHref}>
                 <Download size={18} />
                 下载
@@ -423,29 +456,42 @@ export function ImageLightbox({
                 if (event.pointerType === "mouse") handlePointerEnd(event);
               }}
               style={{
-                cursor: scale > 1 ? (interaction === "panning" ? "grabbing" : "grab") : "zoom-in"
+                cursor: compareMode ? "default" : scale > 1 ? (interaction === "panning" ? "grabbing" : "grab") : "zoom-in"
               }}
             >
-              <div className="lightbox-image-canvas">
-                <img
-                  key={currentItem.src}
-                  ref={imageRef}
-                  className={`lightbox-image ${interaction !== "idle" ? "is-interacting" : ""}`}
-                  src={currentItem.src}
-                  alt={currentItem.alt}
-                  draggable={false}
-                  onLoad={(event) => {
-                    naturalSizeRef.current = {
-                      width: event.currentTarget.naturalWidth,
-                      height: event.currentTarget.naturalHeight
-                    };
-                    setView(scaleRef.current, offsetRef.current);
-                  }}
-                  style={{
-                    transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})`
-                  }}
-                />
-              </div>
+              {compareMode && currentItem.compare ? (
+                <div className="lightbox-compare-grid">
+                  <figure className="lightbox-compare-pane">
+                    <figcaption>{currentItem.compare.beforeLabel ?? "主修改图"}</figcaption>
+                    <img src={currentItem.compare.src} alt={currentItem.compare.alt} draggable={false} />
+                  </figure>
+                  <figure className="lightbox-compare-pane">
+                    <figcaption>{currentItem.compare.afterLabel ?? "成品图"}</figcaption>
+                    <img src={currentItem.src} alt={currentItem.alt} draggable={false} />
+                  </figure>
+                </div>
+              ) : (
+                <div className="lightbox-image-canvas">
+                  <img
+                    key={currentItem.src}
+                    ref={imageRef}
+                    className={`lightbox-image ${interaction !== "idle" ? "is-interacting" : ""}`}
+                    src={currentItem.src}
+                    alt={currentItem.alt}
+                    draggable={false}
+                    onLoad={(event) => {
+                      naturalSizeRef.current = {
+                        width: event.currentTarget.naturalWidth,
+                        height: event.currentTarget.naturalHeight
+                      };
+                      setView(scaleRef.current, offsetRef.current);
+                    }}
+                    style={{
+                      transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})`
+                    }}
+                  />
+                </div>
+              )}
               {showNavigation ? (
                 <>
                   <button
