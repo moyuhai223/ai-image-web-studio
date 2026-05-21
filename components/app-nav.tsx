@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Cloud, FileText, Heart, Image, LogOut, Settings, Table2 } from "lucide-react";
 import { JobNotificationCenter } from "./job-notification-center";
+import { ReferenceBasketTray } from "./reference-basket";
 import { ThemeModeSelect } from "./theme-mode-select";
 import type { User } from "@/lib/types";
 import type { UiThemeMode } from "@/lib/ui-theme-options";
@@ -48,6 +49,7 @@ export function AppNav({ user, themeMode }: { user: User; themeMode: UiThemeMode
         </form>
       </nav>
       <JobNotificationCenter />
+      <ReferenceBasketTray />
     </header>
   );
 }

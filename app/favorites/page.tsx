@@ -5,6 +5,7 @@ import { ImageLightbox, type LightboxItem } from "@/components/image-lightbox";
 import { ImageTagsEditor } from "@/components/image-tags-editor";
 import { ImageWithSkeleton } from "@/components/image-with-skeleton";
 import { PageSelect } from "@/components/page-select";
+import { ReferenceBasketButton } from "@/components/reference-basket";
 import { requireUser } from "@/lib/auth";
 import { generationStatusLabel } from "@/lib/generation-status";
 import { countFavoriteImages, listFavoriteImagesPage, type FavoriteImageFilters } from "@/lib/repository";
@@ -12,7 +13,6 @@ import { formatDateTime } from "@/lib/time";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import { modelOptions } from "@/lib/validation";
-import { Pencil } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -215,10 +215,7 @@ export default async function FavoritesPage({
                       <div className="actions image-card-actions">
                         <a className="status" href={`/records/${image.job_id}`}>详情</a>
                         <a className="status" href={rerunHref(image)}>重做</a>
-                        <a className="status" href={`/?referenceImageId=${image.id}`}>
-                          <Pencil size={13} />
-                          编辑
-                        </a>
+                        <ReferenceBasketButton imageId={image.id} prompt={image.job_prompt} />
                         <a className="status" href={`/api/images/${image.id}/download`}>下载</a>
                       </div>
                     </footer>

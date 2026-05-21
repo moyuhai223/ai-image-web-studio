@@ -10,6 +10,7 @@ import { ImageLightbox, type LightboxItem } from "./image-lightbox";
 import { ImageTagsEditor } from "./image-tags-editor";
 import { JobControlButton } from "./job-control-button";
 import { dispatchJobNotification } from "./job-notification-center";
+import { REFERENCE_BASKET_APPLY_EVENT, readReferenceBasketItems, ReferenceBasketButton, type ReferenceBasketItem } from "./reference-basket";
 import { generationStatusLabel } from "@/lib/generation-status";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
 import type { GeneratedImage, GenerationJob, JobWithImages, PromptTemplate, ReferenceImage } from "@/lib/types";
@@ -233,6 +234,7 @@ export function Workspace({
     const params = new URLSearchParams(window.location.search);
     const editImageId = params.get("referenceImageId");
     const existingRefId = params.get("refImageId");
+    const shouldImportBasket = params.get("basket") === "1";
     const nextPrompt = params.get("prompt") ?? "";
     const nextModel = normalizeModel(params.get("model"), models, model);
     const nextSize = normalizeSize(params.get("size"));
@@ -252,6 +254,15 @@ export function Workspace({
       addLibraryReference(existingRefId);
       urlReferences.push({ type: "library", id: existingRefId });
     }
+    if (shouldImportBasket) {
+      addBasketReferences(readReferenceBasketItems());
+    }
+
+    const handleBasketApply = () => {
+      addBasketReferences(readReferenceBasketItems());
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    window.addEventListener(REFERENCE_BASKET_APPLY_EVENT, handleBasketApply);
 
     if (params.get("autorun") === "1" && nextPrompt && !autoRunStarted.current) {
       autoRunStarted.current = true;
@@ -269,13 +280,14 @@ export function Workspace({
       void startGeneration(formData);
     }
 
-    if (editImageId || existingRefId || nextPrompt || params.get("autorun") === "1") {
+    if (editImageId || existingRefId || shouldImportBasket || nextPrompt || params.get("autorun") === "1") {
       window.history.replaceState(null, "", window.location.pathname);
     }
 
     return () => {
       mountedRef.current = false;
       clearQueueTimer();
+      window.removeEventListener(REFERENCE_BASKET_APPLY_EVENT, handleBasketApply);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       pollControllerRef.current?.abort();
       queueControllerRef.current?.abort();
@@ -654,6 +666,19 @@ export function Workspace({
         imageSrc: imageThumbnailUrl(imageId)
       }
     ]);
+  }
+
+  function addBasketReferences(items: ReferenceBasketItem[]) {
+    addSelectedReferences(
+      items.map((item, index) => ({
+        key: `generated:${item.imageId}`,
+        type: "generated" as const,
+        id: item.imageId,
+        title: index === 0 ? "图篮主参考图" : `图篮参考图 ${index + 1}`,
+        detail: item.prompt ? item.prompt : "从参考图篮导入",
+        imageSrc: imageThumbnailUrl(item.imageId)
+      }))
+    );
   }
 
   function addLibraryReference(referenceId: string, byteSize?: number) {
@@ -1085,10 +1110,7 @@ export function Workspace({
                       <JobControlButton action="cancel" recordId={recent.id} onDone={refreshJobLists} />
                     ) : null}
                     {recent.thumbnail_id ? (
-                      <a className="status" href={`/?referenceImageId=${recent.thumbnail_id}`}>
-                        <Pencil size={13} />
-                        编辑
-                      </a>
+                      <ReferenceBasketButton imageId={recent.thumbnail_id} prompt={recent.prompt} />
                     ) : null}
                     {!recent.localOnly && recent.thumbnail_id ? (
                       <FavoriteImageButton imageId={recent.thumbnail_id} initialFavorite={recent.thumbnail_favorite ?? false} />
@@ -1163,6 +1185,7 @@ function ImageCard({
         </div>
         <div className="actions image-card-actions">
           <FavoriteImageButton imageId={image.id} initialFavorite={image.is_favorite ?? false} />
+          <ReferenceBasketButton imageId={image.id} />
           <button className="status" type="button" onClick={() => onEdit(image.id)}>
             <Pencil size={13} />
             编辑

@@ -10,6 +10,7 @@ import { PageSelect } from "@/components/page-select";
 import { RecordsFilterMemory } from "@/components/records-filter-memory";
 import { RecordSelectCheckbox, RecordsBulkActions, RecordsSelectionProvider } from "@/components/records-bulk-actions";
 import { RecordsToolPanels } from "@/components/records-tool-panels";
+import { ReferenceBasketButton } from "@/components/reference-basket";
 import { requireUser } from "@/lib/auth";
 import { generationStatusLabel } from "@/lib/generation-status";
 import { countJobs, listJobsPage, type JobListFilters } from "@/lib/repository";
@@ -17,7 +18,7 @@ import { imageThumbnailUrl } from "@/lib/thumbnails";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import type { GenerationJob, GenerationStatus } from "@/lib/types";
 import { modelOptions } from "@/lib/validation";
-import { Pencil, RefreshCcw } from "lucide-react";
+import { RefreshCcw } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -275,10 +276,7 @@ export default async function RecordsPage({
                             <FavoriteImageButton imageId={job.thumbnail_id} initialFavorite={job.thumbnail_favorite ?? false} />
                           ) : null}
                           {job.thumbnail_id ? (
-                            <a className="status" href={`/?referenceImageId=${job.thumbnail_id}`}>
-                              <Pencil size={13} />
-                              编辑
-                            </a>
+                            <ReferenceBasketButton imageId={job.thumbnail_id} prompt={job.prompt} />
                           ) : null}
                           {job.status === "failed" || job.status === "canceled" ? (
                             <JobControlButton action="requeue" recordId={job.id} />

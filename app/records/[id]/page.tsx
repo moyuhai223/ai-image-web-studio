@@ -7,6 +7,7 @@ import { ImageWithSkeleton } from "@/components/image-with-skeleton";
 import { ImageLightbox, type LightboxItem } from "@/components/image-lightbox";
 import { ImageTagsEditor } from "@/components/image-tags-editor";
 import { JobControlButton } from "@/components/job-control-button";
+import { ReferenceBasketButton } from "@/components/reference-basket";
 import { requireUser } from "@/lib/auth";
 import { generationStatusLabel } from "@/lib/generation-status";
 import { getJobById, listImageVersionChainForJob } from "@/lib/repository";
@@ -321,6 +322,7 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
                       <ImageTagsEditor imageId={image.id} initialTags={image.tags ?? []} />
                     </div>
                     <div className="actions image-card-actions">
+                      <ReferenceBasketButton imageId={image.id} prompt={job.prompt} />
                       <a className="status" href={`/?referenceImageId=${image.id}`}>
                         <Pencil size={13} />
                         编辑
