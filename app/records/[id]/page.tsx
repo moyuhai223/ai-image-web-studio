@@ -43,29 +43,115 @@ function progressTailLeft(percent: number) {
   return `${Math.min(99, Math.max(0, percent))}%`;
 }
 
+function phaseIn(phase: string | undefined, phases: string[]) {
+  return Boolean(phase && phases.includes(phase));
+}
+
+function referenceCountForJob(job: JobWithImages) {
+  const references = job.request_metadata?.references;
+  if (Array.isArray(references) && references.length > 0) return references.length;
+  const reference = job.request_metadata?.reference;
+  return reference && typeof reference === "object" ? 1 : 0;
+}
+
 function getFlowSteps(job: JobWithImages): FlowStep[] {
   const phase = job.progress?.phase;
+  const message = job.progress?.message ?? job.error_message ?? "";
   const savedCount = job.images.length;
   const hasSavedImages = savedCount > 0;
+  const referenceCount = referenceCountForJob(job);
   const isFinished = job.status === "succeeded";
   const isFailed = job.status === "failed";
   const isCanceled = job.status === "canceled";
+  const isQueued = job.status === "queued";
+  const referenceFailed = isFailed && (message.includes("参考图") || message.includes("任务参数"));
+  const submitFailed = isFailed && (message.includes("提交模型") || message.includes("等待模型"));
+  const receiveFailed = isFailed && (message.includes("读取模型返回") || message.includes("等待模型") || message.includes("模型"));
+  const saveFailed = isFailed && (message.includes("保存图片") || message.includes("写入图片"));
+  const referencesReady =
+    phaseIn(phase, ["references_ready", "submitting", "requesting", "provider_returned", "downloading", "saving", "saved", "succeeded"]) ||
+    isFinished ||
+    hasSavedImages ||
+    (isFailed && !referenceFailed);
+  const modelReturned = phaseIn(phase, ["provider_returned", "downloading", "saving", "saved", "succeeded"]) || isFinished || hasSavedImages;
 
   return [
     {
       title: "创建任务",
-      detail: "任务已写入数据库",
+      detail: isQueued ? "任务已写入数据库，等待后台 worker" : "任务已写入数据库",
       state: "done"
     },
     {
-      title: "请求模型",
-      detail: isCanceled ? job.progress?.message ?? "任务已取消" : phase === "requesting" || phase === "queued" ? job.progress?.message ?? "正在等待模型返回" : isFinished || hasSavedImages ? "模型已返回图片" : isFailed ? "模型请求或返回处理失败" : "正在等待模型返回",
-      state: isCanceled ? "canceled" : ["downloading", "saving", "saved", "succeeded"].includes(phase ?? "") || isFinished || hasSavedImages ? "done" : isFailed ? "failed" : "active"
+      title: "读取参考图",
+      detail: isCanceled
+        ? "任务已取消"
+        : referenceFailed
+          ? message
+          : phase === "loading_references"
+            ? referenceCount > 0
+              ? `正在读取并编码参考图（${referenceCount} 张）`
+              : "正在读取任务参数"
+            : referencesReady
+              ? referenceCount > 0
+                ? `参考图已准备完成（${referenceCount} 张）`
+                : "无参考图，跳过读取参考图"
+              : referenceCount > 0
+                ? `等待读取参考图（${referenceCount} 张）`
+                : "等待读取任务参数",
+      state: isCanceled ? "canceled" : referenceFailed ? "failed" : referencesReady ? "done" : phase === "loading_references" ? "active" : "pending"
+    },
+    {
+      title: "提交模型",
+      detail: isCanceled
+        ? job.progress?.message ?? "任务已取消"
+        : submitFailed
+          ? message
+          : phaseIn(phase, ["submitting", "requesting"])
+            ? job.progress?.message ?? "请求已提交，等待模型返回"
+            : modelReturned
+              ? "模型请求已提交并返回"
+              : "等待参考图准备完成后提交",
+      state: isCanceled ? "canceled" : submitFailed ? "failed" : modelReturned ? "done" : phaseIn(phase, ["submitting", "requesting"]) ? "active" : "pending"
+    },
+    {
+      title: "接收结果",
+      detail: isCanceled
+        ? "任务已取消"
+        : receiveFailed && !hasSavedImages
+          ? message
+          : saveFailed
+            ? "已收到模型返回图片"
+            : phaseIn(phase, ["provider_returned", "downloading"])
+            ? job.progress?.message ?? "模型已返回，正在读取图片"
+            : phaseIn(phase, ["saving", "saved", "succeeded"]) || hasSavedImages
+              ? "已收到模型返回图片"
+              : "等待模型返回图片",
+      state: isCanceled
+        ? "canceled"
+        : receiveFailed && !hasSavedImages
+          ? "failed"
+          : saveFailed || phaseIn(phase, ["saving", "saved", "succeeded"]) || hasSavedImages || isFinished
+            ? "done"
+            : phaseIn(phase, ["provider_returned", "downloading"])
+              ? "active"
+              : "pending"
     },
     {
       title: "保存图片",
-      detail: isCanceled ? (hasSavedImages ? `取消前已保存 ${savedCount}/${job.count} 张` : "任务取消后未保存新图片") : ["downloading", "saving", "saved"].includes(phase ?? "") ? job.progress?.message ?? `已保存 ${savedCount}/${job.count} 张到本地` : hasSavedImages ? `已保存 ${savedCount}/${job.count} 张到本地` : isFailed ? "未保存成功图片" : "等待图片返回后保存",
-      state: isFinished ? "done" : isCanceled ? "canceled" : isFailed && !hasSavedImages ? "failed" : ["downloading", "saving", "saved"].includes(phase ?? "") || hasSavedImages ? "active" : "pending"
+      detail: isCanceled
+        ? hasSavedImages
+          ? `取消前已保存 ${savedCount}/${job.count} 张`
+          : "任务取消后未保存新图片"
+        : saveFailed
+          ? message
+          : phaseIn(phase, ["saving", "saved"])
+            ? job.progress?.message ?? `已保存 ${savedCount}/${job.count} 张到本地`
+            : hasSavedImages
+              ? `已保存 ${savedCount}/${job.count} 张到本地`
+              : isFailed
+                ? "未保存成功图片"
+                : "等待图片返回后保存",
+      state: isFinished || hasSavedImages ? "done" : isCanceled ? "canceled" : saveFailed || (isFailed && !hasSavedImages && modelReturned) ? "failed" : phaseIn(phase, ["saving", "saved"]) ? "active" : "pending"
     },
     {
       title: "完成任务",

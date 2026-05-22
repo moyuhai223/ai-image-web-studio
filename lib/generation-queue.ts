@@ -36,7 +36,7 @@ function concurrencyLimit() {
 }
 
 function timeoutMessage() {
-  return `模型请求超过 ${Math.round(config.generationTimeoutMs / 60000)} 分钟未返回，已自动判定失败`;
+  return `等待模型返回失败：模型请求超过 ${Math.round(config.generationTimeoutMs / 60000)} 分钟未返回，已自动判定失败`;
 }
 
 function slowWarningMs() {
@@ -66,7 +66,7 @@ async function warnSlowRunningJobs() {
          updated_at = now()
      from params
      where status = 'running'
-       and request_metadata #>> '{progress,phase}' = 'requesting'
+       and request_metadata #>> '{progress,phase}' in ('requesting', 'submitting')
        and request_metadata #>> '{progress,requestStartedAt}' is not null
        and request_metadata #>> '{progress,slowNotifiedAt}' is null
        and (request_metadata #>> '{progress,requestStartedAt}')::timestamptz < now() - (params.warning_ms * interval '1 millisecond')
@@ -105,7 +105,7 @@ async function failTimedOutRunningJobs() {
      where status = 'running'
        and (
          case
-           when request_metadata #>> '{progress,phase}' = 'requesting'
+           when request_metadata #>> '{progress,phase}' in ('requesting', 'submitting')
              then coalesce(
                (nullif(request_metadata #>> '{progress,requestStartedAt}', ''))::timestamptz,
                updated_at,

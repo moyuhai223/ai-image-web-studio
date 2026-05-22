@@ -12,7 +12,19 @@ export type User = {
 export type GenerationStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
 
 export type GenerationProgress = {
-  phase: "queued" | "requesting" | "downloading" | "saving" | "saved" | "succeeded" | "failed" | "canceled";
+  phase:
+    | "queued"
+    | "loading_references"
+    | "references_ready"
+    | "submitting"
+    | "requesting"
+    | "provider_returned"
+    | "downloading"
+    | "saving"
+    | "saved"
+    | "succeeded"
+    | "failed"
+    | "canceled";
   current: number;
   total: number;
   percent: number;

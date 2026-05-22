@@ -31,6 +31,15 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "生成失败";
 }
 
+function stageErrorMessage(stage: string, error: unknown) {
+  return `${stage}失败：${errorMessage(error)}`;
+}
+
+function referenceCount(input: GenerationRunInput) {
+  if (input.referenceDataUrls?.length) return input.referenceDataUrls.length;
+  return input.referenceDataUrl ? 1 : 0;
+}
+
 function sanitizeProviderMetadata(value: unknown): unknown {
   if (typeof value === "string") {
     if (value.startsWith("data:image/")) return "[image data omitted]";
@@ -217,14 +226,15 @@ async function markSucceeded(
   if (!result.rows[0]) throw new JobCanceledError();
 }
 
-async function markFailed(jobId: string, runId: string, input: GenerationRunInput, providerResults: unknown[], error: unknown) {
+async function markFailed(jobId: string, runId: string, input: GenerationRunInput, providerResults: unknown[], error: unknown, stage: string) {
   const raw = sanitizeProviderMetadata((error as Error & { raw?: unknown }).raw ?? null);
+  const message = stageErrorMessage(stage, error);
   const failedProgress = progress({
     phase: "failed",
     current: providerResults.length,
     total: input.count,
     percent: providerResults.length > 0 ? Math.min(95, Math.round((providerResults.length / input.count) * 90)) : 35,
-    message: errorMessage(error)
+    message
   });
 
   await query(
@@ -239,17 +249,18 @@ async function markFailed(jobId: string, runId: string, input: GenerationRunInpu
      where id = $1
        and status = 'running'
        and request_metadata #>> '{control,runId}' = $5`,
-    [jobId, errorMessage(error), raw, failedProgress, runId]
+    [jobId, message, raw, failedProgress, runId]
   );
 }
 
-async function markFailedBeforeInput(jobId: string, runId: string, error: unknown) {
+async function markFailedBeforeInput(jobId: string, runId: string, error: unknown, stage: string) {
+  const message = stageErrorMessage(stage, error);
   const failedProgress = progress({
     phase: "failed",
     current: 0,
     total: 1,
     percent: 35,
-    message: errorMessage(error)
+    message
   });
 
   await query(
@@ -264,7 +275,7 @@ async function markFailedBeforeInput(jobId: string, runId: string, error: unknow
      where id = $1
        and status = 'running'
        and request_metadata #>> '{control,runId}' = $5`,
-    [jobId, errorMessage(error), sanitizeProviderMetadata((error as Error & { raw?: unknown }).raw ?? null), failedProgress, runId]
+    [jobId, message, sanitizeProviderMetadata((error as Error & { raw?: unknown }).raw ?? null), failedProgress, runId]
   );
 }
 
@@ -272,6 +283,7 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
   let input: GenerationRunInput | null = null;
   const providerResults = [];
   const runId = claimedRunId ?? randomUUID();
+  let failureStage = "读取任务参数";
 
   try {
     if (!claimedRunId) {
@@ -280,39 +292,71 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
       await assertActiveRun(jobId, runId);
     }
 
-    input = await loadGenerationInput(jobId);
     await updateProgress(
       jobId,
       runId,
       progress({
-        phase: "requesting",
+        phase: "loading_references",
+        current: 0,
+        total: 1,
+        percent: 8,
+        message: "正在读取任务参数和参考图"
+      })
+    );
+    failureStage = "读取任务参数和参考图";
+    input = await loadGenerationInput(jobId);
+    const totalReferences = referenceCount(input);
+    failureStage = "提交模型前准备";
+    await updateProgress(
+      jobId,
+      runId,
+      progress({
+        phase: "references_ready",
         current: 0,
         total: input.count,
-        percent: 10,
-        message: "后台任务已启动，准备请求模型"
+        percent: 12,
+        message: totalReferences > 0 ? `参考图已准备完成（${totalReferences} 张），准备提交模型` : "无参考图，准备提交模型"
       })
     );
 
     for (let index = 0; index < input.count; index += 1) {
       const current = index + 1;
       const requestStartedAt = new Date().toISOString();
+      failureStage = "提交模型请求";
       await updateProgress(
         jobId,
         runId,
         progress({
-          phase: "requesting",
+          phase: "submitting",
           current: index,
           total: input.count,
-          percent: Math.min(90, 10 + Math.round((index / input.count) * 70)),
-          message: `正在请求第 ${current}/${input.count} 张图片`,
+          percent: Math.min(90, 15 + Math.round((index / input.count) * 68)),
+          message:
+            totalReferences > 0
+              ? `正在提交第 ${current}/${input.count} 张图片请求（参考图 ${totalReferences} 张）`
+              : `正在提交第 ${current}/${input.count} 张图片请求`,
           requestStartedAt
         })
       );
+      failureStage = "等待模型返回";
       const providerResult = await generateWithProvider({
         ...input,
         count: 1
       });
       providerResults.push(providerResult);
+
+      failureStage = "读取模型返回图片";
+      await updateProgress(
+        jobId,
+        runId,
+        progress({
+          phase: "provider_returned",
+          current: index,
+          total: input.count,
+          percent: Math.min(92, 22 + Math.round((index / input.count) * 68)),
+          message: `模型已返回第 ${current}/${input.count} 张结果，准备读取图片`
+        })
+      );
 
       await updateProgress(
         jobId,
@@ -321,14 +365,15 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
           phase: "downloading",
           current: index,
           total: input.count,
-          percent: Math.min(92, 18 + Math.round((index / input.count) * 70)),
-          message: `第 ${current}/${input.count} 张已返回，正在读取图片`
+          percent: Math.min(93, 25 + Math.round((index / input.count) * 68)),
+          message: `正在读取第 ${current}/${input.count} 张模型返回图片`
         })
       );
 
       for (const image of providerResult.images.slice(0, 1)) {
         await assertActiveRun(jobId, runId);
         const source = await imageSourceToBuffer(image);
+        failureStage = "保存图片到本地";
         await updateProgress(
           jobId,
           runId,
@@ -342,6 +387,7 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
         );
         const stored = await saveImageBuffer(source.buffer, source.mimeType, "images", `${jobId}-${index + 1}`);
         try {
+          failureStage = "写入图片记录";
           await assertActiveRun(jobId, runId);
           await query(
             `insert into generated_images
@@ -391,11 +437,11 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
   } catch (error) {
     if (isJobCanceledError(error)) return;
     if (!input) {
-      await markFailedBeforeInput(jobId, runId, error);
+      await markFailedBeforeInput(jobId, runId, error, failureStage);
       console.warn(`Generation job ${jobId} failed before loading input:`, error);
       return;
     }
-    await markFailed(jobId, runId, input, providerResults, error);
+    await markFailed(jobId, runId, input, providerResults, error, failureStage);
     console.warn(`Generation job ${jobId} failed:`, error);
   }
 }
