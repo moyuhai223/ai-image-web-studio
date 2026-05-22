@@ -315,7 +315,7 @@ export function DataBackupPanel() {
         <h2 className="panel-title">
           <Archive size={17} /> 数据备份
         </h2>
-        <button className="status" type="button" onClick={loadBackups} disabled={loading || creating || Boolean(deletingFilename)}>
+        <button className="status action-button action-refresh" type="button" onClick={loadBackups} disabled={loading || creating || Boolean(deletingFilename)}>
           <RefreshCw size={13} />
           {loading ? "加载中" : "刷新"}
         </button>
@@ -328,7 +328,7 @@ export function DataBackupPanel() {
         </div>
         <p className="small muted">备份包包含数据库核心表、生成图片、参考图和缩略图。恢复会覆盖当前数据库和图片目录，执行前会自动生成一份当前数据安全备份。</p>
         <div className="storage-actions">
-          <button className="button" type="button" disabled={busy()} onClick={createBackup}>
+          <button className="button action-button action-add" type="button" disabled={busy()} onClick={createBackup}>
             <Archive size={17} />
             {creating ? "备份中" : "创建备份"}
           </button>
@@ -377,7 +377,7 @@ export function DataBackupPanel() {
                 onChange={(event) => setPolicy((current) => ({ ...current, retainCount: Number(event.target.value) }))}
               />
             </div>
-            <button className="button secondary" type="button" disabled={busy()} onClick={savePolicy}>
+            <button className="button action-button action-save" type="button" disabled={busy()} onClick={savePolicy}>
               <CheckCircle2 size={16} />
               {savingPolicy ? "保存中" : "保存策略"}
             </button>
@@ -396,11 +396,11 @@ export function DataBackupPanel() {
             disabled={busy()}
             onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
           />
-          <button className="button danger" type="button" disabled={busy() || !uploadFile} onClick={openUploadRestoreConfirm}>
+          <button className="button action-button action-restore" type="button" disabled={busy() || !uploadFile} onClick={openUploadRestoreConfirm}>
             <Upload size={17} />
             上传并恢复
           </button>
-          <button className="button secondary" type="button" disabled={busy() || !uploadFile} onClick={validateUpload}>
+          <button className="button action-button action-validate" type="button" disabled={busy() || !uploadFile} onClick={validateUpload}>
             <SearchCheck size={17} />
             上传校验
           </button>
@@ -453,12 +453,12 @@ export function DataBackupPanel() {
                   </div>
                 </div>
                 <div className="backup-actions">
-                  <a className="button secondary" href={backupDownloadHref(backup.filename)}>
+                  <a className="button action-button action-download" href={backupDownloadHref(backup.filename)}>
                     <Download size={16} />
                     下载
                   </a>
                   <button
-                    className="button secondary"
+                    className="button action-button action-validate"
                     type="button"
                     disabled={busy()}
                     onClick={() => {
@@ -469,7 +469,7 @@ export function DataBackupPanel() {
                     {validatingFilename === backup.filename ? "校验中" : "校验"}
                   </button>
                   <button
-                    className="button danger"
+                    className="button action-button action-restore"
                     type="button"
                     disabled={busy()}
                     onClick={() => openRestoreConfirm(backup.filename)}
@@ -478,7 +478,7 @@ export function DataBackupPanel() {
                     恢复
                   </button>
                   <button
-                    className="button danger"
+                    className="button action-button action-danger"
                     type="button"
                     disabled={deletingFilename === backup.filename || restoring}
                     onClick={() => openDeleteConfirm(backup.filename)}

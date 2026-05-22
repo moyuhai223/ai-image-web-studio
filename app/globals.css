@@ -1003,6 +1003,15 @@ button.status:hover {
   box-shadow: none;
 }
 
+.button.action-button {
+  min-height: 36px;
+  border-color: color-mix(in srgb, var(--action-color) 34%, var(--border));
+  background: color-mix(in srgb, var(--action-color) 11%, var(--panel));
+  color: var(--action-color);
+  box-shadow: none;
+  filter: none;
+}
+
 .action-button::before,
 button.status.succeeded::before,
 button.status.failed::before,
@@ -1014,10 +1023,13 @@ button.status.canceled::before {
 }
 
 a.action-button:hover,
-button.action-button:hover {
+button.action-button:hover:not(:disabled),
+.button.action-button:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--action-color) 48%, var(--border));
   background: color-mix(in srgb, var(--action-color) 15%, var(--panel));
   box-shadow: none;
+  filter: none;
+  transform: translateY(-1px);
 }
 
 .action-button:disabled {
@@ -1033,6 +1045,38 @@ button.action-button:hover {
 .action-rerun,
 .action-requeue {
   --action-color: var(--brand-2);
+}
+
+.action-save,
+.action-add {
+  --action-color: var(--brand);
+}
+
+.action-refresh,
+.action-filter,
+.action-search {
+  --action-color: var(--brand-2);
+}
+
+.action-validate {
+  --action-color: var(--queued-text);
+}
+
+.action-enable {
+  --action-color: var(--ok);
+}
+
+.action-disable,
+.action-neutral {
+  --action-color: color-mix(in srgb, var(--brand) 70%, var(--muted));
+}
+
+.action-import {
+  --action-color: var(--running-text);
+}
+
+.action-restore {
+  --action-color: color-mix(in srgb, var(--danger) 72%, var(--queued-text));
 }
 
 .reference-basket-button {

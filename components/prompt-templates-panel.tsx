@@ -142,7 +142,7 @@ export function PromptTemplatesPanel({ templates }: Props) {
           <FileText size={17} /> 提示词模板
         </h2>
         <div className="actions">
-          <button className="status" type="button" onClick={importAwesomeTemplates} disabled={importing}>
+          <button className="status action-button action-import" type="button" onClick={importAwesomeTemplates} disabled={importing}>
             <DownloadCloud size={13} />
             {importing ? "导入中" : "导入精选库"}
           </button>
@@ -170,7 +170,7 @@ export function PromptTemplatesPanel({ templates }: Props) {
               required
             />
           </div>
-          <button className="button" type="submit" disabled={loading}>
+          <button className="button action-button action-add" type="submit" disabled={loading}>
             <Plus size={17} />
             {loading ? "保存中" : "新增模板"}
           </button>
@@ -218,11 +218,11 @@ export function PromptTemplatesPanel({ templates }: Props) {
                     />
                   </div>
                   <div className="actions">
-                    <button className="button secondary" type="submit" disabled={loading}>
+                    <button className="button action-button action-save" type="submit" disabled={loading}>
                       <Save size={16} />
                       {loading ? "保存中" : "保存修改"}
                     </button>
-                    <button className="button" type="button" onClick={() => setEditingId(null)}>
+                    <button className="button action-button action-neutral" type="button" onClick={() => setEditingId(null)}>
                       <X size={16} />
                       取消
                     </button>
@@ -249,11 +249,11 @@ export function PromptTemplatesPanel({ templates }: Props) {
                       ) : null}
                     </div>
                     <div className="actions">
-                      <button className="status" type="button" onClick={() => setEditingId(template.id)}>
+                      <button className="status action-button action-edit" type="button" onClick={() => setEditingId(template.id)}>
                         <Pencil size={13} />
                         编辑
                       </button>
-                      <button className="status failed" type="button" disabled={deletingId === template.id} onClick={() => openDeleteConfirm(template.id)}>
+                      <button className="status action-button action-danger" type="button" disabled={deletingId === template.id} onClick={() => openDeleteConfirm(template.id)}>
                         <Trash2 size={13} />
                         {deletingId === template.id ? "删除中" : "删除"}
                       </button>

@@ -54,7 +54,7 @@ export function CreateUserForm() {
           </select>
         </div>
         {message ? <p className="small muted">{message}</p> : null}
-        <button className="button" type="submit" disabled={loading}>
+        <button className="button action-button action-add" type="submit" disabled={loading}>
           <UserPlus size={17} />
           {loading ? "保存中" : "保存用户"}
         </button>

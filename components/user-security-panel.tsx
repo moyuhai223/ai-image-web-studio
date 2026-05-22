@@ -80,7 +80,7 @@ export function UserSecurityPanel({
                 <div className="user-security-action-row">
                   <span className={`status ${item.active ? "succeeded" : "failed"}`}>{item.active ? "active" : "disabled"}</span>
                   <button
-                    className={`status ${item.active ? "failed" : "succeeded"}`}
+                    className={`status action-button ${item.active ? "action-disable" : "action-enable"}`}
                     type="button"
                     disabled={busyId === item.id || item.id === currentUserId}
                     onClick={() => updateUser(item.id, { action: "setActive", active: !item.active })}
@@ -95,7 +95,7 @@ export function UserSecurityPanel({
                     <option value="member">成员</option>
                     <option value="admin">管理员</option>
                   </select>
-                  <button className="status" type="submit" disabled={busyId === item.id}>
+                  <button className="status action-button action-save" type="submit" disabled={busyId === item.id}>
                     <ShieldCheck size={13} />
                     保存角色
                   </button>
@@ -103,7 +103,7 @@ export function UserSecurityPanel({
 
                 <form className="inline-user-form password-reset-form user-security-action-row" onSubmit={(event) => resetPassword(event, item.id)}>
                   <input className="input" name="password" type="password" minLength={8} maxLength={128} placeholder="新密码" required />
-                  <button className="status" type="submit" disabled={busyId === item.id}>
+                  <button className="status action-button action-save" type="submit" disabled={busyId === item.id}>
                     <KeyRound size={13} />
                     重置密码
                   </button>

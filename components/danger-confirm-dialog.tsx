@@ -76,10 +76,10 @@ export function DangerConfirmDialog({
         </div>
         {error ? <p className="delete-confirm-error small">{error}</p> : null}
         <div className="delete-confirm-actions">
-          <button className="status" type="button" onClick={onClose} disabled={loading}>
+          <button className="status action-button action-neutral" type="button" onClick={onClose} disabled={loading}>
             取消
           </button>
-          <button className="button danger" type="button" onClick={onConfirm} disabled={loading} autoFocus>
+          <button className="button action-button action-danger" type="button" onClick={onConfirm} disabled={loading} autoFocus>
             {confirmIcon ?? <Trash2 size={16} />}
             {loading ? loadingLabel ?? confirmLabel : confirmLabel}
           </button>

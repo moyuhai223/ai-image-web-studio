@@ -133,7 +133,7 @@ export function AuditLogPanel() {
         <h2 className="panel-title">
           <FileClock size={17} /> 审计日志
         </h2>
-        <button className="status" type="button" onClick={() => void loadLogs()} disabled={loading}>
+        <button className="status action-button action-refresh" type="button" onClick={() => void loadLogs()} disabled={loading}>
           <RefreshCw size={13} />
           {loading ? "加载中" : "刷新"}
         </button>
@@ -197,15 +197,15 @@ export function AuditLogPanel() {
             <option value="500">500 条</option>
           </select>
           <div className="audit-filter-actions">
-            <button className="button secondary" type="submit" disabled={loading}>
+            <button className="button action-button action-filter" type="submit" disabled={loading}>
               <Filter size={16} />
               筛选
             </button>
-            <button className="button secondary" type="button" onClick={resetFilters} disabled={loading}>
+            <button className="button action-button action-neutral" type="button" onClick={resetFilters} disabled={loading}>
               <RotateCcw size={16} />
               重置
             </button>
-            <button className="button danger" type="button" onClick={() => setConfirmClearOpen(true)} disabled={loading || clearing}>
+            <button className="button action-button action-danger" type="button" onClick={() => setConfirmClearOpen(true)} disabled={loading || clearing}>
               <Eraser size={16} />
               清空
             </button>

@@ -165,7 +165,7 @@ export function AiKeysForm({ keys, hasEnvFallback, autoDisableEnabled, autoDisab
                 onChange={(event) => setFailureThreshold(event.target.value)}
                 aria-label="连续失败次数"
               />
-              <button className="status" type="submit" disabled={policyLoading}>
+              <button className="status action-button action-save" type="submit" disabled={policyLoading}>
                 {policyLoading ? "保存中" : "保存策略"}
               </button>
             </div>
@@ -184,7 +184,7 @@ export function AiKeysForm({ keys, hasEnvFallback, autoDisableEnabled, autoDisab
             <label htmlFor="ai-key-value">AI Key</label>
             <input className="input" id="ai-key-value" name="apiKey" type="password" autoComplete="off" required />
           </div>
-          <button className="button" type="submit" disabled={loading}>
+          <button className="button action-button action-add" type="submit" disabled={loading}>
             <Plus size={17} />
             {loading ? "保存中" : "添加 Key"}
           </button>
@@ -217,7 +217,7 @@ export function AiKeysForm({ keys, hasEnvFallback, autoDisableEnabled, autoDisab
                 </div>
                 <div className="key-actions">
                   <button
-                    className="button secondary"
+                    className={`button action-button ${item.enabled ? "action-disable" : "action-enable"}`}
                     type="button"
                     disabled={togglingId === item.id}
                     onClick={() => toggleKey(item.id, !item.enabled)}
@@ -226,7 +226,7 @@ export function AiKeysForm({ keys, hasEnvFallback, autoDisableEnabled, autoDisab
                     {togglingId === item.id ? "更新中" : item.enabled ? "停用" : "启用"}
                   </button>
                   <button
-                    className="button danger"
+                    className="button action-button action-danger"
                     type="button"
                     disabled={deletingId === item.id}
                     onClick={() => openDeleteConfirm(item.id)}

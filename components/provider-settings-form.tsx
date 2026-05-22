@@ -60,7 +60,7 @@ export function ProviderSettingsForm({ aiBaseUrl, source }: Props) {
             placeholder="https://provider.example.com"
             required
           />
-          <button className="button secondary" type="submit" disabled={loading}>
+          <button className="button action-button action-save" type="submit" disabled={loading}>
             <Save size={16} />
             {loading ? "保存中" : "保存"}
           </button>

@@ -164,7 +164,7 @@ export function StorageMaintenancePanel() {
         <h2 className="panel-title">
           <DatabaseZap size={17} /> 存储维护
         </h2>
-        <button className="status" type="button" onClick={loadScan} disabled={Boolean(loading)}>
+        <button className="status action-button action-search" type="button" onClick={loadScan} disabled={Boolean(loading)}>
           <Search size={13} />
           {loading === "scan" ? "扫描中" : "扫描"}
         </button>
@@ -225,15 +225,15 @@ export function StorageMaintenancePanel() {
         {message ? <p className="small muted">{message}</p> : null}
 
         <div className="storage-actions">
-          <button className="button danger" type="button" disabled={Boolean(loading) || !scan || scan.orphanCount <= 0} onClick={() => requestAction("cleanup_orphans")}>
+          <button className="button action-button action-danger" type="button" disabled={Boolean(loading) || !scan || scan.orphanCount <= 0} onClick={() => requestAction("cleanup_orphans")}>
             <Eraser size={17} />
             {loading === "cleanup_orphans" ? "清理中" : "清理孤儿文件"}
           </button>
-          <button className="button secondary" type="button" disabled={Boolean(loading)} onClick={() => requestAction("rebuild_thumbnails")}>
+          <button className="button action-button action-refresh" type="button" disabled={Boolean(loading)} onClick={() => requestAction("rebuild_thumbnails")}>
             <ImageDown size={17} />
             {loading === "rebuild_thumbnails" ? "生成中" : "重新生成缩略图"}
           </button>
-          <button className="button danger" type="button" disabled={Boolean(loading) || Boolean(scan && scan.failedImages <= 0)} onClick={() => requestAction("cleanup_failed_images")}>
+          <button className="button action-button action-danger" type="button" disabled={Boolean(loading) || Boolean(scan && scan.failedImages <= 0)} onClick={() => requestAction("cleanup_failed_images")}>
             <RotateCcw size={17} />
             {loading === "cleanup_failed_images" ? "清理中" : "清理失败任务图片"}
           </button>

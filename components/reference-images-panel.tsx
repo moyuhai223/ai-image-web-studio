@@ -139,12 +139,12 @@ function ReferenceCard({
       ) : null}
 
       <div className="reference-actions">
-        <a className="button small" href={`/?refImageId=${image.id}`}>
+        <a className="button action-button action-edit small" href={`/?refImageId=${image.id}`}>
           <Pencil size={13} />
           用作参考图
         </a>
         <button
-          className="button danger small"
+          className="button action-button action-danger small"
           type="button"
           disabled={deleting}
           onClick={onDelete}
@@ -338,7 +338,7 @@ export function ReferenceImagesPanel() {
         <h2 className="panel-title">
           <ImageIcon size={17} /> 参考图管理
         </h2>
-        <button className="status" type="button" onClick={() => void loadImages()} disabled={loading}>
+        <button className="status action-button action-refresh" type="button" onClick={() => void loadImages()} disabled={loading}>
           {loading ? <RefreshCw size={13} /> : <Search size={13} />}
           {loading ? "加载中" : images ? "刷新" : "加载"}
         </button>
@@ -352,11 +352,10 @@ export function ReferenceImagesPanel() {
                 <span className="status">本页 {formatBytes(totalBytes)}</span>
                 {duplicateCount > 0 ? (
                   <button
-                    className="button small"
+                    className="button action-button action-validate small"
                     type="button"
                     disabled={merging}
                     onClick={requestMergeDuplicates}
-                    style={{ borderColor: "var(--warning, #e6a700)" }}
                   >
                     <Copy size={13} />
                     {merging ? "合并中" : `合并重复 (${duplicateCount})`}
@@ -364,7 +363,7 @@ export function ReferenceImagesPanel() {
                 ) : null}
                 {unusedCount > 0 ? (
                   <button
-                    className="button danger small"
+                    className="button action-button action-danger small"
                     type="button"
                     disabled={cleaningUp}
                     onClick={requestCleanupUnused}
@@ -389,7 +388,7 @@ export function ReferenceImagesPanel() {
               {totalPages > 1 ? (
                 <div className="actions" style={{ justifyContent: "center" }}>
                   <button
-                    className="status"
+                    className="status action-button action-neutral"
                     type="button"
                     disabled={loading || page <= 1}
                     onClick={() => loadImages(page - 1)}
@@ -399,7 +398,7 @@ export function ReferenceImagesPanel() {
                   </button>
                   <span className="status">{page} / {totalPages}</span>
                   <button
-                    className="status"
+                    className="status action-button action-neutral"
                     type="button"
                     disabled={loading || page >= totalPages}
                     onClick={() => loadImages(page + 1)}

@@ -89,11 +89,11 @@ export function UpdateCheckPanel({ currentVersion, repository }: Props) {
         </div>
 
         <div className="actions">
-          <button className="button secondary" type="button" onClick={checkUpdates} disabled={loading}>
+          <button className="button action-button action-refresh" type="button" onClick={checkUpdates} disabled={loading}>
             <RefreshCw size={16} />
             {loading ? "检查中" : "检查更新"}
           </button>
-          <a className="button secondary" href={`https://github.com/${repository}/releases`} target="_blank" rel="noreferrer">
+          <a className="button action-button action-detail" href={`https://github.com/${repository}/releases`} target="_blank" rel="noreferrer">
             <ExternalLink size={16} />
             Release 页面
           </a>
@@ -136,7 +136,7 @@ export function UpdateCheckPanel({ currentVersion, repository }: Props) {
                 </div>
                 <div className="form-stack">
                   {result.assets.map((asset) => (
-                    <a className="button secondary" href={asset.url} key={asset.name} target="_blank" rel="noreferrer">
+                    <a className="button action-button action-download" href={asset.url} key={asset.name} target="_blank" rel="noreferrer">
                       <Download size={16} />
                       {asset.name}
                       {asset.size ? <span className="small muted">{formatSize(asset.size)}</span> : null}
