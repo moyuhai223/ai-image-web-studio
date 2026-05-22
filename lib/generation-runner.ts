@@ -315,7 +315,8 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
         current: 0,
         total: input.count,
         percent: 12,
-        message: totalReferences > 0 ? `参考图已准备完成（${totalReferences} 张），准备提交模型` : "无参考图，准备提交模型"
+        message: totalReferences > 0 ? `参考图已准备完成（${totalReferences} 张），准备提交模型` : "无参考图，准备提交模型",
+        referenceCount: totalReferences
       })
     );
 
@@ -335,6 +336,23 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
             totalReferences > 0
               ? `正在提交第 ${current}/${input.count} 张图片请求（参考图 ${totalReferences} 张）`
               : `正在提交第 ${current}/${input.count} 张图片请求`,
+          referenceCount: totalReferences,
+          requestStartedAt
+        })
+      );
+      await updateProgress(
+        jobId,
+        runId,
+        progress({
+          phase: "requesting",
+          current: index,
+          total: input.count,
+          percent: Math.min(90, 15 + Math.round((index / input.count) * 68)),
+          message:
+            totalReferences > 0
+              ? `模型请求已发送，正在等待第 ${current}/${input.count} 张图片返回（参考图 ${totalReferences} 张）`
+              : `模型请求已发送，正在等待第 ${current}/${input.count} 张图片返回`,
+          referenceCount: totalReferences,
           requestStartedAt
         })
       );

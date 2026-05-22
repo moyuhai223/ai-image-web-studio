@@ -29,6 +29,7 @@ export type GenerationProgress = {
   total: number;
   percent: number;
   message: string;
+  referenceCount?: number;
   requestStartedAt?: string;
   slowNotifiedAt?: string;
   updatedAt: string;

@@ -47,11 +47,23 @@ function phaseIn(phase: string | undefined, phases: string[]) {
   return Boolean(phase && phases.includes(phase));
 }
 
+function referenceCountFromProgressMessage(message: string) {
+  const direct = message.match(/参考图\s*(\d+)\s*张/);
+  if (direct?.[1]) return Number(direct[1]);
+  const ready = message.match(/参考图[^（(]*(?:（|\()(\d+)\s*张/);
+  if (ready?.[1]) return Number(ready[1]);
+  return 0;
+}
+
 function referenceCountForJob(job: JobWithImages) {
+  const progressCount = typeof job.progress?.referenceCount === "number"
+    ? job.progress.referenceCount
+    : referenceCountFromProgressMessage(job.progress?.message ?? "");
   const references = job.request_metadata?.references;
-  if (Array.isArray(references) && references.length > 0) return references.length;
+  const referencesCount = Array.isArray(references) ? references.length : 0;
   const reference = job.request_metadata?.reference;
-  return reference && typeof reference === "object" ? 1 : 0;
+  const legacyCount = reference && typeof reference === "object" ? 1 : 0;
+  return Math.max(progressCount, referencesCount, legacyCount);
 }
 
 function getFlowSteps(job: JobWithImages): FlowStep[] {
@@ -87,10 +99,10 @@ function getFlowSteps(job: JobWithImages): FlowStep[] {
         ? "任务已取消"
         : referenceFailed
           ? message
-          : phase === "loading_references"
-            ? referenceCount > 0
-              ? `正在读取并编码参考图（${referenceCount} 张）`
-              : "正在读取任务参数"
+            : phase === "loading_references"
+              ? referenceCount > 0
+                ? `正在读取并编码参考图（${referenceCount} 张）`
+                : "正在读取任务参数"
             : referencesReady
               ? referenceCount > 0
                 ? `参考图已准备完成（${referenceCount} 张）`
