@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { config } from "./config";
 import { query } from "./db";
 import { generateWithProvider } from "./provider";
 import { deleteStoredImageFiles, imageSourceToBuffer, readStoredFile, saveImageBuffer } from "./storage";
@@ -38,6 +39,24 @@ function stageErrorMessage(stage: string, error: unknown) {
 function referenceCount(input: GenerationRunInput) {
   if (input.referenceDataUrls?.length) return input.referenceDataUrls.length;
   return input.referenceDataUrl ? 1 : 0;
+}
+
+function isGptImageModel(model: string) {
+  return model === config.imageModelGpt || model.toLowerCase().startsWith("gpt-image");
+}
+
+function isNanoBananaModel(model: string) {
+  return model === config.imageModelNano || model.toLowerCase().includes("banana");
+}
+
+function providerFlowLabel(input: GenerationRunInput, referenceTotal: number) {
+  if (isGptImageModel(input.model)) {
+    return referenceTotal > 0 ? "Image 2 编辑接口" : "Image 2 生成接口";
+  }
+  if (isNanoBananaModel(input.model)) {
+    return referenceTotal > 0 ? "Banana 2 多模态编辑流程" : "Banana 2 多模态生成流程";
+  }
+  return referenceTotal > 0 ? "图片编辑流程" : "图片生成流程";
 }
 
 function sanitizeProviderMetadata(value: unknown): unknown {
@@ -323,6 +342,7 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
     for (let index = 0; index < input.count; index += 1) {
       const current = index + 1;
       const requestStartedAt = new Date().toISOString();
+      const flowLabel = providerFlowLabel(input, totalReferences);
       failureStage = "提交模型请求";
       await updateProgress(
         jobId,
@@ -334,8 +354,8 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
           percent: Math.min(90, 15 + Math.round((index / input.count) * 68)),
           message:
             totalReferences > 0
-              ? `正在提交第 ${current}/${input.count} 张图片请求（参考图 ${totalReferences} 张）`
-              : `正在提交第 ${current}/${input.count} 张图片请求`,
+              ? `正在提交第 ${current}/${input.count} 张图片到${flowLabel}（参考图 ${totalReferences} 张）`
+              : `正在提交第 ${current}/${input.count} 张图片到${flowLabel}`,
           referenceCount: totalReferences,
           requestStartedAt
         })
@@ -350,8 +370,8 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
           percent: Math.min(90, 15 + Math.round((index / input.count) * 68)),
           message:
             totalReferences > 0
-              ? `模型请求已发送，正在等待第 ${current}/${input.count} 张图片返回（参考图 ${totalReferences} 张）`
-              : `模型请求已发送，正在等待第 ${current}/${input.count} 张图片返回`,
+              ? `${flowLabel}请求已发送，正在等待第 ${current}/${input.count} 张图片返回（参考图 ${totalReferences} 张）`
+              : `${flowLabel}请求已发送，正在等待第 ${current}/${input.count} 张图片返回`,
           referenceCount: totalReferences,
           requestStartedAt
         })

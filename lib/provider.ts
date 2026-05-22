@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { getNextAiApiKey, reportAiKeyFailure, reportAiKeySuccess } from "./api-keys";
 import { config } from "./config";
 import { getProviderBaseUrl } from "./provider-settings";
@@ -41,6 +42,7 @@ type GenerateInput = {
 };
 
 const MAX_KEY_ATTEMPTS = 3;
+const IMAGE2_REFERENCE_MAX_SIDE = 1536;
 
 function authHeaders(apiKey: string) {
   return {
@@ -172,6 +174,36 @@ function parseDataUrl(dataUrl: string) {
     mimeType: match[1],
     buffer: Buffer.from(match[2], "base64")
   };
+}
+
+function blobPartFromBuffer(buffer: Buffer) {
+  const bytes = new Uint8Array(buffer.byteLength);
+  bytes.set(buffer);
+  return bytes;
+}
+
+async function prepareImage2Reference(dataUrl: string, index: number) {
+  const reference = parseDataUrl(dataUrl);
+  try {
+    const buffer = await sharp(reference.buffer)
+      .rotate()
+      .resize({
+        width: IMAGE2_REFERENCE_MAX_SIDE,
+        height: IMAGE2_REFERENCE_MAX_SIDE,
+        fit: "inside",
+        withoutEnlargement: true
+      })
+      .png()
+      .toBuffer();
+
+    return {
+      buffer,
+      mimeType: "image/png",
+      filename: `reference-${index + 1}.png`
+    };
+  } catch (error) {
+    throw new Error(`Image 2 参考图 ${index + 1} 预处理失败：${error instanceof Error ? error.message : "图片格式异常"}`);
+  }
 }
 
 function getReferenceDataUrls(input: GenerateInput) {
@@ -325,16 +357,14 @@ async function generateImageEdit(input: GenerateInput, apiKey: string, deadline:
   form.set("size", input.size);
   form.set("n", String(input.count));
   form.set("response_format", "url");
-  referenceDataUrls.forEach((dataUrl, index) => {
-    const reference = parseDataUrl(dataUrl);
-    form.append("image", new Blob([reference.buffer], { type: reference.mimeType }), `reference-${index + 1}.png`);
-  });
+  for (let index = 0; index < referenceDataUrls.length; index += 1) {
+    const reference = await prepareImage2Reference(referenceDataUrls[index], index);
+    form.append("image", new Blob([blobPartFromBuffer(reference.buffer)], { type: reference.mimeType }), reference.filename);
+  }
 
   const raw = await retryProvider("image edit generation", deadline, () => postForm("/v1/images/edits", form, apiKey, deadline, baseUrl));
   const normalized = normalizeImageGenerations(raw);
   if (normalized.images.length > 0) return normalized;
-  const nested = normalizeChatResult(raw);
-  if (nested.images.length > 0) return nested;
   throw Object.assign(new Error("Provider returned no edited image"), { raw });
 }
 
