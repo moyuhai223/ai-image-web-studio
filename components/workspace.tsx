@@ -1073,7 +1073,7 @@ export function Workspace({
                 )}
                 <div className="actions">
                   <JobControlButton action="cancel" recordId={item.id} onDone={refreshJobLists} />
-                  <a className="status" href={`/records/${item.id}`}>详情</a>
+                  <a className="status action-button action-detail" href={`/records/${item.id}`}>详情</a>
                 </div>
               </article>
             ))}

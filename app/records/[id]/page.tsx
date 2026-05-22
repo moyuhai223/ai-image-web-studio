@@ -299,12 +299,12 @@ function VersionChain({ nodes }: { nodes: ImageVersionNode[] }) {
                 <p className="small muted">{node.width ?? "-"} x {node.height ?? "-"} · {formatDateTime(node.job_created_at)}</p>
                 <p className="small version-prompt">{node.job_prompt.slice(0, 78)}</p>
                 <div className="actions">
-                  <a className="status" href={`/records/${node.job_id}`}>详情</a>
-                  <a className="status" href={`/?referenceImageId=${node.id}`}>
+                  <a className="status action-button action-detail" href={`/records/${node.job_id}`}>详情</a>
+                  <a className="status action-button action-edit" href={`/?referenceImageId=${node.id}`}>
                     <Pencil size={13} />
                     编辑
                   </a>
-                  <a className="status" href={`/api/images/${node.id}/download`}>下载</a>
+                  <a className="status action-button action-download" href={`/api/images/${node.id}/download`}>下载</a>
                 </div>
               </div>
             </article>

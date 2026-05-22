@@ -1445,6 +1445,25 @@ button.action-button:hover:not(:disabled),
   text-overflow: ellipsis;
 }
 
+.image-card-actions .action-button {
+  min-height: 36px;
+  border-width: 2px;
+  border-color: color-mix(in srgb, var(--action-color) 52%, var(--glass-border));
+  background: color-mix(in srgb, var(--action-color) 12%, var(--panel-2));
+}
+
+.image-card-actions .action-button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--action-color) 68%, var(--glass-border));
+  background: color-mix(in srgb, var(--action-color) 18%, var(--panel-2));
+}
+
+.record-card-status-row .action-button,
+.version-node .actions .action-button {
+  min-height: 30px;
+  border-width: 1.5px;
+  padding-inline: 10px;
+}
+
 .reference-basket-button.selected {
   border-color: color-mix(in srgb, var(--ok) 48%, var(--glass-border));
   background: color-mix(in srgb, var(--ok-bg) 58%, var(--panel-2));

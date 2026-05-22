@@ -254,7 +254,7 @@ export default async function RecordsPage({
                         <div className="record-card-body">
                           <div className="record-card-status-row">
                             <span className={`status ${job.status}`}>{generationStatusLabel(job.status)}</span>
-                            <a className="status" href={`/records/${job.id}`}>详情</a>
+                            <a className="status action-button action-detail" href={`/records/${job.id}`}>详情</a>
                           </div>
                           {job.thumbnail_id ? (
                             <ImageTagsEditor imageId={job.thumbnail_id} initialTags={job.thumbnail_tags ?? job.tags ?? []} />
