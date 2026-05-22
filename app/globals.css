@@ -555,6 +555,47 @@ button {
   white-space: nowrap;
 }
 
+.reference-section-toggle {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.reference-section-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand) 52%, transparent);
+  outline-offset: 4px;
+}
+
+.reference-section-toggle-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.reference-section-toggle-status {
+  flex: 0 0 auto;
+  min-height: 28px;
+}
+
+.reference-section-toggle-status svg {
+  transition: transform var(--transition-fast);
+}
+
+.reference-section-toggle[aria-expanded="true"] .reference-section-toggle-status svg {
+  transform: rotate(180deg);
+}
+
+.reference-section-body {
+  display: grid;
+  gap: 10px;
+}
+
 .field {
   display: grid;
   gap: 7px;
@@ -950,6 +991,69 @@ button.status:hover {
 
 .status.running::before {
   animation: badgePulse 1.6s ease-in-out infinite;
+}
+
+.action-button {
+  --action-color: var(--brand);
+  min-height: 28px;
+  border-color: color-mix(in srgb, var(--action-color) 34%, var(--border));
+  background: color-mix(in srgb, var(--action-color) 11%, var(--panel));
+  color: var(--action-color);
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.action-button::before,
+button.status.succeeded::before,
+button.status.failed::before,
+button.status.running::before,
+button.status.queued::before,
+button.status.canceled::before {
+  display: none;
+  content: none;
+}
+
+a.action-button:hover,
+button.action-button:hover {
+  border-color: color-mix(in srgb, var(--action-color) 48%, var(--border));
+  background: color-mix(in srgb, var(--action-color) 15%, var(--panel));
+  box-shadow: none;
+}
+
+.action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.action-copy,
+.action-detail {
+  --action-color: color-mix(in srgb, var(--brand) 70%, var(--muted));
+}
+
+.action-rerun,
+.action-requeue {
+  --action-color: var(--brand-2);
+}
+
+.reference-basket-button {
+  --action-color: var(--running-text);
+}
+
+.favorite-button {
+  --action-color: color-mix(in srgb, var(--danger) 70%, var(--brand));
+}
+
+.action-edit {
+  --action-color: var(--queued-text);
+}
+
+.action-download {
+  --action-color: var(--ok);
+}
+
+.action-danger,
+.action-cancel {
+  --action-color: var(--danger);
 }
 
 .preview-grid {

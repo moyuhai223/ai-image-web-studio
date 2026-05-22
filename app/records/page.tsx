@@ -267,7 +267,7 @@ export default async function RecordsPage({
                         </div>
                         <div className="actions image-card-actions">
                           {job.status === "failed" || job.status === "canceled" || job.status === "queued" || job.status === "running" ? null : (
-                            <a className="status" href={rerunHref(job)}>
+                            <a className="status action-button action-rerun" href={rerunHref(job)}>
                               <RefreshCcw size={13} />
                               重做
                             </a>

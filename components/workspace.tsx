@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Download, ImagePlus, Pencil, Play, RefreshCcw, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Download, ImagePlus, Pencil, Play, RefreshCcw, X } from "lucide-react";
 import { CopyPromptButton } from "./copy-prompt-button";
 import { DeleteRecordButton } from "./delete-record-button";
 import { FavoriteImageButton } from "./favorite-image-button";
@@ -151,6 +151,17 @@ function createReferenceKey(prefix: string) {
   return `${prefix}:${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
 }
 
+function basketItemsToSelectedReferences(items: ReferenceBasketItem[]): SelectedReference[] {
+  return items.map((item, index) => ({
+    key: `generated:${item.imageId}`,
+    type: "generated",
+    id: item.imageId,
+    title: index === 0 ? "图篮主参考图" : `图篮参考图 ${index + 1}`,
+    detail: item.prompt ? item.prompt : "从参考图篮导入",
+    imageSrc: imageThumbnailUrl(item.imageId)
+  }));
+}
+
 function waitFor(ms: number, signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
     const timer = window.setTimeout(resolve, ms);
@@ -193,6 +204,7 @@ export function Workspace({
   const [count, setCount] = useState("1");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [selectedReferences, setSelectedReferences] = useState<SelectedReference[]>([]);
+  const [referencesOpen, setReferencesOpen] = useState(false);
   const autoRunStarted = useRef(false);
   const mountedRef = useRef(false);
   const pollTokenRef = useRef(0);
@@ -669,16 +681,7 @@ export function Workspace({
   }
 
   function addBasketReferences(items: ReferenceBasketItem[]) {
-    addSelectedReferences(
-      items.map((item, index) => ({
-        key: `generated:${item.imageId}`,
-        type: "generated" as const,
-        id: item.imageId,
-        title: index === 0 ? "图篮主参考图" : `图篮参考图 ${index + 1}`,
-        detail: item.prompt ? item.prompt : "从参考图篮导入",
-        imageSrc: imageThumbnailUrl(item.imageId)
-      }))
-    );
+    addSelectedReferences(basketItemsToSelectedReferences(items));
   }
 
   function addLibraryReference(referenceId: string, byteSize?: number) {
@@ -840,92 +843,108 @@ export function Workspace({
           </section>
 
           <section className="form-section reference-section">
-            <div className="form-section-title">
+            <button
+              className="form-section-title reference-section-toggle"
+              type="button"
+              aria-expanded={referencesOpen}
+              aria-controls="reference-section-body"
+              onClick={() => setReferencesOpen((current) => !current)}
+            >
               <span>参考图</span>
-              <span className="small muted">最多 {MAX_REFERENCE_IMAGES} 张，首张为主参考</span>
-            </div>
-            <div className="reference-picker">
-              <label
-                className={`reference-option upload-reference-option ${selectedReferences.some((reference) => reference.type === "upload") ? "selected" : ""}`}
-                htmlFor="referenceImage"
-              >
-                <span className="reference-option-thumb reference-upload-thumb">
-                  <ImagePlus size={20} />
+              <span className="reference-section-toggle-meta">
+                <span className="small muted">{referenceSummary} · 最多 {MAX_REFERENCE_IMAGES} 张</span>
+                <span className="status reference-section-toggle-status">
+                  <ChevronDown size={14} />
+                  {referencesOpen ? "收起" : "展开"}
                 </span>
-                <span>上传参考</span>
-                <small>PNG / JPG / WebP，可多选</small>
-              </label>
-              {recentReferenceImages.map((reference, index) => (
-                <button
-                  key={reference.id}
-                  className={`reference-option reference-option-image${selectedReferences.some((item) => item.key === `library:${reference.id}`) ? " selected" : ""}`}
-                  type="button"
-                  onClick={() => toggleLibraryReference(reference)}
-                >
-                  <img src={`/api/reference-images/${reference.id}?thumb=1`} alt="" />
-                  <span>{index === 0 ? "最近参考" : `参考 ${index + 1}`}</span>
-                  <small>{selectedReferences.some((item) => item.key === `library:${reference.id}`) ? "已选择" : formatFileSize(reference.byte_size)}</small>
-                </button>
-              ))}
-            </div>
-            <input
-              ref={referenceFileInputRef}
-              className="file-input"
-              id="referenceImage"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              multiple
-              onChange={handleReferenceFileChange}
-            />
-            <div className="reference-selection-stack">
-              {selectedReferences.length > 0 ? (
-                <>
-                  {selectedReferences.map((reference, index) => (
-                    <div
-                      className={`reference-chip current-reference-chip ${reference.type === "upload" ? "upload-reference-chip" : ""}`}
-                      key={reference.key}
+              </span>
+            </button>
+            {referencesOpen ? (
+              <div className="reference-section-body" id="reference-section-body">
+                <div className="reference-picker">
+                  <label
+                    className={`reference-option upload-reference-option ${selectedReferences.some((reference) => reference.type === "upload") ? "selected" : ""}`}
+                    htmlFor="referenceImage"
+                  >
+                    <span className="reference-option-thumb reference-upload-thumb">
+                      <ImagePlus size={20} />
+                    </span>
+                    <span>上传参考</span>
+                    <small>PNG / JPG / WebP，可多选</small>
+                  </label>
+                  {recentReferenceImages.map((reference, index) => (
+                    <button
+                      key={reference.id}
+                      className={`reference-option reference-option-image${selectedReferences.some((item) => item.key === `library:${reference.id}`) ? " selected" : ""}`}
+                      type="button"
+                      onClick={() => toggleLibraryReference(reference)}
                     >
-                      {reference.imageSrc ? (
-                        <img src={reference.imageSrc} alt="" />
-                      ) : (
-                        <div className="reference-chip-icon">
-                          <ImagePlus size={20} />
-                        </div>
-                      )}
-                      <div>
-                        <div className="reference-chip-title-row">
-                          <strong>{index === 0 ? "主参考图" : `参考图 ${index + 1}`}</strong>
-                          <span className="status">{referenceSourceLabel(reference.type)}</span>
-                        </div>
-                        <p className="small muted">{reference.title} · {reference.detail}</p>
-                      </div>
-                      <div className="reference-chip-actions">
-                        <button className="status" type="button" disabled={index === 0} onClick={() => moveSelectedReference(reference.key, -1)}>
-                          <ArrowUp size={13} />
-                        </button>
-                        <button
-                          className="status"
-                          type="button"
-                          disabled={index === selectedReferences.length - 1}
-                          onClick={() => moveSelectedReference(reference.key, 1)}
-                        >
-                          <ArrowDown size={13} />
-                        </button>
-                        <button className="status" type="button" onClick={() => removeSelectedReference(reference.key)}>
-                          <X size={13} />
-                          移除
-                        </button>
-                      </div>
-                    </div>
+                      <img src={`/api/reference-images/${reference.id}?thumb=1`} alt="" />
+                      <span>{index === 0 ? "最近参考" : `参考 ${index + 1}`}</span>
+                      <small>{selectedReferences.some((item) => item.key === `library:${reference.id}`) ? "已选择" : formatFileSize(reference.byte_size)}</small>
+                    </button>
                   ))}
-                  <button className="status reference-clear-all" type="button" onClick={clearAllReferences}>
-                    清空参考图
-                  </button>
-                </>
-              ) : (
-                <p className="small muted reference-empty-copy">未选择参考图。可上传多张、选择最近参考图，或在图片卡片点击“编辑”加入参考图。</p>
-              )}
-            </div>
+                </div>
+                <input
+                  ref={referenceFileInputRef}
+                  className="file-input"
+                  id="referenceImage"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  multiple
+                  onChange={handleReferenceFileChange}
+                />
+                <div className="reference-selection-stack">
+                  {selectedReferences.length > 0 ? (
+                    <>
+                      {selectedReferences.map((reference, index) => (
+                        <div
+                          className={`reference-chip current-reference-chip ${reference.type === "upload" ? "upload-reference-chip" : ""}`}
+                          key={reference.key}
+                        >
+                          {reference.imageSrc ? (
+                            <img src={reference.imageSrc} alt="" />
+                          ) : (
+                            <div className="reference-chip-icon">
+                              <ImagePlus size={20} />
+                            </div>
+                          )}
+                          <div>
+                            <div className="reference-chip-title-row">
+                              <strong>{index === 0 ? "主参考图" : `参考图 ${index + 1}`}</strong>
+                              <span className="status">{referenceSourceLabel(reference.type)}</span>
+                            </div>
+                            <p className="small muted">{reference.title} · {reference.detail}</p>
+                          </div>
+                          <div className="reference-chip-actions">
+                            <button className="status" type="button" disabled={index === 0} onClick={() => moveSelectedReference(reference.key, -1)}>
+                              <ArrowUp size={13} />
+                            </button>
+                            <button
+                              className="status"
+                              type="button"
+                              disabled={index === selectedReferences.length - 1}
+                              onClick={() => moveSelectedReference(reference.key, 1)}
+                            >
+                              <ArrowDown size={13} />
+                            </button>
+                            <button className="status" type="button" onClick={() => removeSelectedReference(reference.key)}>
+                              <X size={13} />
+                              移除
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <button className="status reference-clear-all" type="button" onClick={clearAllReferences}>
+                        清空参考图
+                      </button>
+                    </>
+                  ) : (
+                    <p className="small muted reference-empty-copy">未选择参考图。可上传多张、选择最近参考图，或在图片卡片点击“编辑”加入参考图。</p>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </section>
 
           <div className="generation-submit">
@@ -1119,7 +1138,7 @@ export function Workspace({
                       <DeleteRecordButton recordId={recent.id} onDeleted={() => removeHistoryItem(recent.id)} />
                     ) : null}
                     {recent.status === "failed" || recent.status === "canceled" || recent.status === "queued" || recent.status === "running" ? null : (
-                      <button className="status" type="button" onClick={() => applyTaskParams(recent)} disabled={loading}>
+                      <button className="status action-button action-rerun" type="button" onClick={() => applyTaskParams(recent)} disabled={loading}>
                         <RefreshCcw size={13} />
                         重做
                       </button>
@@ -1186,11 +1205,11 @@ function ImageCard({
         <div className="actions image-card-actions">
           <FavoriteImageButton imageId={image.id} initialFavorite={image.is_favorite ?? false} />
           <ReferenceBasketButton imageId={image.id} />
-          <button className="status" type="button" onClick={() => onEdit(image.id)}>
+          <button className="status action-button action-edit" type="button" onClick={() => onEdit(image.id)}>
             <Pencil size={13} />
             编辑
           </button>
-          <a className="status" href={`/api/images/${image.id}/download`}>
+          <a className="status action-button action-download" href={`/api/images/${image.id}/download`}>
             <Download size={13} />
             下载
           </a>

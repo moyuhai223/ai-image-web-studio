@@ -17,6 +17,7 @@ export const REFERENCE_BASKET_APPLY_EVENT = "ai-image-reference-basket-apply";
 
 const REFERENCE_BASKET_STORAGE_KEY = "ai-image-reference-basket-v1";
 const REFERENCE_BASKET_CHANGE_EVENT = "ai-image-reference-basket-change";
+const MOBILE_REFERENCE_BASKET_QUERY = "(max-width: 760px)";
 
 function normalizeBasketItems(value: unknown): ReferenceBasketItem[] {
   if (!Array.isArray(value)) return [];
@@ -122,7 +123,7 @@ export function ReferenceBasketButton({
 
   return (
     <button
-      className={`status reference-basket-button${selected ? " selected" : ""}`}
+      className={`status action-button reference-basket-button${selected ? " selected" : ""}`}
       type="button"
       onClick={toggle}
       disabled={full}
@@ -138,6 +139,7 @@ export function ReferenceBasketTray() {
   const [items, setItems] = useReferenceBasket();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [mobileViewport, setMobileViewport] = useState(false);
   const count = items.length;
   const hasItems = count > 0;
 
@@ -146,8 +148,16 @@ export function ReferenceBasketTray() {
   }, []);
 
   useEffect(() => {
-    if (count > 0) setOpen(true);
-  }, [count]);
+    const media = window.matchMedia(MOBILE_REFERENCE_BASKET_QUERY);
+    const updateViewport = () => setMobileViewport(media.matches);
+    updateViewport();
+    media.addEventListener("change", updateViewport);
+    return () => media.removeEventListener("change", updateViewport);
+  }, []);
+
+  useEffect(() => {
+    if (count > 0 && !mobileViewport) setOpen(true);
+  }, [count, mobileViewport]);
 
   const title = useMemo(() => `参考图 ${count}/${MAX_REFERENCE_BASKET_ITEMS}`, [count]);
   if (!mounted || !hasItems) return null;

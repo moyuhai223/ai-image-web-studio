@@ -420,11 +420,11 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
                     </div>
                     <div className="actions image-card-actions">
                       <ReferenceBasketButton imageId={image.id} prompt={job.prompt} />
-                      <a className="status" href={`/?referenceImageId=${image.id}`}>
+                      <a className="status action-button action-edit" href={`/?referenceImageId=${image.id}`}>
                         <Pencil size={13} />
                         编辑
                       </a>
-                      <a className="status" href={`/api/images/${image.id}/download`}>下载</a>
+                      <a className="status action-button action-download" href={`/api/images/${image.id}/download`}>下载</a>
                     </div>
                   </footer>
                 </article>

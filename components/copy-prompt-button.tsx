@@ -31,7 +31,7 @@ export function CopyPromptButton({ prompt }: { prompt: string }) {
   }
 
   return (
-    <button className="status" type="button" onClick={copyPrompt} disabled={!prompt}>
+    <button className="status action-button action-copy" type="button" onClick={copyPrompt} disabled={!prompt}>
       {copied ? <Check size={13} /> : <Copy size={13} />}
       {copied ? "已复制" : "复制"}
     </button>

@@ -42,7 +42,7 @@ export function FavoriteImageButton({
 
   return (
     <button
-      className={`status favorite-button ${isFavorite ? "favorited" : ""}`}
+      className={`status action-button favorite-button ${isFavorite ? "favorited" : ""}`}
       type="button"
       onClick={toggleFavorite}
       disabled={saving}

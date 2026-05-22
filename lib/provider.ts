@@ -255,11 +255,41 @@ function findImagesInValue(value: unknown, images: ProviderImage[]) {
 
   if (typeof value === "object") {
     const record = value as Record<string, unknown>;
+    const inlineData = asRecord(record.inlineData) ?? asRecord(record.inline_data);
+    if (inlineData) pushInlineImage(inlineData, images);
+
+    const source = asRecord(record.source);
+    if (source) pushInlineImage(source, images);
+
+    if (record.type === "image_generation_call" && typeof record.result === "string") {
+      images.push({ b64: record.result, mimeType: "image/png" });
+    }
+
     if (typeof record.b64_json === "string") images.push({ b64: record.b64_json, mimeType: "image/png" });
     if (typeof record.image_url === "string") images.push({ url: record.image_url });
     if (typeof record.url === "string" && /^https?:\/\//.test(record.url)) images.push({ url: record.url });
     for (const nested of Object.values(record)) findImagesInValue(nested, images);
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function firstString(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function pushInlineImage(record: Record<string, unknown>, images: ProviderImage[]) {
+  const mimeType = firstString(record, ["mimeType", "mime_type", "mediaType", "media_type"]);
+  if (!mimeType.toLowerCase().startsWith("image/")) return;
+
+  const data = firstString(record, ["data", "base64", "b64_json"]);
+  if (data) images.push({ b64: data, mimeType });
 }
 
 function normalizeChatResult(raw: Record<string, unknown>): ProviderPayloadResult {

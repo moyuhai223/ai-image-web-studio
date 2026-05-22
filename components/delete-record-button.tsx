@@ -55,7 +55,7 @@ export function DeleteRecordButton({
 
   return (
     <>
-      <button className="status failed" type="button" disabled={loading} onClick={openConfirm}>
+      <button className="status action-button action-danger" type="button" disabled={loading} onClick={openConfirm}>
         <Trash2 size={13} />
         {loading ? "删除中" : "删除"}
       </button>

@@ -71,7 +71,7 @@ export function JobControlButton({ action, recordId, onDone }: Props) {
 
   return (
     <>
-      <button className={`status ${action === "cancel" ? "failed" : "queued"}`} type="button" disabled={loading} onClick={openConfirm}>
+      <button className={`status action-button ${action === "cancel" ? "action-cancel" : "action-requeue"}`} type="button" disabled={loading} onClick={openConfirm}>
         {action === "cancel" ? <Ban size={13} /> : <RotateCcw size={13} />}
         {loading ? copy.loading : copy.idle}
       </button>

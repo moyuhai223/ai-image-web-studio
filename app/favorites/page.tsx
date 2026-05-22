@@ -213,10 +213,10 @@ export default async function FavoritesPage({
                         <ImageTagsEditor imageId={image.id} initialTags={image.tags ?? []} tagBasePath="/favorites" />
                       </div>
                       <div className="actions image-card-actions">
-                        <a className="status" href={`/records/${image.job_id}`}>详情</a>
-                        <a className="status" href={rerunHref(image)}>重做</a>
+                        <a className="status action-button action-detail" href={`/records/${image.job_id}`}>详情</a>
+                        <a className="status action-button action-rerun" href={rerunHref(image)}>重做</a>
                         <ReferenceBasketButton imageId={image.id} prompt={image.job_prompt} />
-                        <a className="status" href={`/api/images/${image.id}/download`}>下载</a>
+                        <a className="status action-button action-download" href={`/api/images/${image.id}/download`}>下载</a>
                       </div>
                     </footer>
                   </article>
