@@ -225,7 +225,10 @@ function normalizeImageGenerations(raw: Record<string, unknown>): ProviderPayloa
       if (!item || typeof item !== "object") return null;
       const record = item as Record<string, unknown>;
       if (typeof record.b64_json === "string") return { b64: record.b64_json, mimeType: "image/png" };
-      if (typeof record.url === "string") return { url: record.url };
+      if (typeof record.url === "string") {
+        if (record.url.startsWith("data:image/")) return { b64: record.url };
+        return { url: record.url };
+      }
       return null;
     })
     .filter(Boolean) as ProviderImage[];
