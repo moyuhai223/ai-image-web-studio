@@ -273,6 +273,26 @@ function releaseLocalJobs(jobIds: string[]) {
   }
 }
 
+async function syncLocalRunningJobs() {
+  const localJobIds = Array.from(queueState.runningJobIds);
+  if (localJobIds.length === 0) return;
+
+  const result = await query<{ id: string }>(
+    `select id
+     from generation_jobs
+     where status = 'running'
+       and id = any($1::uuid[])`,
+    [localJobIds]
+  );
+  const activeJobIds = new Set(result.rows.map((row) => row.id));
+
+  for (const jobId of localJobIds) {
+    if (!activeJobIds.has(jobId)) {
+      queueState.runningJobIds.delete(jobId);
+    }
+  }
+}
+
 async function drainQueue() {
   if (queueState.draining) return;
   queueState.draining = true;
@@ -280,6 +300,7 @@ async function drainQueue() {
   try {
     await recoverInterruptedJobsOnce();
     releaseLocalJobs(await failTimedOutRunningJobs());
+    await syncLocalRunningJobs();
 
     while (queueState.runningJobIds.size < concurrencyLimit()) {
       const pendingJobId = queueState.pending.values().next().value as string | undefined;

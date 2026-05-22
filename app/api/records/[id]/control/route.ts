@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
-import { enqueueGenerationJob } from "@/lib/generation-queue";
+import { enqueueGenerationJob, startGenerationQueue } from "@/lib/generation-queue";
 import { requeueJobWithGeneratedImageCleanup } from "@/lib/generated-image-cleanup";
 import { cancelJobForUser, getJobById } from "@/lib/repository";
 
@@ -35,6 +35,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       targetType: "generation_job",
       targetId: id
     });
+    startGenerationQueue();
     const job = await getJobById(id, user);
     return NextResponse.json({ ok: true, job }, { headers: { "cache-control": "no-store" } });
   }
