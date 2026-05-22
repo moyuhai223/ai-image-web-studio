@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { clearAuditLogs, listAuditLogs, writeAuditLog } from "@/lib/audit-log";
+import { respondError } from "@/lib/api-errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "审计日志读取失败";
-}
 
 export async function GET(request: Request) {
   await requireAdmin();
@@ -25,7 +22,7 @@ export async function GET(request: Request) {
     });
     return NextResponse.json({ logs }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
+    return respondError(error, { context: "audit-logs.GET" });
   }
 }
 
@@ -44,6 +41,6 @@ export async function DELETE(request: Request) {
     const logs = await listAuditLogs({ limit: 80 });
     return NextResponse.json({ deletedCount, logs }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
+    return respondError(error, { context: "audit-logs.DELETE" });
   }
 }

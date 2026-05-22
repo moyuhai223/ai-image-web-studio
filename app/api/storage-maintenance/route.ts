@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { respondError } from "@/lib/api-errors";
 import { cleanupFailedTaskImages, cleanupOrphanFiles, rebuildAllThumbnails, scanStorageMaintenance } from "@/lib/storage-maintenance";
 
 export const runtime = "nodejs";
@@ -13,10 +14,6 @@ function parseAction(value: unknown): MaintenanceAction | null {
   return null;
 }
 
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "存储维护失败";
-}
-
 export async function GET() {
   await requireAdmin();
 
@@ -24,7 +21,7 @@ export async function GET() {
     const scan = await scanStorageMaintenance();
     return NextResponse.json({ scan }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
+    return respondError(error, { context: "storage-maintenance.GET" });
   }
 }
 
@@ -55,6 +52,6 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ result }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
+    return respondError(error, { context: "storage-maintenance.POST" });
   }
 }

@@ -3,13 +3,10 @@ import { requireAdmin } from "@/lib/auth";
 import { createDataBackup, deleteDataBackup, listDataBackups } from "@/lib/data-backup";
 import { getAutoBackupPolicy } from "@/lib/auto-backup";
 import { writeAuditLog } from "@/lib/audit-log";
+import { respondError } from "@/lib/api-errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "备份操作失败";
-}
 
 export async function GET() {
   await requireAdmin();
@@ -18,7 +15,7 @@ export async function GET() {
     const [backups, policy] = await Promise.all([listDataBackups(), getAutoBackupPolicy()]);
     return NextResponse.json({ backups, policy }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
+    return respondError(error, { context: "backups.GET" });
   }
 }
 
@@ -38,7 +35,7 @@ export async function POST(request: Request) {
     const backups = await listDataBackups();
     return NextResponse.json({ backup, backups }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
+    return respondError(error, { context: "backups.POST" });
   }
 }
 
@@ -62,6 +59,6 @@ export async function DELETE(request: Request) {
     const backups = await listDataBackups();
     return NextResponse.json({ ok: true, backups }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
+    return respondError(error, { context: "backups.DELETE" });
   }
 }

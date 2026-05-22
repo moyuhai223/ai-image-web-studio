@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { respondError } from "@/lib/api-errors";
 import { setProviderBaseUrl } from "@/lib/provider-settings";
 
 export const runtime = "nodejs";
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "保存失败";
-}
 
 export async function PATCH(request: Request) {
   const user = await requireAdmin();
@@ -32,6 +29,6 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json(settings);
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 400 });
+    return respondError(error, { context: "settings.provider.PATCH", fallbackStatus: 400 });
   }
 }

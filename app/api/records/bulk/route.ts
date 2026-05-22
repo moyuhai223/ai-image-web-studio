@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { respondError } from "@/lib/api-errors";
 import { deleteJobWithGeneratedImages } from "@/lib/generated-image-cleanup";
 import { addTagsToJobsForUser, normalizeImageTags } from "@/lib/repository";
 
@@ -18,10 +19,6 @@ function parseIds(value: unknown) {
 
 function parseAction(value: unknown): BulkAction | null {
   return value === "delete" || value === "add_tags" ? value : null;
-}
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "批量操作失败";
 }
 
 export async function POST(request: Request) {
@@ -85,6 +82,6 @@ export async function POST(request: Request) {
       { status: failed === 0 ? 200 : 207, headers: { "cache-control": "no-store" } }
     );
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
+    return respondError(error, { context: "records.bulk.POST" });
   }
 }

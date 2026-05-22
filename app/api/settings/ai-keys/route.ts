@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { respondError } from "@/lib/api-errors";
 import { addAiKey, deleteAiKey, setAiKeyEnabled, setAiKeyFailurePolicy } from "@/lib/api-keys";
 
 export const runtime = "nodejs";
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "保存失败";
-}
 
 export async function POST(request: Request) {
   const user = await requireAdmin();
@@ -32,7 +29,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(settings);
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 400 });
+    return respondError(error, { context: "settings.ai-keys", fallbackStatus: 400 });
   }
 }
 
@@ -55,7 +52,7 @@ export async function DELETE(request: Request) {
     });
     return NextResponse.json(settings);
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 400 });
+    return respondError(error, { context: "settings.ai-keys", fallbackStatus: 400 });
   }
 }
 
@@ -101,6 +98,6 @@ export async function PATCH(request: Request) {
     });
     return NextResponse.json(settings);
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 400 });
+    return respondError(error, { context: "settings.ai-keys", fallbackStatus: 400 });
   }
 }

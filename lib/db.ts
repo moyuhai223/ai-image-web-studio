@@ -62,3 +62,14 @@ export async function transaction<T>(run: (client: pg.PoolClient) => Promise<T>)
     client.release();
   }
 }
+
+export async function closePool() {
+  const existing = globalThis.__aiImagePool;
+  if (!existing) return;
+  globalThis.__aiImagePool = undefined;
+  try {
+    await existing.end();
+  } catch (error) {
+    console.warn("Failed to close database pool cleanly:", error);
+  }
+}

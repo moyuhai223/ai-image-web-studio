@@ -2,6 +2,31 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.4.38] - 2026-05-23
+
+### 安全
+
+- 统一所有 `app/api` 路由的错误处理：原本 500 catch 直接把 `error.message` 写回响应体（包含 SQL、文件路径、堆栈片段等内部细节），改为对外返回通用提示 + 服务端 `console.error` 记录完整错误。
+- 新增 `lib/api-errors.ts`：`ApiError(message, status)` 显式标记面向用户的可见错误，`respondError(error, { context, fallbackStatus })` 统一封装响应，500 路径强制掩码、400 路径仍透传 lib 抛出的中文提示。
+- 涉及路由：`audit-logs` / `storage-maintenance` / `records/bulk` / `backups`（含 `policy` `restore` `validate`）/ `settings/provider` / `settings/ai-keys`，共 9 个文件、~13 处 catch。
+- `backups/restore` 与 `backups/validate` 内部的输入校验改用 `ApiError(msg, 400)` 显式抛出（原本被 catch 后统一返回 500，用户看不到真实原因）。
+
+### 修复
+
+- `scripts/start-production.mjs` 加入 graceful shutdown：SIGTERM / SIGINT / SIGHUP 转发给 Next.js server.js，25 秒未退出 SIGKILL 强制清理，避免容器停止时丢请求 / 连接泄漏。
+- `lib/db.ts` 新增 `closePool()` 导出，便于上层在退出前主动释放 PG pool。
+
+## [0.4.37] - 2026-05-23
+
+### 修复
+
+- 重写 Image 2 编辑接口 (`/v1/images/edits`) 调用逻辑：去除默认强制的 `response_format=url`，让 provider 按 `gpt-image-1` 新规范返回 b64_json，避免严格按规范实现的 provider 直接 400。
+- Image 2 编辑失败时新增 base64 → url 兜底链：首次默认请求失败且命中 `400/404/405/422` 或 `response_format / unsupported / no images` 等错误时，自动重试 `response_format=b64_json`，再失败才尝试 `response_format=url`，减少单点失败。
+- 参考图预处理改为按需触发：原生 PNG/JPEG/WebP 且 ≤1536 边长 ≤4MB ≤ 无 EXIF 旋转时直接透传原文件，避免无意义的 PNG 转码导致 payload 膨胀和大图 multipart 超限。
+- 参考图 sharp 处理失败时降级为原文件提交（只要 mime 受支持），不再因 sharp 单点报错让整个任务直接失败。
+- 参考图文件名扩展名匹配真实 mimeType（之前所有参考图都强制叫 `.png`，可能让严格校验的 provider 直接拒收）。
+- Image 2 编辑错误信息附加诊断元数据（`refs=N payload=KB size=... model=...`），方便后续日志定位是参考图大小、尺寸还是模型本身的问题。
+
 ## [0.4.36] - 2026-05-22
 
 ### 修复

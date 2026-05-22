@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { respondError } from "@/lib/api-errors";
 import { getAutoBackupPolicy, updateAutoBackupPolicy } from "@/lib/auto-backup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "自动备份设置保存失败";
-}
 
 export async function GET() {
   await requireAdmin();
@@ -17,7 +14,7 @@ export async function GET() {
     const policy = await getAutoBackupPolicy();
     return NextResponse.json({ policy }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
+    return respondError(error, { context: "backups.policy.GET" });
   }
 }
 
@@ -40,6 +37,6 @@ export async function PATCH(request: Request) {
     });
     return NextResponse.json({ policy }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 400 });
+    return respondError(error, { context: "backups.policy.PATCH", fallbackStatus: 400 });
   }
 }

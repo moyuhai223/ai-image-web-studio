@@ -43,6 +43,14 @@ type GenerateInput = {
 
 const MAX_KEY_ATTEMPTS = 3;
 const IMAGE2_REFERENCE_MAX_SIDE = 1536;
+const IMAGE2_REFERENCE_SAFE_BYTES = 4 * 1024 * 1024;
+const IMAGE2_SUPPORTED_MIMES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+function extensionForReferenceMime(mimeType: string) {
+  if (mimeType === "image/jpeg") return "jpg";
+  if (mimeType === "image/webp") return "webp";
+  return "png";
+}
 
 function authHeaders(apiKey: string) {
   return {
@@ -184,24 +192,53 @@ function blobPartFromBuffer(buffer: Buffer) {
 
 async function prepareImage2Reference(dataUrl: string, index: number) {
   const reference = parseDataUrl(dataUrl);
+  const originalMime = reference.mimeType.toLowerCase();
+  const passthrough = () => ({
+    buffer: reference.buffer,
+    mimeType: IMAGE2_SUPPORTED_MIMES.has(originalMime) ? originalMime : "image/png",
+    filename: `reference-${index + 1}.${extensionForReferenceMime(IMAGE2_SUPPORTED_MIMES.has(originalMime) ? originalMime : "image/png")}`
+  });
+
+  let metadata: sharp.Metadata | null = null;
   try {
-    const buffer = await sharp(reference.buffer)
-      .rotate()
-      .resize({
+    metadata = await sharp(reference.buffer).metadata();
+  } catch (error) {
+    console.warn(`Image 2 参考图 ${index + 1} 读取元信息失败，使用原文件:`, error);
+    if (IMAGE2_SUPPORTED_MIMES.has(originalMime)) return passthrough();
+    throw new Error(`Image 2 参考图 ${index + 1} 预处理失败：${error instanceof Error ? error.message : "图片格式异常"}`);
+  }
+
+  const maxEdge = Math.max(metadata.width ?? 0, metadata.height ?? 0);
+  const needsResize = maxEdge > IMAGE2_REFERENCE_MAX_SIDE;
+  const needsTranscode = !IMAGE2_SUPPORTED_MIMES.has(originalMime);
+  const oversized = reference.buffer.byteLength > IMAGE2_REFERENCE_SAFE_BYTES;
+  const needsRotate = Boolean(metadata.orientation && metadata.orientation > 1);
+
+  if (!needsResize && !needsTranscode && !oversized && !needsRotate) {
+    return passthrough();
+  }
+
+  try {
+    const pipeline = sharp(reference.buffer).rotate();
+    if (needsResize || oversized) {
+      pipeline.resize({
         width: IMAGE2_REFERENCE_MAX_SIDE,
         height: IMAGE2_REFERENCE_MAX_SIDE,
         fit: "inside",
         withoutEnlargement: true
-      })
-      .png()
-      .toBuffer();
-
+      });
+    }
+    const buffer = await pipeline.png({ compressionLevel: 9 }).toBuffer();
     return {
       buffer,
       mimeType: "image/png",
       filename: `reference-${index + 1}.png`
     };
   } catch (error) {
+    if (IMAGE2_SUPPORTED_MIMES.has(originalMime)) {
+      console.warn(`Image 2 参考图 ${index + 1} sharp 处理失败，降级使用原文件:`, error);
+      return passthrough();
+    }
     throw new Error(`Image 2 参考图 ${index + 1} 预处理失败：${error instanceof Error ? error.message : "图片格式异常"}`);
   }
 }
@@ -345,27 +382,76 @@ function isNanoBananaModel(model: string) {
   return model === config.imageModelNano || model.toLowerCase().includes("banana");
 }
 
+type PreparedReference = Awaited<ReturnType<typeof prepareImage2Reference>>;
+
+function buildImageEditForm(input: GenerateInput, references: PreparedReference[], responseFormat?: "url" | "b64_json") {
+  const form = new FormData();
+  form.set("model", input.model);
+  form.set("prompt", input.prompt);
+  form.set("size", input.size);
+  form.set("n", String(input.count));
+  if (responseFormat) form.set("response_format", responseFormat);
+  for (const reference of references) {
+    form.append("image", new Blob([blobPartFromBuffer(reference.buffer)], { type: reference.mimeType }), reference.filename);
+  }
+  return form;
+}
+
 async function generateImageEdit(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
   const referenceDataUrls = getReferenceDataUrls(input);
   if (referenceDataUrls.length === 0) {
     throw new Error("Reference image is required for image edits");
   }
 
-  const form = new FormData();
-  form.set("model", input.model);
-  form.set("prompt", input.prompt);
-  form.set("size", input.size);
-  form.set("n", String(input.count));
-  form.set("response_format", "url");
+  const references: PreparedReference[] = [];
   for (let index = 0; index < referenceDataUrls.length; index += 1) {
-    const reference = await prepareImage2Reference(referenceDataUrls[index], index);
-    form.append("image", new Blob([blobPartFromBuffer(reference.buffer)], { type: reference.mimeType }), reference.filename);
+    references.push(await prepareImage2Reference(referenceDataUrls[index], index));
   }
+  const totalBytes = references.reduce((sum, ref) => sum + ref.buffer.byteLength, 0);
+  const diagnostic = `refs=${references.length} payload=${(totalBytes / 1024).toFixed(1)}KB size=${input.size} model=${input.model}`;
+  console.log(`[image2-edit] submitting ${diagnostic}`);
 
-  const raw = await retryProvider("image edit generation", deadline, () => postForm("/v1/images/edits", form, apiKey, deadline, baseUrl));
-  const normalized = normalizeImageGenerations(raw);
-  if (normalized.images.length > 0) return normalized;
-  throw Object.assign(new Error("Provider returned no edited image"), { raw });
+  const attemptEdit = async (responseFormat: "url" | "b64_json" | undefined, label: string) => {
+    const form = buildImageEditForm(input, references, responseFormat);
+    const raw = await retryProvider(label, deadline, () => postForm("/v1/images/edits", form, apiKey, deadline, baseUrl));
+    const normalized = normalizeImageGenerations(raw);
+    if (normalized.images.length > 0) return normalized;
+    throw Object.assign(new Error("Provider returned no edited image"), { raw });
+  };
+
+  try {
+    return await attemptEdit(undefined, "image edit default");
+  } catch (defaultError) {
+    if (isProviderTimeoutError(defaultError)) throw defaultError;
+    if (!shouldTryBase64Fallback(defaultError)) {
+      throw enrichEditError(defaultError, diagnostic);
+    }
+    console.warn(`[image2-edit] default failed (${diagnostic}), retrying with response_format=b64_json:`, defaultError);
+    try {
+      return await attemptEdit("b64_json", "image edit b64 fallback");
+    } catch (b64Error) {
+      if (isProviderTimeoutError(b64Error)) throw b64Error;
+      if (!shouldTryBase64Fallback(b64Error)) {
+        throw enrichEditError(b64Error, diagnostic);
+      }
+      console.warn(`[image2-edit] b64 fallback failed (${diagnostic}), retrying with response_format=url:`, b64Error);
+      try {
+        return await attemptEdit("url", "image edit url fallback");
+      } catch (urlError) {
+        throw enrichEditError(urlError, diagnostic);
+      }
+    }
+  }
+}
+
+function enrichEditError(error: unknown, diagnostic: string) {
+  if (!(error instanceof Error)) return error;
+  const enriched = error as Error & { diagnostic?: string };
+  if (!enriched.diagnostic) {
+    enriched.diagnostic = diagnostic;
+    enriched.message = `${enriched.message}（${diagnostic}）`;
+  }
+  return enriched;
 }
 
 function shouldTryBase64Fallback(error: unknown) {
