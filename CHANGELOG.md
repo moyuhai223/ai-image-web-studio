@@ -2,6 +2,15 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.4.39] - 2026-05-23
+
+### 变更
+
+- 新增 `lib/logger.ts`：零依赖结构化 logger，统一 server 端 24 处 `console.*` 调用。日志现在带统一时间戳、级别（`debug`/`info`/`warn`/`error`）和模块名（`provider` / `queue` / `runner` / `api-error` 等），错误对象自动展开为 `{name, message, stack}`。
+- 支持环境变量配置：`LOG_LEVEL`（默认 `info`）按级别过滤，`LOG_FORMAT=json` 切换到单行 JSON 输出（容器/日志聚合场景）。默认 text 格式对开发者友好。
+- 涉及文件：`lib/api-errors.ts` / `audit-log.ts` / `data-backup.ts` / `db.ts` / `generation-queue.ts` / `generation-runner.ts` / `provider.ts` / `ui-theme.ts` / `app/api/health/route.ts`。
+- 客户端组件（`workspace.tsx` 等）和 CLI 脚本（`start-production.mjs` 等）保留 `console.*`：前者直接给浏览器 DevTools 看不需要结构化，后者是进程入口且跨 `.ts`/`.mjs`。
+
 ## [0.4.38] - 2026-05-23
 
 ### 安全

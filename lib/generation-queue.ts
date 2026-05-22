@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { config } from "./config";
 import { query } from "./db";
 import { processGenerationJob } from "./generation-runner";
+import { createLogger } from "./logger";
+
+const log = createLogger("queue");
 
 type QueueState = {
   pending: Set<string>;
@@ -120,7 +123,7 @@ async function failTimedOutRunningJobs() {
   );
 
   if (result.rowCount) {
-    console.warn(`Marked ${result.rowCount} timed out generation job(s) as failed.`);
+    log.warn("Marked timed out generation jobs as failed", { count: result.rowCount });
   }
 
   return result.rows.map((row) => row.id);
@@ -158,7 +161,7 @@ async function recoverInterruptedJobs() {
   );
 
   if (result.rowCount) {
-    console.warn(`Recovered ${result.rowCount} interrupted generation job(s) after process start.`);
+    log.warn("Recovered interrupted generation jobs after process start", { count: result.rowCount });
   }
 }
 
@@ -313,10 +316,10 @@ async function drainQueue() {
       if (!jobId) break;
 
       queueState.runningJobIds.add(jobId);
-      console.info(`Generation queue claimed job ${jobId}.`);
+      log.info("Generation queue claimed job", { jobId });
       void processGenerationJob(jobId, runId)
         .catch((error) => {
-          console.warn(`Background generation job ${jobId} crashed:`, error);
+          log.warn("Background generation job crashed", { jobId, error });
         })
         .finally(() => {
           queueState.runningJobIds.delete(jobId);
@@ -324,7 +327,7 @@ async function drainQueue() {
         });
     }
   } catch (error) {
-    console.warn("Generation queue drain failed:", error);
+    log.warn("Generation queue drain failed", { error });
   } finally {
     queueState.draining = false;
   }
@@ -342,7 +345,7 @@ function startQueueWatchdog() {
         return drainQueue();
       })
       .catch((error) => {
-        console.warn("Generation queue timeout watchdog failed:", error);
+        log.warn("Generation queue timeout watchdog failed", { error });
       });
   }, intervalMs);
 

@@ -1,5 +1,8 @@
 import { query } from "./db";
+import { createLogger } from "./logger";
 import type { User } from "./types";
+
+const log = createLogger("audit-log");
 
 export type AuditLogItem = {
   id: string;
@@ -61,7 +64,7 @@ export async function writeAuditLog(input: WriteAuditLogInput) {
       ]
     );
   } catch (error) {
-    console.warn("Audit log write failed:", error);
+    log.warn("Audit log write failed", { error });
   }
 }
 

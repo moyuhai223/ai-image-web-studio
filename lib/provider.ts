@@ -1,7 +1,10 @@
 import sharp from "sharp";
 import { getNextAiApiKey, reportAiKeyFailure, reportAiKeySuccess } from "./api-keys";
 import { config } from "./config";
+import { createLogger } from "./logger";
 import { getProviderBaseUrl } from "./provider-settings";
+
+const log = createLogger("provider");
 
 export type ProviderImage = {
   b64?: string;
@@ -203,7 +206,7 @@ async function prepareImage2Reference(dataUrl: string, index: number) {
   try {
     metadata = await sharp(reference.buffer).metadata();
   } catch (error) {
-    console.warn(`Image 2 参考图 ${index + 1} 读取元信息失败，使用原文件:`, error);
+    log.warn("Image 2 参考图读取元信息失败，使用原文件", { ref: index + 1, error });
     if (IMAGE2_SUPPORTED_MIMES.has(originalMime)) return passthrough();
     throw new Error(`Image 2 参考图 ${index + 1} 预处理失败：${error instanceof Error ? error.message : "图片格式异常"}`);
   }
@@ -236,7 +239,7 @@ async function prepareImage2Reference(dataUrl: string, index: number) {
     };
   } catch (error) {
     if (IMAGE2_SUPPORTED_MIMES.has(originalMime)) {
-      console.warn(`Image 2 参考图 ${index + 1} sharp 处理失败，降级使用原文件:`, error);
+      log.warn("Image 2 参考图 sharp 处理失败，降级使用原文件", { ref: index + 1, error });
       return passthrough();
     }
     throw new Error(`Image 2 参考图 ${index + 1} 预处理失败：${error instanceof Error ? error.message : "图片格式异常"}`);
@@ -279,7 +282,7 @@ async function retryProvider<T>(label: string, deadline: ProviderDeadline, run: 
       if (waitMs <= 0) {
         throw new ProviderTimeoutError();
       }
-      console.warn(`${label} failed transiently, retrying in ${waitMs}ms:`, error);
+      log.warn("Provider call failed transiently, retrying", { label, waitMs, error });
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
   }
@@ -409,7 +412,12 @@ async function generateImageEdit(input: GenerateInput, apiKey: string, deadline:
   }
   const totalBytes = references.reduce((sum, ref) => sum + ref.buffer.byteLength, 0);
   const diagnostic = `refs=${references.length} payload=${(totalBytes / 1024).toFixed(1)}KB size=${input.size} model=${input.model}`;
-  console.log(`[image2-edit] submitting ${diagnostic}`);
+  log.info("image2 edit submitting", {
+    refs: references.length,
+    payloadKB: Number((totalBytes / 1024).toFixed(1)),
+    size: input.size,
+    model: input.model
+  });
 
   const attemptEdit = async (responseFormat: "url" | "b64_json" | undefined, label: string) => {
     const form = buildImageEditForm(input, references, responseFormat);
@@ -426,7 +434,7 @@ async function generateImageEdit(input: GenerateInput, apiKey: string, deadline:
     if (!shouldTryBase64Fallback(defaultError)) {
       throw enrichEditError(defaultError, diagnostic);
     }
-    console.warn(`[image2-edit] default failed (${diagnostic}), retrying with response_format=b64_json:`, defaultError);
+    log.warn("image2 edit default failed, retrying with response_format=b64_json", { diagnostic, error: defaultError });
     try {
       return await attemptEdit("b64_json", "image edit b64 fallback");
     } catch (b64Error) {
@@ -434,7 +442,7 @@ async function generateImageEdit(input: GenerateInput, apiKey: string, deadline:
       if (!shouldTryBase64Fallback(b64Error)) {
         throw enrichEditError(b64Error, diagnostic);
       }
-      console.warn(`[image2-edit] b64 fallback failed (${diagnostic}), retrying with response_format=url:`, b64Error);
+      log.warn("image2 edit b64 fallback failed, retrying with response_format=url", { diagnostic, error: b64Error });
       try {
         return await attemptEdit("url", "image edit url fallback");
       } catch (urlError) {
@@ -609,7 +617,7 @@ export async function generateWithProvider(input: GenerateInput): Promise<Provid
         throw error;
       }
 
-      console.warn(`Provider key attempt ${attempt} failed, trying another key:`, error);
+      log.warn("Provider key attempt failed, trying another key", { attempt, error });
     }
   }
 

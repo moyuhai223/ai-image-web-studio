@@ -7,8 +7,11 @@ import { pipeline } from "node:stream/promises";
 import { createGunzip, createGzip } from "node:zlib";
 import type { PoolClient } from "pg";
 import { query, transaction } from "./db";
+import { createLogger } from "./logger";
 import { getStorageRoot } from "./storage";
 import { APP_VERSION } from "./version";
+
+const log = createLogger("data-backup");
 
 type BackupTable = {
   name: string;
@@ -741,7 +744,7 @@ async function replaceStorageDirectories(stagingRoot: string) {
             await rename(item.oldTarget, item.target);
           } catch (rollbackError) {
             keepOldRoot = true;
-            console.error(`恢复备份目录失败，旧目录保留在 ${oldRoot}:`, rollbackError);
+            log.error("恢复备份目录失败，旧目录保留", { oldRoot, error: rollbackError });
           }
         }
       }

@@ -1,7 +1,9 @@
 import pg from "pg";
 import { config } from "./config";
+import { createLogger } from "./logger";
 
 const { Pool } = pg;
+const log = createLogger("db");
 
 declare global {
   var __aiImagePool: pg.Pool | undefined;
@@ -24,7 +26,7 @@ function createPool() {
   });
   pool.on("connect", (client) => {
     client.query(`set time zone '${config.timeZone.replaceAll("'", "''")}'`).catch((error) => {
-      console.warn("Failed to set database session timezone:", error);
+      log.warn("Failed to set database session timezone", { error });
     });
   });
 
@@ -70,6 +72,6 @@ export async function closePool() {
   try {
     await existing.end();
   } catch (error) {
-    console.warn("Failed to close database pool cleanly:", error);
+    log.warn("Failed to close database pool cleanly", { error });
   }
 }

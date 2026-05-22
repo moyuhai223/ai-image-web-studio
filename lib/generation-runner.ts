@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { config } from "./config";
 import { query } from "./db";
+import { createLogger } from "./logger";
 import { generateWithProvider } from "./provider";
 import { deleteStoredImageFiles, imageSourceToBuffer, readStoredFile, saveImageBuffer } from "./storage";
 import type { GenerationJob, GenerationProgress } from "./types";
+
+const log = createLogger("runner");
 
 export type GenerationRunInput = {
   prompt: string;
@@ -445,7 +448,7 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
           );
         } catch (error) {
           await deleteStoredImageFiles(stored.relativePath).catch((deleteError) => {
-            console.warn(`Failed to delete canceled image file for job ${jobId}:`, deleteError);
+            log.warn("Failed to delete canceled image file", { jobId, error: deleteError });
           });
           throw error;
         }
@@ -476,10 +479,10 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
     if (isJobCanceledError(error)) return;
     if (!input) {
       await markFailedBeforeInput(jobId, runId, error, failureStage);
-      console.warn(`Generation job ${jobId} failed before loading input:`, error);
+      log.warn("Generation job failed before loading input", { jobId, stage: failureStage, error });
       return;
     }
     await markFailed(jobId, runId, input, providerResults, error, failureStage);
-    console.warn(`Generation job ${jobId} failed:`, error);
+    log.warn("Generation job failed", { jobId, stage: failureStage, error });
   }
 }

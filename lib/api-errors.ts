@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { createLogger } from "./logger";
+
+const log = createLogger("api-error");
 
 export class ApiError extends Error {
   readonly status: number;
@@ -24,21 +27,8 @@ const DEFAULT_FALLBACK: Record<number, string> = {
   500: "服务暂时不可用，请稍后再试"
 };
 
-function describeError(error: unknown) {
-  if (error instanceof Error) return `${error.name}: ${error.message}`;
-  if (typeof error === "string") return error;
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
-}
-
 function logServerError(context: string, status: number, error: unknown) {
-  console.error(`[api-error] ${context} status=${status} ${describeError(error)}`);
-  if (error instanceof Error && error.stack) {
-    console.error(error.stack);
-  }
+  log.error(context, { status, error });
 }
 
 export function respondError(error: unknown, options: RespondOptions) {
