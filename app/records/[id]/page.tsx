@@ -336,7 +336,7 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
             <h1 className="panel-title">任务详情</h1>
             <div className="actions">
               <span className={`status ${job.status}`}>{generationStatusLabel(job.status)}</span>
-              <a className="status" href={rerunHref(job)}>
+              <a className="status action-button action-rerun" href={rerunHref(job)}>
                 <RefreshCcw size={13} />
                 重做
               </a>

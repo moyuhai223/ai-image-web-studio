@@ -306,6 +306,10 @@ function isGptImageModel(model: string) {
   return model === config.imageModelGpt || model.toLowerCase().startsWith("gpt-image");
 }
 
+function isNanoBananaModel(model: string) {
+  return model === config.imageModelNano || model.toLowerCase().includes("banana");
+}
+
 async function generateImageEdit(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
   const referenceDataUrls = getReferenceDataUrls(input);
   if (referenceDataUrls.length === 0) {
@@ -326,6 +330,8 @@ async function generateImageEdit(input: GenerateInput, apiKey: string, deadline:
   const raw = await retryProvider("image edit generation", deadline, () => postForm("/v1/images/edits", form, apiKey, deadline, baseUrl));
   const normalized = normalizeImageGenerations(raw);
   if (normalized.images.length > 0) return normalized;
+  const nested = normalizeChatResult(raw);
+  if (nested.images.length > 0) return nested;
   throw Object.assign(new Error("Provider returned no edited image"), { raw });
 }
 
@@ -406,6 +412,16 @@ async function generateChatImage(input: GenerateInput, apiKey: string, deadline:
 }
 
 async function generateWithSelectedKey(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
+  if (isGptImageModel(input.model)) {
+    return getReferenceDataUrls(input).length > 0
+      ? generateImageEdit(input, apiKey, deadline, baseUrl)
+      : generateImageGeneration(input, apiKey, deadline, baseUrl);
+  }
+
+  if (isNanoBananaModel(input.model)) {
+    return generateChatImage(input, apiKey, deadline, baseUrl);
+  }
+
   if (getReferenceDataUrls(input).length > 0) {
     try {
       return await generateImageEdit(input, apiKey, deadline, baseUrl);
@@ -413,10 +429,6 @@ async function generateWithSelectedKey(input: GenerateInput, apiKey: string, dea
       if (isProviderTimeoutError(error) || isTransientProviderError(error)) {
         throw error;
       }
-      if (isGptImageModel(input.model)) {
-        throw error;
-      }
-
       const status = (error as Error & { status?: number }).status;
       if (status && ![400, 404, 405, 422].includes(status)) throw error;
     }
@@ -430,10 +442,6 @@ async function generateWithSelectedKey(input: GenerateInput, apiKey: string, dea
     if (isProviderTimeoutError(error) || isTransientProviderError(error)) {
       throw error;
     }
-    if (isGptImageModel(input.model)) {
-      throw error;
-    }
-
     const status = (error as Error & { status?: number }).status;
     if (status && ![400, 404, 405, 422].includes(status)) throw error;
   }
