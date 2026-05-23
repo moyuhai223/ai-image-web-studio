@@ -28,11 +28,11 @@ function PhaseRow({ label, timing }: { label: string; timing: PhaseTimingQuantil
     <li className="key-row">
       <div className="key-meta">
         <strong>{label}</strong>
-        <span className="small muted">样本 {timing.count}</span>
+        <span className="small muted">样本 <span className="num">{timing.count}</span></span>
       </div>
       <div className="actions">
-        <span className="status">p50 {formatMs(timing.p50)}</span>
-        <span className="status">p95 {formatMs(timing.p95)}</span>
+        <span className="status">p50 <span className="num">{formatMs(timing.p50)}</span></span>
+        <span className="status">p95 <span className="num">{formatMs(timing.p95)}</span></span>
       </div>
     </li>
   );
@@ -53,14 +53,14 @@ export function SystemHealthCard({ health, metrics }: { health: SystemHealth; me
           <div className="health-metric">
             <Activity size={18} />
             <div>
-              <strong>{health.version.label}</strong>
+              <strong className="num">{health.version.label}</strong>
               <p className="small muted">当前版本</p>
             </div>
           </div>
           <div className="health-metric">
             <KeyRound size={18} />
             <div>
-              <strong>{health.keys.enabled} / {health.keys.total}</strong>
+              <strong className="num">{health.keys.enabled} / {health.keys.total}</strong>
               <p className="small muted">启用 Key / 总 Key</p>
             </div>
           </div>
@@ -70,7 +70,7 @@ export function SystemHealthCard({ health, metrics }: { health: SystemHealth; me
               <strong className="break-text">{health.provider.baseUrl || "未配置"}</strong>
               <p className="small muted">
                 默认 Provider · {health.provider.source === "database" ? "设置页" : ".env"}
-                {health.provider.presets.length > 0 ? ` · 共 ${health.provider.presets.length} 个 Preset` : ""}
+                {health.provider.presets.length > 0 ? <> · 共 <span className="num">{health.provider.presets.length}</span> 个 Preset</> : ""}
               </p>
             </div>
           </div>
@@ -99,7 +99,7 @@ export function SystemHealthCard({ health, metrics }: { health: SystemHealth; me
               <span><KeyRound size={16} /> Key 池</span>
               <CheckBadge ok={!health.keys.error} />
             </div>
-            <p className="small muted">总数 {health.keys.total}，启用 {health.keys.enabled}，停用 {health.keys.disabled}</p>
+            <p className="small muted">总数 <span className="num">{health.keys.total}</span>，启用 <span className="num">{health.keys.enabled}</span>，停用 <span className="num">{health.keys.disabled}</span></p>
             {health.keys.error ? <p className="small health-error">{health.keys.error}</p> : null}
           </article>
 
@@ -154,49 +154,49 @@ export function SystemHealthCard({ health, metrics }: { health: SystemHealth; me
               <article className="health-check">
                 <div className="health-check-head">
                   <span><Activity size={16} /> 队列深度</span>
-                  <span className="status">{metrics.queueDepth.queued + metrics.queueDepth.running} 项</span>
+                  <span className="status"><span className="num">{metrics.queueDepth.queued + metrics.queueDepth.running}</span> 项</span>
                 </div>
                 <p className="small muted">
-                  排队 {metrics.queueDepth.queued} · 执行中 {metrics.queueDepth.running}
+                  排队 <span className="num">{metrics.queueDepth.queued}</span> · 执行中 <span className="num">{metrics.queueDepth.running}</span>
                 </p>
               </article>
 
               <article className="health-check">
                 <div className="health-check-head">
                   <span><CheckCircle2 size={16} /> 成功率</span>
-                  <span className="status succeeded">{formatRate(metrics.successRate24h.rate)}</span>
+                  <span className="status succeeded"><span className="num">{formatRate(metrics.successRate24h.rate)}</span></span>
                 </div>
                 <p className="small muted">
-                  24h: {metrics.successRate24h.succeeded}/{metrics.successRate24h.terminal} ·
-                  1h: {formatRate(metrics.successRate1h.rate)}({metrics.successRate1h.succeeded}/{metrics.successRate1h.terminal})
+                  24h: <span className="num">{metrics.successRate24h.succeeded}/{metrics.successRate24h.terminal}</span> ·
+                  1h: <span className="num">{formatRate(metrics.successRate1h.rate)}</span>(<span className="num">{metrics.successRate1h.succeeded}/{metrics.successRate1h.terminal}</span>)
                 </p>
               </article>
 
               <article className="health-check">
                 <div className="health-check-head">
                   <span><KeyRound size={16} /> Key 历史累计</span>
-                  <span className="status">{metrics.aiKeys.totalSuccess + metrics.aiKeys.totalFailure}</span>
+                  <span className="status"><span className="num">{metrics.aiKeys.totalSuccess + metrics.aiKeys.totalFailure}</span></span>
                 </div>
                 <p className="small muted">
-                  成功 {metrics.aiKeys.totalSuccess} · 失败 {metrics.aiKeys.totalFailure}
+                  成功 <span className="num">{metrics.aiKeys.totalSuccess}</span> · 失败 <span className="num">{metrics.aiKeys.totalFailure}</span>
                 </p>
               </article>
 
               <article className="health-check">
                 <div className="health-check-head">
                   <span><Activity size={16} /> 24h 任务分布</span>
-                  <span className="status">{metrics.recentJobs24h.total} 项</span>
+                  <span className="status"><span className="num">{metrics.recentJobs24h.total}</span> 项</span>
                 </div>
                 <p className="small muted">
-                  成功 {metrics.recentJobs24h.byStatus.succeeded ?? 0} · 失败 {metrics.recentJobs24h.byStatus.failed ?? 0}
+                  成功 <span className="num">{metrics.recentJobs24h.byStatus.succeeded ?? 0}</span> · 失败 <span className="num">{metrics.recentJobs24h.byStatus.failed ?? 0}</span>
                   {metrics.recentJobs24h.byStatus.upstream_error
-                    ? ` · 上游错误 ${metrics.recentJobs24h.byStatus.upstream_error}`
+                    ? <> · 上游错误 <span className="num">{metrics.recentJobs24h.byStatus.upstream_error}</span></>
                     : ""}
                   {metrics.recentJobs24h.byStatus.interrupted
-                    ? ` · 中断 ${metrics.recentJobs24h.byStatus.interrupted}`
+                    ? <> · 中断 <span className="num">{metrics.recentJobs24h.byStatus.interrupted}</span></>
                     : ""}
                   {metrics.recentJobs24h.byStatus.canceled
-                    ? ` · 取消 ${metrics.recentJobs24h.byStatus.canceled}`
+                    ? <> · 取消 <span className="num">{metrics.recentJobs24h.byStatus.canceled}</span></>
                     : ""}
                 </p>
               </article>

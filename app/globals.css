@@ -1052,6 +1052,16 @@ button.status:hover {
   letter-spacing: 0.02em;
 }
 
+/* 数字 mono 工具类 (#1):
+   用 JetBrains Mono + tabular-nums,确保多位数对齐(p50/p95、计数、百分比)。
+   wrap 在 inline span 上,不破坏父级中文字体。letter-spacing 重置抵消 body -0.01em。 */
+.num {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  font-feature-settings: "tnum" 1, "zero" 0;
+}
+
 .status.running::before {
   animation: badgePulse 1.6s ease-in-out infinite;
 }

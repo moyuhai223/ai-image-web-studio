@@ -157,8 +157,8 @@ export default async function RecordsPage({
           <div className="panel-header">
             <h1 className="panel-title">生成记录</h1>
             <div className="actions">
-              {filterCount > 0 ? <span className="status">已筛选 {filterCount} 项</span> : null}
-              <span className="status">共 {total} 条</span>
+              {filterCount > 0 ? <span className="status">已筛选 <span className="num">{filterCount}</span> 项</span> : null}
+              <span className="status">共 <span className="num">{total}</span> 条</span>
             </div>
           </div>
           <div className="panel-body">
@@ -299,7 +299,7 @@ export default async function RecordsPage({
               <a className={`status ${page <= 1 ? "disabled" : ""}`} href={page <= 1 ? pageHref(1, filterQuery) : pageHref(page - 1, filterQuery)}>
                 上一页
               </a>
-              <span className="status">第 {page} / {totalPages} 页</span>
+              <span className="status">第 <span className="num">{page} / {totalPages}</span> 页</span>
               <PageSelect page={page} totalPages={totalPages} query={filterQuery} />
               <a className={`status ${page >= totalPages ? "disabled" : ""}`} href={page >= totalPages ? pageHref(totalPages, filterQuery) : pageHref(page + 1, filterQuery)}>
                 下一页

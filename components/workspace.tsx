@@ -1327,8 +1327,8 @@ export function Workspace({
           </div>
           <div className="panel-body queue-list">
             <div className="queue-summary">
-              <span className="status running">运行 {queue.running} / {queue.concurrency}</span>
-              <span className="status queued">排队 {queue.queued}</span>
+              <span className="status running">运行 <span className="num">{queue.running} / {queue.concurrency}</span></span>
+              <span className="status queued">排队 <span className="num">{queue.queued}</span></span>
             </div>
             {queueLoading && queue.jobs.length === 0 ? <p className="muted small">正在加载任务队列...</p> : null}
             {!queueLoading && queue.jobs.length === 0 ? <p className="muted small">当前没有排队或运行中的任务。</p> : null}
@@ -1337,7 +1337,7 @@ export function Workspace({
                 <div className="queue-item-head">
                   <span className={`status ${item.status}`}>{generationStatusLabel(item.status)}</span>
                   <span className="small muted">
-                    {item.status === "queued" && item.queue_position ? `队列 #${item.queue_position}` : item.username ?? ""}
+                    {item.status === "queued" && item.queue_position ? <>队列 <span className="num">#{item.queue_position}</span></> : item.username ?? ""}
                   </span>
                 </div>
                 <p className="small queue-prompt">{item.prompt.slice(0, 72)}</p>
@@ -1348,7 +1348,7 @@ export function Workspace({
                       <div className="flow-tail" style={{ left: progressTailLeft(item.progress.percent) }} />
                     </div>
                     <p className="small muted">
-                      {item.progress.percent}% · 已保存 {item.progress.current} / {item.count} 张
+                      <span className="num">{item.progress.percent}%</span> · 已保存 <span className="num">{item.progress.current} / {item.count}</span> 张
                     </p>
                     {(() => {
                       const text = formatPhaseTimings(item.progress.phaseTimings);
@@ -1356,7 +1356,7 @@ export function Workspace({
                     })()}
                   </>
                 ) : (
-                  <p className="small muted">{item.count} 张 · {item.model}</p>
+                  <p className="small muted"><span className="num">{item.count}</span> 张 · {item.model}</p>
                 )}
                 <div className="actions">
                   <JobControlButton action="cancel" recordId={item.id} onDone={refreshJobLists} />

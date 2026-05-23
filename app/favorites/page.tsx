@@ -129,8 +129,8 @@ export default async function FavoritesPage({
           <div className="panel-header">
             <h1 className="panel-title">收藏作品集</h1>
             <div className="actions">
-              {activeFilterCount(filters) > 0 ? <span className="status">已筛选 {activeFilterCount(filters)} 项</span> : null}
-              <span className="status">共 {total} 张</span>
+              {activeFilterCount(filters) > 0 ? <span className="status">已筛选 <span className="num">{activeFilterCount(filters)}</span> 项</span> : null}
+              <span className="status">共 <span className="num">{total}</span> 张</span>
             </div>
           </div>
           <div className="panel-body">
