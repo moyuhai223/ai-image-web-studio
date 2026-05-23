@@ -43,6 +43,11 @@
   --shadow-lg: 0 16px 48px rgba(20, 33, 61, 0.08), 0 4px 12px rgba(20, 33, 61, 0.04);
   --shadow-glow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
 
+  /* 品牌渐变 token:克制使用——只用在 brand-mark + 主 CTA 按钮上,
+     避免到处堆渐变变 Y2K 风。色阶始终 brand → brand-2,135° 同步光感方向 */
+  --brand-gradient: linear-gradient(135deg, var(--brand), var(--brand-2));
+  --brand-gradient-soft: linear-gradient(135deg, color-mix(in srgb, var(--brand) 88%, white), color-mix(in srgb, var(--brand-2) 88%, white));
+
   --transition-fast: 120ms ease;
   --transition-base: 200ms ease;
   --transition-slow: 320ms ease;
@@ -201,9 +206,11 @@ button {
   width: 34px;
   height: 34px;
   border-radius: var(--radius-sm);
-  background: var(--brand-mark-bg);
+  /* brand-mark 用 brand → brand-2 渐变,提升品牌识别;深色主题 brand-mark-bg 已弃用 */
+  background: var(--brand-gradient);
   color: var(--button-text);
-  transition: transform var(--transition-spring);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 28%, transparent);
+  transition: transform var(--transition-spring), box-shadow var(--transition-base);
 }
 
 .brand:hover .brand-mark {
@@ -905,7 +912,8 @@ button {
   padding: 0 16px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 82%, black));
+  /* 主 CTA 用品牌渐变,与 brand-mark 呼应 */
+  background: var(--brand-gradient);
   color: var(--button-text);
   font-weight: 700;
   transition: transform var(--transition-fast), box-shadow var(--transition-base), filter var(--transition-fast);
@@ -913,7 +921,7 @@ button {
 
 .button:hover:not(:disabled) {
   transform: translateY(-1px) scale(1.02);
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--brand) 32%, transparent);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--brand) 30%, transparent), 0 2px 6px color-mix(in srgb, var(--brand-2) 22%, transparent);
   filter: brightness(1.06);
 }
 
