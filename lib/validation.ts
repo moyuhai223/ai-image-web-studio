@@ -10,7 +10,14 @@ export const generateSchema = z.object({
   prompt: z.string().trim().min(1, "请输入提示词").max(4000, "提示词太长"),
   model: z.string().trim().min(1),
   size: z.enum(["auto", "1024x1024", "1024x1824", "1824x1024", "1360x1024", "1024x1360"]),
-  count: z.coerce.number().int().min(1).max(4)
+  count: z.coerce.number().int().min(1).max(4),
+  /** 可选的 Provider Preset ID;未传或空串等价于使用默认 preset */
+  presetId: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .transform((value) => (value && value.length > 0 ? value : undefined))
 });
 
 export const loginSchema = z.object({

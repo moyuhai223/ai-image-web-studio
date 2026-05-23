@@ -13,9 +13,17 @@ export type HealthCheckResult = {
 export type LastGenerationError = {
   id: string;
   model: string;
+  status: string;
   message: string;
   updatedAt: string;
 } | null;
+
+export type ProviderPresetHealth = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  isDefault: boolean;
+};
 
 export type SystemHealth = {
   ok: boolean;
@@ -26,6 +34,8 @@ export type SystemHealth = {
   provider: {
     baseUrl: string;
     source: "database" | "env";
+    presets: ProviderPresetHealth[];
+    defaultPresetId: string | null;
   };
   database: HealthCheckResult;
   storage: HealthCheckResult & {
@@ -53,7 +63,9 @@ export async function getSystemHealth(): Promise<SystemHealth> {
   let lastGenerationError: LastGenerationError = null;
   let provider: SystemHealth["provider"] = {
     baseUrl: config.aiBaseUrl,
-    source: "env"
+    source: "env",
+    presets: [],
+    defaultPresetId: null
   };
 
   try {
@@ -75,12 +87,21 @@ export async function getSystemHealth(): Promise<SystemHealth> {
       const providerSettings = await getProviderSettings();
       provider = {
         baseUrl: providerSettings.aiBaseUrl,
-        source: providerSettings.source
+        source: providerSettings.source,
+        presets: providerSettings.presets.map((preset) => ({
+          id: preset.id,
+          name: preset.name,
+          baseUrl: preset.baseUrl,
+          isDefault: preset.isDefault
+        })),
+        defaultPresetId: providerSettings.presets.find((preset) => preset.isDefault)?.id ?? null
       };
     } catch {
       provider = {
         baseUrl: config.aiBaseUrl,
-        source: "env"
+        source: "env",
+        presets: [],
+        defaultPresetId: null
       };
     }
 
@@ -97,15 +118,18 @@ export async function getSystemHealth(): Promise<SystemHealth> {
     }
 
     try {
+      // 包括 Stage 2 新增的 upstream_error / interrupted 终态,任一种都属于"用户可见的失败"。
       const latestError = await query<{
         id: string;
         model: string;
+        status: string;
         error_message: string;
         updated_at: string;
       }>(
-        `select id, model, error_message, updated_at
+        `select id, model, status, error_message, updated_at
          from generation_jobs
-         where status = 'failed' and error_message is not null
+         where status in ('failed', 'upstream_error', 'interrupted')
+           and error_message is not null
          order by updated_at desc
          limit 1`
       );
@@ -114,6 +138,7 @@ export async function getSystemHealth(): Promise<SystemHealth> {
         lastGenerationError = {
           id: row.id,
           model: row.model,
+          status: row.status,
           message: row.error_message,
           updatedAt: row.updated_at
         };
@@ -122,6 +147,7 @@ export async function getSystemHealth(): Promise<SystemHealth> {
       lastGenerationError = {
         id: "",
         model: "",
+        status: "unknown",
         message: errorMessage(error),
         updatedAt: new Date().toISOString()
       };
@@ -134,10 +160,7 @@ export async function getSystemHealth(): Promise<SystemHealth> {
       current: APP_VERSION,
       label: APP_VERSION_LABEL
     },
-    provider: {
-      baseUrl: provider.baseUrl,
-      source: provider.source
-    },
+    provider,
     database,
     storage,
     keys: {

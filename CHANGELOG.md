@@ -2,6 +2,31 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.5.1] - 2026-05-23
+
+### 新增
+
+- **多 Provider Preset**：`app_settings.provider_settings` JSONB 从 v1（`{version:1, aiBaseUrl}`）懒迁移到 v2（`{version:2, presets:[{id,name,baseUrl,isDefault,createdAt,updatedAt}], activePresetId, legacyAiBaseUrl, legacyMigratedAt}`），首次读时自动包装旧字段为 `id=default` 的默认 Preset 并备份原值，无需 DB DDL。`lib/provider-settings.ts` 提供 `createProviderPreset` / `updateProviderPreset` / `deleteProviderPreset` / `setDefaultProviderPreset` / `resolveProvider(presetId?)` / `listProviderPresetSummaries()` 等 API；`ensureSingleDefault()` 保证任何时刻有且只有一个 `isDefault=true`。删除默认 Preset 抛错，引导先指定新默认。
+- **AI Key 按 Preset 绑定**：`ai_key_pool.keys[].presetId` 字段（`null = 通用池，所有 Preset 都能轮询到`），`getNextAiApiKey(excludedIds, presetId)` 用 `isKeyAvailableForPreset()` 过滤；POST `/api/settings/ai-keys` 接受 `presetId`，PATCH 新增 `action: "set-preset"` 分支，可在管理 UI 动态切换 Key 的归属。
+- **新 API 端点**：
+  - `app/api/settings/presets/route.ts`（admin only）— `GET / POST / PATCH / DELETE`，全部走 `requireAdmin()` + 审计日志；PATCH 支持 `action: "set-default"`。
+  - `app/api/presets/route.ts`（普通用户可见，`requireUser()`）— 仅返回 `{id, name, isDefault}` 摘要 + `defaultPresetId`，不暴露 baseUrl，供 workspace 顶部下拉使用。
+- **管理 UI**：`components/presets-manager.tsx` 提供 Preset CRUD 表格（名称 / Base URL / 默认徽标 / 更新时间）、行内编辑、设为默认、危险确认删除；接入 `app/settings/page.tsx` 系统状态 tab。`components/ai-keys-form.tsx` 加 `presets` prop，新增"绑定 Preset"下拉，每行 Key 展示当前绑定 + 可在线切换。
+- **Workspace 顶部 Preset 选择**：`components/workspace.tsx` 挂载时拉 `/api/presets`，仅在 ≥2 个 Preset 时显示下拉（单 Preset 走隐藏 input），用 `localStorage["ai-image-web-studio:preset-id"]` 记忆用户选择；`<Workspace>` 表单提交时 FormData 自动带上 `presetId`，`/api/generate` 的 zod schema 接受可选 `presetId`，写入 `request_metadata.providerPresetId`。
+- **Runner 透传 Preset**：`GenerationRunInput.presetId?: string|null`，`loadGenerationInput()` 从 `job.request_metadata.providerPresetId` 读取；`generateWithProvider(input, { presetId })` 调用 `resolveProvider(presetId)` 选 baseUrl + `getNextAiApiKey(excluded, presetId)` 过滤 key pool；最终错误信息附带 Preset 名称便于排查。
+- **健康检查暴露 Preset**：`lib/health.ts` 的 `SystemHealth.provider` 新增 `presets[]` 与 `defaultPresetId`；最近生成错误查询从只看 `status='failed'` 扩展到 `IN ('failed','upstream_error','interrupted')`（弥补 0.5.0 遗漏）；`<SystemHealthCard>` 列出所有 Preset + 默认徽标，错误条目按真实状态展示标签。
+
+### 变更
+
+- `components/system-health-card.tsx` 引入 `generationStatusLabel`，最近错误的状态徽标显示中文（如「上游错误」/「已中断」），不再统一显示「有记录」。
+- `components/ai-keys-form.tsx` 新增 `presets` 必填 prop，调用方 `app/settings/page.tsx` 同步注入。
+
+### 兼容性
+
+- v1 → v2 settings 迁移仅在第一次读取时发生，原 `aiBaseUrl` 备份在 `legacyAiBaseUrl` 字段保留一周方便回滚。`setProviderBaseUrl()` 作为旧 `/api/settings/provider` 路由的兼容 shim 保留，直接更新默认 Preset 的 baseUrl。
+- 现有 AI Key 的 `presetId` 缺省为 `null`，进入通用池，任何 Preset 都能命中，无需手工迁移。
+- 历史任务 `request_metadata.providerPresetId` 为空时，重试走 default Preset，行为与 0.5.0 一致。
+
 ## [0.5.0] - 2026-05-23
 
 ### 新增

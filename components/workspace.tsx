@@ -68,6 +68,12 @@ type LimitsConfig = {
   maxUploadMb: number;
 };
 
+type WorkspacePresetOption = {
+  id: string;
+  name: string;
+  isDefault: boolean;
+};
+
 // 客户端默认值,与服务端 lib/config.ts 的 fallback 保持一致。
 // 首次挂载时会异步拉取 /api/config/limits 覆盖。
 const DEFAULT_LIMITS: LimitsConfig = {
@@ -75,6 +81,8 @@ const DEFAULT_LIMITS: LimitsConfig = {
   allowedImageMimes: ["image/png", "image/jpeg", "image/webp"],
   maxUploadMb: 20
 };
+
+const PRESET_STORAGE_KEY = "ai-image-web-studio:preset-id";
 
 type PromptTemplateOption = Pick<PromptTemplate, "id" | "title" | "category" | "content">;
 
@@ -262,6 +270,8 @@ export function Workspace({
   const [selectedReferences, setSelectedReferences] = useState<SelectedReference[]>([]);
   const [referencesOpen, setReferencesOpen] = useState(false);
   const [limits, setLimits] = useState<LimitsConfig>(DEFAULT_LIMITS);
+  const [presets, setPresets] = useState<WorkspacePresetOption[]>([]);
+  const [presetId, setPresetId] = useState<string>("");
   const autoRunStarted = useRef(false);
   const mountedRef = useRef(false);
   const pollTokenRef = useRef(0);
@@ -403,6 +413,57 @@ export function Workspace({
     })();
     return () => controller.abort();
   }, []);
+
+  // 拉取 Provider Preset 列表(普通用户可见的脱敏摘要:仅 id/name/isDefault,不暴露 baseUrl)。
+  // 失败时静默回退到空数组,默认走后端 default preset。
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const response = await fetch("/api/presets", { signal: controller.signal });
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          presets?: WorkspacePresetOption[];
+          defaultPresetId?: string | null;
+        };
+        if (controller.signal.aborted) return;
+        const fetchedPresets = Array.isArray(data.presets) ? data.presets : [];
+        setPresets(fetchedPresets);
+
+        // 优先使用 localStorage 记忆的选择,但需校验它仍存在;否则回退到 default。
+        let initial = "";
+        try {
+          const stored = window.localStorage.getItem(PRESET_STORAGE_KEY);
+          if (stored && fetchedPresets.some((preset) => preset.id === stored)) {
+            initial = stored;
+          }
+        } catch {
+          // localStorage 不可用(隐私模式 / 配额满),忽略。
+        }
+        if (!initial && data.defaultPresetId) {
+          initial = data.defaultPresetId;
+        }
+        setPresetId(initial);
+      } catch {
+        // 静默,sticks with empty presets
+      }
+    })();
+    return () => controller.abort();
+  }, []);
+
+  // presetId 变化时持久化到 localStorage,下次进入页面自动恢复。
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (presetId) {
+        window.localStorage.setItem(PRESET_STORAGE_KEY, presetId);
+      } else {
+        window.localStorage.removeItem(PRESET_STORAGE_KEY);
+      }
+    } catch {
+      // 忽略 localStorage 异常
+    }
+  }, [presetId]);
 
   function clearQueueTimer() {
     if (queueTimerRef.current !== null) {
@@ -1014,6 +1075,27 @@ export function Workspace({
                   ))}
                 </select>
               </div>
+              {presets.length >= 2 ? (
+                <div className="field">
+                  <label htmlFor="preset">Provider</label>
+                  <select
+                    className="select"
+                    id="preset"
+                    name="presetId"
+                    value={presetId}
+                    onChange={(event) => setPresetId(event.target.value)}
+                  >
+                    {presets.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.name}
+                        {preset.isDefault ? "（默认）" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <input type="hidden" name="presetId" value={presetId} />
+              )}
               <div className="field">
                 <label htmlFor="size">尺寸</label>
                 <select className="select" id="size" name="size" value={size} onChange={(event) => setSize(event.target.value)}>

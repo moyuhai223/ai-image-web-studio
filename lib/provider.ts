@@ -2,7 +2,7 @@ import sharp from "sharp";
 import { getNextAiApiKey, reportAiKeyFailure, reportAiKeySuccess } from "./api-keys";
 import { config } from "./config";
 import { createLogger } from "./logger";
-import { getProviderBaseUrl } from "./provider-settings";
+import { resolveProvider } from "./provider-settings";
 
 const log = createLogger("provider");
 
@@ -18,11 +18,17 @@ export type ProviderResult = {
   keyLabel: string | null;
   keySource: "pool" | "env";
   baseUrl: string;
+  presetId: string | null;
+  presetName: string | null;
   images: ProviderImage[];
   raw: Record<string, unknown>;
 };
 
-type ProviderPayloadResult = Omit<ProviderResult, "keyId" | "keyLabel" | "keySource" | "baseUrl">;
+export type ProviderRequestOptions = {
+  presetId?: string | null;
+};
+
+type ProviderPayloadResult = Omit<ProviderResult, "keyId" | "keyLabel" | "keySource" | "baseUrl" | "presetId" | "presetName">;
 
 type ProviderDeadline = {
   expiresAt: number;
@@ -576,16 +582,22 @@ async function generateWithSelectedKey(input: GenerateInput, apiKey: string, dea
   return generateChatImage(input, apiKey, deadline, baseUrl);
 }
 
-export async function generateWithProvider(input: GenerateInput): Promise<ProviderResult> {
+export async function generateWithProvider(
+  input: GenerateInput,
+  options: ProviderRequestOptions = {}
+): Promise<ProviderResult> {
   const triedKeyIds: string[] = [];
   let triedEnvKey = false;
   let lastError: unknown;
-  const baseUrl = await getProviderBaseUrl();
+  const resolved = await resolveProvider(options.presetId);
+  const baseUrl = resolved.baseUrl;
+  const presetId = resolved.preset?.id ?? null;
+  const presetName = resolved.preset?.name ?? null;
 
   for (let attempt = 1; attempt <= MAX_KEY_ATTEMPTS; attempt += 1) {
     let selection: Awaited<ReturnType<typeof getNextAiApiKey>>;
     try {
-      selection = await getNextAiApiKey(triedKeyIds);
+      selection = await getNextAiApiKey(triedKeyIds, presetId);
     } catch (error) {
       if (lastError) throw lastError;
       throw error;
@@ -607,7 +619,9 @@ export async function generateWithProvider(input: GenerateInput): Promise<Provid
         keyId: selection.keyId,
         keyLabel: selection.keyLabel,
         keySource: selection.source,
-        baseUrl
+        baseUrl,
+        presetId,
+        presetName
       };
     } catch (error) {
       lastError = error;
@@ -617,10 +631,14 @@ export async function generateWithProvider(input: GenerateInput): Promise<Provid
         throw error;
       }
 
-      log.warn("Provider key attempt failed, trying another key", { attempt, error });
+      log.warn("Provider key attempt failed, trying another key", { attempt, presetId, error });
     }
   }
 
   if (lastError) throw lastError;
-  throw new Error("没有可用的 AI Key");
+  throw new Error(
+    presetName
+      ? `Preset「${presetName}」下没有可用的 AI Key`
+      : "没有可用的 AI Key"
+  );
 }

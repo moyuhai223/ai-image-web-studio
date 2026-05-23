@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { respondError } from "@/lib/api-errors";
-import { addAiKey, deleteAiKey, setAiKeyEnabled, setAiKeyFailurePolicy } from "@/lib/api-keys";
+import { addAiKey, deleteAiKey, setAiKeyEnabled, setAiKeyFailurePolicy, setAiKeyPreset } from "@/lib/api-keys";
 
 export const runtime = "nodejs";
 
@@ -18,6 +18,7 @@ export async function POST(request: Request) {
     const settings = await addAiKey({
       apiKey: body.apiKey,
       label: typeof body.label === "string" ? body.label : undefined,
+      presetId: typeof body.presetId === "string" && body.presetId.trim() ? body.presetId : null,
       userId: user.id
     });
     await writeAuditLog({
@@ -80,6 +81,23 @@ export async function PATCH(request: Request) {
           autoDisableEnabled: body.autoDisableEnabled,
           autoDisableFailureThreshold: body.autoDisableFailureThreshold
         }
+      });
+      return NextResponse.json(settings);
+    }
+
+    if (body.action === "set-preset") {
+      if (typeof body.id !== "string") {
+        return NextResponse.json({ error: "请选择要修改的 Key" }, { status: 400 });
+      }
+      const presetId = typeof body.presetId === "string" && body.presetId.trim() ? body.presetId : null;
+      const settings = await setAiKeyPreset({ id: body.id, presetId, userId: user.id });
+      await writeAuditLog({
+        user,
+        request,
+        action: presetId ? "绑定 Key 到 Preset" : "解绑 Key 的 Preset",
+        targetType: "ai_key",
+        targetId: body.id,
+        detail: { presetId }
       });
       return NextResponse.json(settings);
     }

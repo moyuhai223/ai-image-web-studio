@@ -18,6 +18,8 @@ export type GenerationRunInput = {
   referenceDataUrl?: string;
   referenceDataUrls?: string[];
   parentImageId?: string;
+  /** 来自 request_metadata.providerPresetId;runner 透传给 provider 用于选 baseUrl + key */
+  presetId?: string | null;
 };
 
 type StoredJobInput = Pick<GenerationJob, "prompt" | "model" | "size" | "count" | "request_metadata">;
@@ -164,12 +166,17 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
     throw new Error("任务不存在");
   }
   const referenceInfo = await getReferenceInfo(job.request_metadata);
+  const presetId =
+    typeof job.request_metadata?.providerPresetId === "string" && job.request_metadata.providerPresetId.trim()
+      ? (job.request_metadata.providerPresetId as string)
+      : null;
 
   return {
     prompt: job.prompt,
     model: job.model,
     size: job.size,
     count: job.count,
+    presetId,
     ...referenceInfo
   };
 }
@@ -426,10 +433,10 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
       );
       failureStage = "等待模型返回";
       const upstreamStartedAt = performance.now();
-      const providerResult = await generateWithProvider({
-        ...input,
-        count: 1
-      });
+      const providerResult = await generateWithProvider(
+        { ...input, count: 1 },
+        { presetId: input.presetId ?? null }
+      );
       addPhaseTiming(phaseTimings, "upstream_wait_ms", performance.now() - upstreamStartedAt);
       providerResults.push(providerResult);
 

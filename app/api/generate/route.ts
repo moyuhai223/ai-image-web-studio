@@ -101,7 +101,8 @@ export async function POST(request: Request) {
     prompt: formData.get("prompt"),
     model: formData.get("model"),
     size: formData.get("size"),
-    count: formData.get("count")
+    count: formData.get("count"),
+    presetId: formData.get("presetId")
   });
 
   if (!parsed.success) {
@@ -230,6 +231,7 @@ export async function POST(request: Request) {
             },
             reference: referenceMetadata,
             references,
+            providerPresetId: parsed.data.presetId ?? null,
             progress: {
               phase: "queued",
               current: 0,

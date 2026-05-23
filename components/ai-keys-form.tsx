@@ -2,16 +2,23 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, PauseCircle, PlayCircle, Plus, Trash2 } from "lucide-react";
+import { KeyRound, Link2, PauseCircle, PlayCircle, Plus, Trash2 } from "lucide-react";
 import type { AiKeySummary } from "@/lib/api-keys";
 import { formatDateTime } from "@/lib/time";
 import { DangerConfirmDialog } from "./danger-confirm-dialog";
+
+export type AiKeyPresetOption = {
+  id: string;
+  name: string;
+  isDefault: boolean;
+};
 
 type Props = {
   keys: AiKeySummary[];
   hasEnvFallback: boolean;
   autoDisableEnabled: boolean;
   autoDisableFailureThreshold: number;
+  presets: AiKeyPresetOption[];
 };
 
 type ApiResponse = {
@@ -26,7 +33,7 @@ function formatOptionalDate(value: string | null) {
   return value ? formatCreatedAt(value) : "从未";
 }
 
-export function AiKeysForm({ keys, hasEnvFallback, autoDisableEnabled, autoDisableFailureThreshold }: Props) {
+export function AiKeysForm({ keys, hasEnvFallback, autoDisableEnabled, autoDisableFailureThreshold, presets }: Props) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,6 +44,14 @@ export function AiKeysForm({ keys, hasEnvFallback, autoDisableEnabled, autoDisab
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [policyEnabled, setPolicyEnabled] = useState(autoDisableEnabled);
   const [failureThreshold, setFailureThreshold] = useState(String(autoDisableFailureThreshold));
+  const [newPresetId, setNewPresetId] = useState<string>("");
+  const [presetLoadingId, setPresetLoadingId] = useState<string | null>(null);
+
+  const presetNameById = new Map(presets.map((preset) => [preset.id, preset.name] as const));
+  const formatPresetLabel = (presetId: string | null) => {
+    if (!presetId) return "通用（所有 Preset）";
+    return presetNameById.get(presetId) ?? `已删除的 Preset (${presetId.slice(0, 8)})`;
+  };
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -50,7 +65,8 @@ export function AiKeysForm({ keys, hasEnvFallback, autoDisableEnabled, autoDisab
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         label: formData.get("label"),
-        apiKey: formData.get("apiKey")
+        apiKey: formData.get("apiKey"),
+        presetId: newPresetId || null
       })
     });
     const data = (await response.json().catch(() => ({}))) as ApiResponse;
@@ -58,8 +74,31 @@ export function AiKeysForm({ keys, hasEnvFallback, autoDisableEnabled, autoDisab
     setMessage(response.ok ? "Key 已保存" : data.error ?? "保存失败");
     if (response.ok) {
       form.reset();
+      setNewPresetId("");
       router.refresh();
     }
+  }
+
+  async function changePresetBinding(id: string, presetId: string) {
+    setPresetLoadingId(id);
+    setMessage("");
+    const response = await fetch("/api/settings/ai-keys", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "set-preset",
+        id,
+        presetId: presetId || null
+      })
+    });
+    const data = (await response.json().catch(() => ({}))) as ApiResponse;
+    setPresetLoadingId(null);
+    if (!response.ok) {
+      setMessage(data.error ?? "更新 Preset 绑定失败");
+      return;
+    }
+    setMessage(presetId ? "Key 已绑定到 Preset" : "Key 已恢复为通用");
+    router.refresh();
   }
 
   async function removeKey(id: string) {
@@ -184,6 +223,28 @@ export function AiKeysForm({ keys, hasEnvFallback, autoDisableEnabled, autoDisab
             <label htmlFor="ai-key-value">AI Key</label>
             <input className="input" id="ai-key-value" name="apiKey" type="password" autoComplete="off" required />
           </div>
+          {presets.length > 0 ? (
+            <div className="field">
+              <label htmlFor="ai-key-preset">
+                <Link2 size={14} /> 绑定 Preset（可选）
+              </label>
+              <select
+                className="input"
+                id="ai-key-preset"
+                value={newPresetId}
+                onChange={(event) => setNewPresetId(event.target.value)}
+              >
+                <option value="">通用（所有 Preset 可用）</option>
+                {presets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name}
+                    {preset.isDefault ? "（默认）" : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="small muted">不绑定时该 Key 进入通用池，任意 Preset 都可轮询到。</p>
+            </div>
+          ) : null}
           <button className="button action-button action-add" type="submit" disabled={loading}>
             <Plus size={17} />
             {loading ? "保存中" : "添加 Key"}
@@ -202,6 +263,9 @@ export function AiKeysForm({ keys, hasEnvFallback, autoDisableEnabled, autoDisab
                     <span className={`status ${item.enabled ? "succeeded" : "failed"}`}>
                       {item.enabled ? "启用" : "停用"}
                     </span>
+                    <span className="status">
+                      <Link2 size={13} /> {formatPresetLabel(item.presetId)}
+                    </span>
                   </div>
                   <span className="small muted key-preview">{item.preview}</span>
                   <div className="key-health">
@@ -213,6 +277,29 @@ export function AiKeysForm({ keys, hasEnvFallback, autoDisableEnabled, autoDisab
                     <span className="small muted">最近失败 {formatOptionalDate(item.lastFailedAt)}</span>
                     <span className="small muted">创建 {formatCreatedAt(item.createdAt)}</span>
                   </div>
+                  {presets.length > 0 ? (
+                    <div className="key-health">
+                      <label className="small muted" htmlFor={`ai-key-preset-${item.id}`}>
+                        Preset 绑定
+                      </label>
+                      <select
+                        className="input"
+                        id={`ai-key-preset-${item.id}`}
+                        value={item.presetId ?? ""}
+                        disabled={presetLoadingId === item.id}
+                        onChange={(event) => changePresetBinding(item.id, event.target.value)}
+                      >
+                        <option value="">通用（所有 Preset）</option>
+                        {presets.map((preset) => (
+                          <option key={preset.id} value={preset.id}>
+                            {preset.name}
+                            {preset.isDefault ? "（默认）" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      {presetLoadingId === item.id ? <span className="small muted">更新中</span> : null}
+                    </div>
+                  ) : null}
                   {item.disabledReason ? <p className="small key-warning">{item.disabledReason}</p> : null}
                 </div>
                 <div className="key-actions">

@@ -26,6 +26,8 @@ type StoredAiKey = {
   lastSucceededAt: string | null;
   lastFailedAt: string | null;
   disabledReason: string | null;
+  /** null/undefined = 通用池，对所有 preset 可见；string = 仅当 preset 激活时可用 */
+  presetId: string | null;
 };
 
 type StoredAiKeySettings = {
@@ -49,6 +51,7 @@ export type AiKeySummary = {
   lastSucceededAt: string | null;
   lastFailedAt: string | null;
   disabledReason: string | null;
+  presetId: string | null;
 };
 
 export type AiKeySettingsSummary = {
@@ -64,6 +67,7 @@ export type AiApiKeySelection = {
   keyLabel: string;
   keyPreview: string | null;
   source: "pool" | "env";
+  presetId: string | null;
 };
 
 function emptySettings(): StoredAiKeySettings {
@@ -120,7 +124,8 @@ function normalizeStoredKey(value: StoredAiKey): StoredAiKey {
     lastUsedAt: stringOrNull(record.lastUsedAt),
     lastSucceededAt: stringOrNull(record.lastSucceededAt),
     lastFailedAt: stringOrNull(record.lastFailedAt),
-    disabledReason: stringOrNull(record.disabledReason)
+    disabledReason: stringOrNull(record.disabledReason),
+    presetId: stringOrNull(record.presetId)
   };
 }
 
@@ -205,7 +210,8 @@ function summarizeSettings(settings: StoredAiKeySettings): AiKeySettingsSummary 
       lastUsedAt: item.lastUsedAt,
       lastSucceededAt: item.lastSucceededAt,
       lastFailedAt: item.lastFailedAt,
-      disabledReason: item.disabledReason
+      disabledReason: item.disabledReason,
+      presetId: item.presetId
     })),
     nextIndex: settings.nextIndex,
     autoDisableEnabled: settings.autoDisableEnabled,
@@ -247,12 +253,29 @@ async function saveSettings(client: PoolClient, settings: StoredAiKeySettings, u
   );
 }
 
-function nextEnabledIndex(settings: StoredAiKeySettings, excludedIds = new Set<string>()) {
+function isKeyAvailableForPreset(key: StoredAiKey, presetId: string | null) {
+  if (!key.presetId) return true;
+  if (!presetId) return false;
+  return key.presetId === presetId;
+}
+
+function nextEnabledIndex(
+  settings: StoredAiKeySettings,
+  excludedIds: Set<string>,
+  presetId: string | null
+) {
   if (settings.keys.length === 0) return -1;
   const start = normalizedIndex(settings.nextIndex, settings.keys.length);
   for (let offset = 0; offset < settings.keys.length; offset += 1) {
     const index = (start + offset) % settings.keys.length;
-    if (settings.keys[index].enabled && !excludedIds.has(settings.keys[index].id)) return index;
+    const candidate = settings.keys[index];
+    if (
+      candidate.enabled &&
+      !excludedIds.has(candidate.id) &&
+      isKeyAvailableForPreset(candidate, presetId)
+    ) {
+      return index;
+    }
   }
   return -1;
 }
@@ -262,7 +285,7 @@ export async function listAiKeySummaries() {
   return summarizeSettings(normalizeSettings(result.rows[0]?.value));
 }
 
-export async function addAiKey(input: { apiKey: string; label?: string; userId: string }) {
+export async function addAiKey(input: { apiKey: string; label?: string; presetId?: string | null; userId: string }) {
   const plainKey = normalizePlainKey(input.apiKey);
   return transaction(async (client) => {
     const settings = await loadSettingsForUpdate(client);
@@ -281,9 +304,21 @@ export async function addAiKey(input: { apiKey: string; label?: string; userId: 
       lastSucceededAt: null,
       lastFailedAt: null,
       disabledReason: null,
+      presetId: typeof input.presetId === "string" && input.presetId.trim() ? input.presetId : null,
       ...encrypted
     });
     settings.nextIndex = normalizedIndex(settings.nextIndex, settings.keys.length);
+    await saveSettings(client, settings, input.userId);
+    return summarizeSettings(settings);
+  });
+}
+
+export async function setAiKeyPreset(input: { id: string; presetId: string | null; userId: string }) {
+  return transaction(async (client) => {
+    const settings = await loadSettingsForUpdate(client);
+    const key = settings.keys.find((item) => item.id === input.id);
+    if (!key) throw new Error("Key 不存在");
+    key.presetId = typeof input.presetId === "string" && input.presetId.trim() ? input.presetId : null;
     await saveSettings(client, settings, input.userId);
     return summarizeSettings(settings);
   });
@@ -333,11 +368,14 @@ export async function setAiKeyFailurePolicy(input: {
   });
 }
 
-export async function getNextAiApiKey(excludedKeyIds: string[] = []): Promise<AiApiKeySelection> {
+export async function getNextAiApiKey(
+  excludedKeyIds: string[] = [],
+  presetId: string | null = null
+): Promise<AiApiKeySelection> {
   const excluded = new Set(excludedKeyIds);
   const selected = await transaction(async (client) => {
     const settings = await loadSettingsForUpdate(client);
-    const index = nextEnabledIndex(settings, excluded);
+    const index = nextEnabledIndex(settings, excluded, presetId);
     if (index < 0) return null;
 
     const storedKey = settings.keys[index];
@@ -349,7 +387,8 @@ export async function getNextAiApiKey(excludedKeyIds: string[] = []): Promise<Ai
       keyId: storedKey.id,
       keyLabel: storedKey.label,
       keyPreview: storedKey.preview,
-      source: "pool" as const
+      source: "pool" as const,
+      presetId: storedKey.presetId
     };
   });
 
@@ -360,7 +399,8 @@ export async function getNextAiApiKey(excludedKeyIds: string[] = []): Promise<Ai
     keyId: null,
     keyLabel: "环境变量 Key",
     keyPreview: null,
-    source: "env"
+    source: "env",
+    presetId: null
   };
 }
 

@@ -1,5 +1,6 @@
 import { Activity, AlertTriangle, CheckCircle2, Database, HardDrive, KeyRound, LinkIcon } from "lucide-react";
 import type { SystemHealth } from "@/lib/health";
+import { generationStatusLabel } from "@/lib/generation-status";
 import { formatDateTime } from "@/lib/time";
 
 function checkStatus(ok: boolean) {
@@ -39,8 +40,11 @@ export function SystemHealthCard({ health }: { health: SystemHealth }) {
           <div className="health-metric">
             <LinkIcon size={18} />
             <div>
-              <strong className="break-text">{health.provider.baseUrl}</strong>
-              <p className="small muted">Provider Base URL · {health.provider.source === "database" ? "设置页" : ".env"}</p>
+              <strong className="break-text">{health.provider.baseUrl || "未配置"}</strong>
+              <p className="small muted">
+                默认 Provider · {health.provider.source === "database" ? "设置页" : ".env"}
+                {health.provider.presets.length > 0 ? ` · 共 ${health.provider.presets.length} 个 Preset` : ""}
+              </p>
             </div>
           </div>
         </div>
@@ -75,7 +79,11 @@ export function SystemHealthCard({ health }: { health: SystemHealth }) {
           <article className="health-check">
             <div className="health-check-head">
               <span><AlertTriangle size={16} /> 最近生成错误</span>
-              <span className="status">{health.lastGenerationError ? "有记录" : "无"}</span>
+              <span className="status">
+                {health.lastGenerationError
+                  ? generationStatusLabel(health.lastGenerationError.status)
+                  : "无"}
+              </span>
             </div>
             {health.lastGenerationError ? (
               <>
@@ -87,6 +95,25 @@ export function SystemHealthCard({ health }: { health: SystemHealth }) {
             )}
           </article>
         </div>
+
+        {health.provider.presets.length > 0 ? (
+          <div className="form-stack">
+            <p className="small muted">Provider Preset</p>
+            <ul className="key-list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {health.provider.presets.map((preset) => (
+                <li key={preset.id} className="key-row">
+                  <div className="key-meta">
+                    <div className="actions">
+                      <strong>{preset.name}</strong>
+                      {preset.isDefault ? <span className="status succeeded">默认</span> : null}
+                    </div>
+                    <span className="small muted break-text">{preset.baseUrl}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         <p className="small muted">
           <CheckCircle2 size={13} style={{ verticalAlign: "-2px" }} /> 最近检查：{formatDateTime(health.checkedAt)}
