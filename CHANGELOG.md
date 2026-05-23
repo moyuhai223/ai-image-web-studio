@@ -2,6 +2,30 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.5.4] - 2026-05-23
+
+### 新增
+
+- **字体栈升级（next/font/google 自托管）**：`app/layout.tsx` 引入 `Inter` / `Noto Sans SC` / `JetBrains Mono` 三套子集，通过 `next/font/google` 在构建期自托管，注入 `--font-sans-latin` / `--font-sans-cjk` / `--font-mono` 三个 CSS 变量；`app/globals.css` 把 body `font-family` 从 `Arial, "Microsoft YaHei"` 替换为「Inter → Noto Sans SC → 系统中文回退（PingFang SC / Hiragino Sans GB / Microsoft YaHei）」分字符回退链，开启 `font-feature-settings: "cv11", "ss01", "ss03"` 启用 Inter 推荐字符变体；`.key-preview` / `.backup-filename` 等等宽场景前置 `var(--font-mono)`，密钥与备份文件名展示更专业。Latin 字符走 Inter，中文走 Noto Sans SC，无需为字重 / 字号特别处理，零运行时网络请求。
+- **全局顶部进度条**：新建 `components/navigation-progress.tsx` 客户端组件，监听 `document` 级 click + form submit（capture 阶段，最早拦截）；过滤修饰键 / 中键 / `target=_blank` / `download` / 纯 hash / 跨域 / `javascript:` 协议，仅对真正会触发 App Router 导航的事件起跳 0→80% 进度，路由变化后冲到 100% + 320ms 淡出；`firstRenderRef` 守门防止挂载瞬间闪烁，整体 + Suspense 包裹（`useSearchParams()` 要求）。
+- **按钮 Loading spinner**：新建 `components/button-spinner.tsx`（lucide `Loader2` + `animate-spin`），替换 4 个关键按钮的「删除中 / 取消中 / 重试中 / 跳转中」文字 loading：`delete-record-button.tsx`、`job-control-button.tsx`、`rerun-button.tsx`、`danger-confirm-dialog.tsx` 四处统一接入，loading 时 spinner 与文字并排，宽度不抖动。
+- **按钮 :active 压感反馈**：`app/globals.css` 末尾追加 `.action-button` 系列 `:active` 状态 `transform: translateY(0) scale(0.96)` + 80ms 过渡，与原有 `.button` 的 scale(0.98) 互补，整套点击反馈连贯一致。
+- **滚动条美化**：`app/globals.css` 新增 webkit `::-webkit-scrollbar` 10px 胶囊样式 + Firefox `scrollbar-width: thin` + `scrollbar-color`，hover 加深，长列表 / 模态框 / 详情页全站统一观感，深色背景下不再被默认条占视觉重量。
+
+### 变更
+
+- **记录页按钮统一**：`app/records/page.tsx` 把「详情」`<a>` 加 `<Info size={13} />` 图标，「重做」`<a>` 改用 `<RerunButton />` 组件（与详情页的同一组件），与同行的删除 / 重试 / 取消按钮共享 `.action-button` label 风格。
+- **图卡按钮统一**：image-card 「编辑 / 下载」按钮升级到 30px / 1.5px label 风格，与卡片其他控件视觉一致。
+- **参考图托盘全局收缩**：`components/reference-basket.tsx` 移除 `MOBILE_REFERENCE_BASKET_QUERY` 媒体查询，桌面端不再自动展开，全部 viewport 默认收缩，需用户主动点击才显示；保留「篮子清空时自动折叠」逻辑。
+- **重做按钮 auto-refresh**：requeue 成功后自动 `router.refresh()`，避免任务详情页停留在旧状态。
+
+### 兼容性
+
+- next/font/google 在构建期把字体文件本地化进 `.next/static/media`，运行时不再访问 Google CDN，国内网络无需翻墙；如构建环境同样受限，需自带 fallback 字体文件或改用纯系统字体方案（本版本未提供该开关）。
+- 全局进度条用 document 级事件代理，不修补 `window.fetch` / `XMLHttpRequest`，与现有 SSE（队列流）和轮询（自动刷新）零冲突。
+- `:active` 压感与现有 `.button:active` 规则并存（CSS 特异性互补），未覆盖任何原有交互。
+- 滚动条样式在 Safari / Chrome / Edge / Firefox 全部生效；不支持 webkit 伪元素的少数环境降级到 Firefox `scrollbar-width: thin` 路径，进一步降级仍是浏览器默认条。
+
 ## [0.5.3] - 2026-05-23
 
 ### 新增
