@@ -2,6 +2,22 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.5.2] - 2026-05-23
+
+### 新增
+
+- **任务详情显示实际使用的 Preset**：`lib/generation-runner.ts` 的 `providerResults` 类型 + `markSucceeded` 写入 `response_metadata.requests[].presetId/presetName`,填补 0.5.1 的字段断层(`ProviderResult` 早就带,但 runner 漏接住);`app/records/[id]/page.tsx` 新增 `presetLabel()` 与 `asset-meta-grid` 的「Preset」格,优先取实际跑出来的名,退到 `request_metadata.providerPresetId` 前 8 位,最终回落「默认」。
+- **Provider Preset 连通性自检**：新建 `app/api/settings/presets/test-connection/route.ts`(admin only,POST `{id}` 或 `{baseUrl}`),5 秒超时探活 `GET {baseUrl}/v1/models`,自动用 `getNextAiApiKey([], presetId)` 选受 preset 绑定影响的可用 key,返回 `{ok, status, latencyMs, baseUrl, keyLabel, error?}` 并写审计日志。`components/presets-manager.tsx` 每行新增「测试连接」按钮,行内展示连通延迟 / HTTP 状态 / 失败原因。
+
+### 变更
+
+- `components/presets-manager.tsx` 默认 Preset 的「删除」按钮从直接隐藏改为 disabled + `title` 提示原因,与「设为默认」的视觉对应;避免「为什么没按钮」的疑惑,同时延续后端 `deleteProviderPreset` 已有的拦截。
+
+### 兼容性
+
+- 0.5.1 已经写入数据库的 `response_metadata.requests[]` 没有 `presetName` 字段,详情页会回退到 `request_metadata.providerPresetId` 短 ID 或「默认」展示,无需迁移历史数据。
+- `test-connection` 端点用 `getNextAiApiKey` 同款轮询逻辑,因此严格遵守 preset 绑定:绑到 A 的 key 不会用于测试 B,与生产路径一致。
+
 ## [0.5.1] - 2026-05-23
 
 ### 新增

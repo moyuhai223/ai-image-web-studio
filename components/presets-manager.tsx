@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, LinkIcon, Pencil, Plus, Star, Trash2, X } from "lucide-react";
+import { Activity, CheckCircle2, LinkIcon, Pencil, Plus, Star, Trash2, X } from "lucide-react";
 import type { ProviderPreset } from "@/lib/provider-settings";
 import { DangerConfirmDialog } from "./danger-confirm-dialog";
 
@@ -14,6 +14,24 @@ type Props = {
 
 type ApiResponse = {
   error?: string;
+};
+
+type TestResponse = {
+  ok: boolean;
+  status: number | null;
+  latencyMs: number;
+  baseUrl: string;
+  keyLabel: string | null;
+  error?: string;
+};
+
+type TestResultState = {
+  ok: boolean;
+  latencyMs: number;
+  status: number | null;
+  keyLabel: string | null;
+  error?: string;
+  checkedAt: number;
 };
 
 export function PresetsManager({ presets, fallbackAiBaseUrl, fallbackSource }: Props) {
@@ -33,6 +51,60 @@ export function PresetsManager({ presets, fallbackAiBaseUrl, fallbackSource }: P
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState("");
+
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, TestResultState>>({});
+
+  async function testConnection(id: string) {
+    setTestingId(id);
+    try {
+      const response = await fetch("/api/settings/presets/test-connection", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+      const data = (await response.json().catch(() => ({}))) as TestResponse & ApiResponse;
+      if (!response.ok) {
+        setTestResults((prev) => ({
+          ...prev,
+          [id]: {
+            ok: false,
+            latencyMs: 0,
+            status: null,
+            keyLabel: null,
+            error: data.error ?? `请求失败 (HTTP ${response.status})`,
+            checkedAt: Date.now()
+          }
+        }));
+        return;
+      }
+      setTestResults((prev) => ({
+        ...prev,
+        [id]: {
+          ok: data.ok,
+          latencyMs: data.latencyMs,
+          status: data.status,
+          keyLabel: data.keyLabel,
+          error: data.error,
+          checkedAt: Date.now()
+        }
+      }));
+    } catch (error) {
+      setTestResults((prev) => ({
+        ...prev,
+        [id]: {
+          ok: false,
+          latencyMs: 0,
+          status: null,
+          keyLabel: null,
+          error: error instanceof Error ? error.message : "网络错误",
+          checkedAt: Date.now()
+        }
+      }));
+    } finally {
+      setTestingId(null);
+    }
+  }
 
   async function createPreset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -166,6 +238,7 @@ export function PresetsManager({ presets, fallbackAiBaseUrl, fallbackSource }: P
           <div className="key-list">
             {presets.map((preset) => {
               const editing = editingId === preset.id;
+              const testResult = testResults[preset.id];
               return (
                 <div className={`key-row ${preset.isDefault ? "" : ""}`} key={preset.id}>
                   {editing ? (
@@ -207,6 +280,20 @@ export function PresetsManager({ presets, fallbackAiBaseUrl, fallbackSource }: P
                         <span className="small muted">ID {preset.id.slice(0, 8)}</span>
                         <span className="small muted">更新 {new Date(preset.updatedAt).toLocaleString("zh-CN")}</span>
                       </div>
+                      {testResult ? (
+                        <p
+                          className={`small ${testResult.ok ? "" : "health-error"}`}
+                          style={{ margin: "4px 0 0" }}
+                        >
+                          {testResult.ok
+                            ? `连通 · ${testResult.latencyMs}ms${testResult.status ? ` · HTTP ${testResult.status}` : ""}${
+                                testResult.keyLabel ? ` · ${testResult.keyLabel}` : ""
+                              }`
+                            : `不可达 · ${testResult.error ?? "未知错误"}${
+                                testResult.status ? ` · HTTP ${testResult.status}` : ""
+                              }`}
+                        </p>
+                      ) : null}
                     </div>
                   )}
                   <div className="key-actions">
@@ -232,6 +319,16 @@ export function PresetsManager({ presets, fallbackAiBaseUrl, fallbackSource }: P
                       </>
                     ) : (
                       <>
+                        <button
+                          className="button action-button action-neutral"
+                          type="button"
+                          disabled={testingId === preset.id}
+                          onClick={() => testConnection(preset.id)}
+                          title="向 Base URL 发起 /v1/models 探活"
+                        >
+                          <Activity size={16} />
+                          {testingId === preset.id ? "测试中" : "测试连接"}
+                        </button>
                         {!preset.isDefault ? (
                           <button
                             className="button action-button action-enable"
@@ -250,17 +347,16 @@ export function PresetsManager({ presets, fallbackAiBaseUrl, fallbackSource }: P
                         >
                           <Pencil size={16} /> 编辑
                         </button>
-                        {!preset.isDefault ? (
-                          <button
-                            className="button action-button action-danger"
-                            type="button"
-                            disabled={deletingId === preset.id}
-                            onClick={() => openDeleteConfirm(preset.id)}
-                          >
-                            <Trash2 size={16} />
-                            {deletingId === preset.id ? "删除中" : "删除"}
-                          </button>
-                        ) : null}
+                        <button
+                          className="button action-button action-danger"
+                          type="button"
+                          disabled={preset.isDefault || deletingId === preset.id}
+                          onClick={() => openDeleteConfirm(preset.id)}
+                          title={preset.isDefault ? "默认 Preset 不能删除,请先把其他 Preset 设为默认" : undefined}
+                        >
+                          <Trash2 size={16} />
+                          {deletingId === preset.id ? "删除中" : "删除"}
+                        </button>
                       </>
                     )}
                   </div>

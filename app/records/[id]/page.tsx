@@ -223,6 +223,21 @@ function keyLabel(job: JobWithImages) {
   return "未记录";
 }
 
+function presetLabel(job: JobWithImages) {
+  // 优先取 runner 实际跑出来的 preset 名(写在 response_metadata.requests[0].presetName),
+  // 退到任务提交时选的 presetId(在 request_metadata.providerPresetId),都没有则按"默认"展示。
+  const meta = requestMeta(job);
+  const actualName =
+    meta && typeof meta.presetName === "string" && meta.presetName.trim() ? meta.presetName.trim() : null;
+  if (actualName) return actualName;
+
+  const requested = job.request_metadata?.providerPresetId;
+  if (typeof requested === "string" && requested.trim()) {
+    return `Preset ${requested.slice(0, 8)}`;
+  }
+  return "默认";
+}
+
 function lineageLabel(image: GeneratedImage, showVersionChain: boolean) {
   if (image.parent_image_id) return "编辑图";
   if (showVersionChain) return "链路原图";
@@ -424,6 +439,10 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
                       <div>
                         <span>Key</span>
                         <strong>{keyLabel(job)}</strong>
+                      </div>
+                      <div>
+                        <span>Preset</span>
+                        <strong>{presetLabel(job)}</strong>
                       </div>
                       <div>
                         <span>链路</span>

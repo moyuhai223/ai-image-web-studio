@@ -237,6 +237,8 @@ async function markSucceeded(
     keyLabel?: string | null;
     keySource?: "pool" | "env";
     baseUrl?: string;
+    presetId?: string | null;
+    presetName?: string | null;
     images: unknown[];
     raw: Record<string, unknown>;
   }>,
@@ -265,6 +267,8 @@ async function markSucceeded(
           keyLabel: result.keyLabel ?? null,
           keySource: result.keySource ?? null,
           baseUrl: result.baseUrl ?? null,
+          presetId: result.presetId ?? null,
+          presetName: result.presetName ?? null,
           imageCount: result.images.length,
           raw: sanitizeProviderMetadata(result.raw)
         }))
