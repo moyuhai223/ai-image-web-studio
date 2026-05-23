@@ -2,6 +2,20 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.5.3] - 2026-05-23
+
+### 新增
+
+- **运营指标端点**：新建 `lib/metrics.ts` 的 `getOperationalMetrics()`,4 项查询并行(队列深度 + 24h 任务分布、1h/24h 成功率、阶段耗时 p50/p95、Key 池累计成功/失败),全部基于 `generation_jobs` + `app_settings` 现有表实时计算,无新表也无 cron。阶段耗时直接用 PG `percentile_cont(0.5/0.95) within group (...)` + JSONB `#>>` 抽取 `request_metadata.progress.phaseTimings`,10w 行级别也能 sub-100ms。
+- **`/api/health/metrics` 双格式输出**:`requireUser()` 后默认返 JSON(供仪表盘),`?format=prometheus` 返 Prometheus 文本格式(Content-Type `text/plain; version=0.0.4`)。指标命名严格遵守规范:`ai_image_studio_queue_depth{state=...}` / `_jobs_total{status=...}` / `_success_rate{window=...}` / `_phase_timing_ms{phase=...,quantile="0.5"}` / `_phase_timing_samples{phase=...}` / `_keys_total{state=...}` / `_key_outcomes_total{outcome=...}` / `_metrics_checked_at_seconds`。所有 null/NaN/Infinity/负数走 `num()` 防御性归零,避免 Prometheus 解析报错。
+- **SystemHealthCard 性能指标段**:`components/system-health-card.tsx` 新增 `metrics?: OperationalMetrics | null` 可选 prop,渲染 4 张卡(队列深度 / 24h 成功率 / Key 累计 / 24h 任务分布)+ 阶段耗时 p50/p95 列表(模型等待 / 下载解码 / 入库),底部提示 Prometheus 抓取地址。`app/settings/page.tsx` `Promise.all` 中并行拉取 `getOperationalMetrics()` 与 `getSystemHealth()` 服务器端注入,前端零额外请求。
+
+### 兼容性
+
+- 0.5.2 之前没有 phaseTimings 字段的历史任务,`loadPhaseTimings()` 通过 `request_metadata #> '{progress,phaseTimings}' is not null` 过滤,自然跳过,不影响指标准确性(样本数会从 0.5.0 之后逐步增长)。
+- 失败兜底:`getOperationalMetrics()` 整体 `try/catch`,任意子查询失败返回空指标 + `error` 字段,确保健康检查和 Prometheus 抓取永远 200(空指标也是有效的)。
+- 审计日志查看器 UI(`components/audit-log-panel.tsx`)在 0.5.x 早期版本已具备完整功能(关键字 / 用户 / 动作 / 时间区间过滤 + 危险确认清空),无需新增。
+
 ## [0.5.2] - 2026-05-23
 
 ### 新增

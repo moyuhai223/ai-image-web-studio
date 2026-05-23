@@ -16,6 +16,7 @@ import { query } from "@/lib/db";
 import { config } from "@/lib/config";
 import { listAiKeySummaries } from "@/lib/api-keys";
 import { getSystemHealth } from "@/lib/health";
+import { getOperationalMetrics } from "@/lib/metrics";
 import { getProviderSettings } from "@/lib/provider-settings";
 import { listPromptTemplates } from "@/lib/prompt-templates";
 import { getUiThemePreference } from "@/lib/ui-theme";
@@ -26,13 +27,14 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const user = await requireAdmin();
-  const [users, aiKeys, health, providerSettings, promptTemplates, themePreference] = await Promise.all([
+  const [users, aiKeys, health, providerSettings, promptTemplates, themePreference, metrics] = await Promise.all([
     query<User>(`select id, username, role, active, created_at, updated_at from users order by created_at desc`),
     listAiKeySummaries(),
     getSystemHealth(),
     getProviderSettings(),
     listPromptTemplates(),
-    getUiThemePreference()
+    getUiThemePreference(),
+    getOperationalMetrics()
   ]);
 
   return (
@@ -42,7 +44,7 @@ export default async function SettingsPage() {
         <SettingsTabs
           system={
             <>
-              <SystemHealthCard health={health} />
+              <SystemHealthCard health={health} metrics={metrics} />
               <UpdateCheckPanel currentVersion={APP_VERSION_LABEL.replace(/^v/, "")} repository={config.githubRepositorySlug} />
               <PresetsManager
                 presets={providerSettings.presets}
