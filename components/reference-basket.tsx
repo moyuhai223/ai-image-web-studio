@@ -17,7 +17,6 @@ export const REFERENCE_BASKET_APPLY_EVENT = "ai-image-reference-basket-apply";
 
 const REFERENCE_BASKET_STORAGE_KEY = "ai-image-reference-basket-v1";
 const REFERENCE_BASKET_CHANGE_EVENT = "ai-image-reference-basket-change";
-const MOBILE_REFERENCE_BASKET_QUERY = "(max-width: 760px)";
 
 function normalizeBasketItems(value: unknown): ReferenceBasketItem[] {
   if (!Array.isArray(value)) return [];
@@ -137,27 +136,17 @@ export function ReferenceBasketButton({
 
 export function ReferenceBasketTray() {
   const [items, setItems] = useReferenceBasket();
+  // 之前桌面端在 count>0 时会自动 setOpen(true)（通过 matchMedia 区分移动端
+  // 才保持收缩),效果是托盘一加入就盖住右下角内容。改成全局默认收缩,只
+  // 显示底部"参考图 N/M"按钮,用户主动点击才展开,避免遮挡。
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [mobileViewport, setMobileViewport] = useState(false);
   const count = items.length;
   const hasItems = count > 0;
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    const media = window.matchMedia(MOBILE_REFERENCE_BASKET_QUERY);
-    const updateViewport = () => setMobileViewport(media.matches);
-    updateViewport();
-    media.addEventListener("change", updateViewport);
-    return () => media.removeEventListener("change", updateViewport);
-  }, []);
-
-  useEffect(() => {
-    if (count > 0 && !mobileViewport) setOpen(true);
-  }, [count, mobileViewport]);
 
   const title = useMemo(() => `参考图 ${count}/${MAX_REFERENCE_BASKET_ITEMS}`, [count]);
   if (!mounted || !hasItems) return null;
