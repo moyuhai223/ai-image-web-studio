@@ -2,7 +2,20 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
-## [0.5.4] - 2026-05-23
+## [0.5.5] - 2026-05-23
+
+### 新增
+
+- **品牌渐变 token (`--brand-gradient`)**：`app/globals.css` `:root` 注入 `linear-gradient(135deg, var(--brand), var(--brand-2))` 单一渐变变量，`.brand-mark` 与主 CTA `.button` 共用同一来源，避免散落的 inline `linear-gradient(...)` 写死颜色。`.button:hover` 叠加 `box-shadow` 同色光晕呼应渐变；secondary / danger 按钮保留各自单色渐变 —— 克制即高级。
+- **`:focus-visible` 系统化**：`app/globals.css` 全局 `:focus { outline: none }` 重置后，给 `button` / `a` / `summary` / `[role=button|link|tab|menuitem]` / `[tabindex]` 加 `:focus-visible` 规则：`2px solid color-mix(in srgb, var(--brand) 56%, transparent)` + `3px offset` + `border-radius: inherit`。键盘 Tab 导航全程可见焦点环，鼠标点击不残留视觉噪声；文本输入 `.input` / `.textarea` / `.select` 仍保留 `:focus` 边框 + 光晕（无论鼠标还是键盘都需要持续指示编辑目标）。
+- **`.num` 等宽数字工具类**：`app/globals.css` 新增 `.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: 0; font-feature-settings: "tnum" 1, "zero" 0 }`，应用到：SystemHealthCard 的 p50/p95 / 样本数 / 队列深度 / 成功率 / 24h 任务分布 / Key 总数 / 版本号；`/records` 头部「已筛选 N 项 / 共 N 条」+ 分页「第 N / N 页」；`/favorites` 头部「已筛选 N 项 / 共 N 张」；workspace 队列「运行 N / N · 排队 N」、「percent% · 已保存 N / N 张」、「队列 #N」。混合中英文短语只把数字切到 mono，CJK 仍走正文字体，宽表列对齐 + 排版美感兼得。
+- **空状态插画化**：`app/globals.css` 新增 `.empty-state-illustrated`（72px lucide 图标置于 brand 色 `radial-gradient` 圆形底 + 加粗标题 + action 按钮），接入 `/records`（无任何任务时显示 `Image` 图标 + 「前往工作台」CTA；筛选无结果时显示 `Inbox` + 「重置筛选」）和 `/favorites`（无收藏时显示 `Heart` + 「浏览记录找好图」；筛选无结果时显示 `Search` + 「重置筛选」）。先前 `/records` 完全没有空状态（直接渲染空网格），`/favorites` 仅有素文案版本。
+
+### 变更
+
+- **顶栏高度 64px → 56px**：`app/globals.css` `.topbar { height: 56px }`（34px brand-mark + 22px 上下 padding 仍然贴合），主内容区净增 8px。同步收紧所有黏附偏移：`.generation-panel` `top` 84→76、`max-height` `calc(... - 104px)` → `calc(... - 96px)`；`.toast-stack` `top` 78→70；`.settings-nav` `top` 84→76、`max-height` `calc(... - 108px)` → `calc(... - 100px)`；`.settings-section` `scroll-margin-top` 84→76。所有页面长滚动 / 模态 / Toast 的"撞顶不被遮挡"行为保持一致。
+
+
 
 ### 新增
 
