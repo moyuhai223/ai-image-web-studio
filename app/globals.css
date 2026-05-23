@@ -164,7 +164,9 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  height: 64px;
+  /* 顶栏 64 → 56 收紧 (#7):34px brand-mark + 11px*2 上下 padding = 56px 刚好够,
+     省下 8px 让正文区域上移,首屏多塞一行内容 */
+  height: 56px;
   padding: 0 24px;
   background: var(--topbar-bg);
   border-bottom: 1px solid var(--glass-border);
@@ -275,7 +277,7 @@ button {
 
 .toast-stack {
   position: fixed;
-  top: 78px;
+  top: 70px;
   right: 18px;
   z-index: 60;
   display: grid;
@@ -483,10 +485,10 @@ button {
 
 .generation-panel {
   position: sticky;
-  top: 84px;
+  top: 76px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  max-height: calc(100vh - 104px);
+  max-height: calc(100vh - 96px);
 }
 
 .panel {
@@ -2250,10 +2252,10 @@ button.action-button:hover:not(:disabled),
 
 .settings-nav {
   position: sticky;
-  top: 84px;
+  top: 76px;
   display: grid;
   gap: 6px;
-  max-height: calc(100vh - 108px);
+  max-height: calc(100vh - 100px);
   overflow: auto;
   padding: 8px;
   border: 1px solid var(--glass-border);
@@ -2313,7 +2315,7 @@ button.action-button:hover:not(:disabled),
 }
 
 .settings-section {
-  scroll-margin-top: 84px;
+  scroll-margin-top: 76px;
 }
 
 .settings-tab-panel {
