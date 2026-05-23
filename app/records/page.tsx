@@ -11,6 +11,7 @@ import { RecordsFilterMemory } from "@/components/records-filter-memory";
 import { RecordSelectCheckbox, RecordsBulkActions, RecordsSelectionProvider } from "@/components/records-bulk-actions";
 import { RecordsToolPanels } from "@/components/records-tool-panels";
 import { ReferenceBasketButton } from "@/components/reference-basket";
+import { RerunButton } from "@/components/rerun-button";
 import { requireUser } from "@/lib/auth";
 import { generationStatusLabel, isRetryableGenerationStatus } from "@/lib/generation-status";
 import { countJobs, listJobsPage, type JobListFilters } from "@/lib/repository";
@@ -18,7 +19,7 @@ import { imageThumbnailUrl } from "@/lib/thumbnails";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import type { GenerationJob, GenerationStatus } from "@/lib/types";
 import { modelOptions } from "@/lib/validation";
-import { RefreshCcw } from "lucide-react";
+import { Info } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -256,7 +257,10 @@ export default async function RecordsPage({
                         <div className="record-card-body">
                           <div className="record-card-status-row">
                             <span className={`status ${job.status}`}>{generationStatusLabel(job.status)}</span>
-                            <a className="status action-button action-detail" href={`/records/${job.id}`}>详情</a>
+                            <a className="status action-button action-detail" href={`/records/${job.id}`}>
+                              <Info size={13} />
+                              详情
+                            </a>
                           </div>
                           {job.thumbnail_id ? (
                             <ImageTagsEditor imageId={job.thumbnail_id} initialTags={job.thumbnail_tags ?? job.tags ?? []} />
@@ -269,10 +273,7 @@ export default async function RecordsPage({
                         </div>
                         <div className="actions image-card-actions">
                           {job.status === "succeeded" ? (
-                            <a className="status action-button action-rerun" href={rerunHref(job)}>
-                              <RefreshCcw size={13} />
-                              重做
-                            </a>
+                            <RerunButton href={rerunHref(job)} />
                           ) : null}
                           {job.thumbnail_id ? (
                             <FavoriteImageButton imageId={job.thumbnail_id} initialFavorite={job.thumbnail_favorite ?? false} />
