@@ -6,8 +6,10 @@ import { FavoriteImageButton } from "@/components/favorite-image-button";
 import { ImageWithSkeleton } from "@/components/image-with-skeleton";
 import { ImageLightbox, type LightboxItem } from "@/components/image-lightbox";
 import { ImageTagsEditor } from "@/components/image-tags-editor";
+import { JobAutoRefresh } from "@/components/job-auto-refresh";
 import { JobControlButton } from "@/components/job-control-button";
 import { ReferenceBasketButton } from "@/components/reference-basket";
+import { RerunButton } from "@/components/rerun-button";
 import { requireUser } from "@/lib/auth";
 import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGenerationStatus } from "@/lib/generation-status";
 import { getJobById, listImageVersionChainForJob } from "@/lib/repository";
@@ -15,7 +17,7 @@ import { formatDateTime } from "@/lib/time";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import type { GeneratedImage, ImageVersionNode, JobWithImages } from "@/lib/types";
-import { Pencil, RefreshCcw } from "lucide-react";
+import { Pencil } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -361,15 +363,13 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
     <div className="shell" data-theme={themePreference.theme}>
       <AppNav user={user} themeMode={themePreference.mode} />
       <main className="main">
+        <JobAutoRefresh status={job.status} />
         <section className="panel">
           <div className="panel-header">
             <h1 className="panel-title">任务详情</h1>
             <div className="actions">
               <span className={`status ${job.status}`}>{generationStatusLabel(job.status)}</span>
-              <a className="status action-button action-rerun" href={rerunHref(job)}>
-                <RefreshCcw size={13} />
-                重做
-              </a>
+              <RerunButton href={rerunHref(job)} />
               {isRetryableGenerationStatus(job.status) ? (
                 <JobControlButton action="requeue" recordId={job.id} />
               ) : null}
