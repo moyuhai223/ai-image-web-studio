@@ -1465,15 +1465,18 @@ button.action-button:hover:not(:disabled),
 }
 
 .image-card-actions .action-button {
-  min-height: 36px;
-  border-width: 2px;
-  border-color: color-mix(in srgb, var(--action-color) 52%, var(--glass-border));
-  background: color-mix(in srgb, var(--action-color) 12%, var(--panel-2));
+  /* 与 .panel-header .actions .status / .version-node .action-button
+     保持一致的小标签按钮风格(30px 高,1.5px 边)。之前 36px / 2px 的
+     "胖按钮"与详情页头部的重做/重试/删除不统一。 */
+  min-height: 30px;
+  border-width: 1.5px;
+  border-color: color-mix(in srgb, var(--action-color) 48%, var(--border));
+  background: color-mix(in srgb, var(--action-color) 11%, var(--panel));
 }
 
 .image-card-actions .action-button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--action-color) 68%, var(--glass-border));
-  background: color-mix(in srgb, var(--action-color) 18%, var(--panel-2));
+  border-color: color-mix(in srgb, var(--action-color) 60%, var(--border));
+  background: color-mix(in srgb, var(--action-color) 15%, var(--panel));
 }
 
 .record-card-status-row .action-button,

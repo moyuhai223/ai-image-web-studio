@@ -17,7 +17,7 @@ import { formatDateTime } from "@/lib/time";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import type { GeneratedImage, ImageVersionNode, JobWithImages } from "@/lib/types";
-import { Pencil } from "lucide-react";
+import { Download, Pencil } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -324,7 +324,10 @@ function VersionChain({ nodes }: { nodes: ImageVersionNode[] }) {
                     <Pencil size={13} />
                     编辑
                   </a>
-                  <a className="status action-button action-download" href={`/api/images/${node.id}/download`}>下载</a>
+                  <a className="status action-button action-download" href={`/api/images/${node.id}/download`}>
+                    <Download size={13} />
+                    下载
+                  </a>
                 </div>
               </div>
             </article>
@@ -458,7 +461,10 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
                         <Pencil size={13} />
                         编辑
                       </a>
-                      <a className="status action-button action-download" href={`/api/images/${image.id}/download`}>下载</a>
+                      <a className="status action-button action-download" href={`/api/images/${image.id}/download`}>
+                        <Download size={13} />
+                        下载
+                      </a>
                     </div>
                   </footer>
                 </article>
