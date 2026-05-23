@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
+import { ButtonSpinner } from "./button-spinner";
 import { DangerConfirmDialog } from "./danger-confirm-dialog";
 
 export function DeleteRecordButton({
@@ -56,7 +57,7 @@ export function DeleteRecordButton({
   return (
     <>
       <button className="status action-button action-danger" type="button" disabled={loading} onClick={openConfirm}>
-        <Trash2 size={13} />
+        {loading ? <ButtonSpinner /> : <Trash2 size={13} />}
         {loading ? "删除中" : "删除"}
       </button>
       <DangerConfirmDialog

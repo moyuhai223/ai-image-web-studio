@@ -3,6 +3,7 @@
 import { RefreshCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ButtonSpinner } from "./button-spinner";
 
 /**
  * 任务详情头部「重做」按钮。
@@ -29,7 +30,7 @@ export function RerunButton({ href }: { href: string }) {
       onClick={handleClick}
       disabled={navigating}
     >
-      <RefreshCcw size={13} />
+      {navigating ? <ButtonSpinner /> : <RefreshCcw size={13} />}
       {navigating ? "跳转中" : "重做"}
     </button>
   );

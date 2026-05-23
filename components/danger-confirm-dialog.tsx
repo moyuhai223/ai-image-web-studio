@@ -3,6 +3,7 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, Trash2, X } from "lucide-react";
+import { ButtonSpinner } from "./button-spinner";
 
 type DangerConfirmDialogProps = {
   open: boolean;
@@ -80,7 +81,7 @@ export function DangerConfirmDialog({
             取消
           </button>
           <button className="button action-button action-danger" type="button" onClick={onConfirm} disabled={loading} autoFocus>
-            {confirmIcon ?? <Trash2 size={16} />}
+            {loading ? <ButtonSpinner size={16} /> : confirmIcon ?? <Trash2 size={16} />}
             {loading ? loadingLabel ?? confirmLabel : confirmLabel}
           </button>
         </div>

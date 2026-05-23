@@ -3,6 +3,7 @@
 import { Ban, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ButtonSpinner } from "./button-spinner";
 import { DangerConfirmDialog } from "./danger-confirm-dialog";
 
 type JobControlAction = "cancel" | "requeue";
@@ -72,7 +73,7 @@ export function JobControlButton({ action, recordId, onDone }: Props) {
   return (
     <>
       <button className={`status action-button ${action === "cancel" ? "action-cancel" : "action-requeue"}`} type="button" disabled={loading} onClick={openConfirm}>
-        {action === "cancel" ? <Ban size={13} /> : <RotateCcw size={13} />}
+        {loading ? <ButtonSpinner /> : action === "cancel" ? <Ban size={13} /> : <RotateCcw size={13} />}
         {loading ? copy.loading : copy.idle}
       </button>
       <DangerConfirmDialog

@@ -4623,3 +4623,111 @@ code {
     gap: 6px;
   }
 }
+
+/* ============================================================
+   v0.5.x UI 美化批次:滚动条 / 按钮压感 / Loader spinner /
+   全局顶部进度条。集中放末尾以便后续整段移除或迁移。
+   ============================================================ */
+
+/* ---------- #10 滚动条美化 ---------- */
+/* WebKit (Chrome/Edge/Safari) 默认 17px 灰条太喧宾夺主。改为 10px
+   半透明胶囊,只在 hover 时加深;Firefox 用 scrollbar-color 同步。 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 38%, transparent);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted) 60%, transparent);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 38%, transparent) transparent;
+}
+
+/* ---------- #4 按钮 :active 压感反馈 ---------- */
+/* .button 已经有 :active scale(0.98) 了(见上)。这里补齐
+   .action-button (a / button 两种 element) 和 .reference-basket-tray
+   下的 .icon-button。用 80ms 短 transition 让"按下去"立刻收到反馈,
+   松开时再走原本的 var(--transition-fast). */
+a.action-button:active,
+button.action-button:active:not(:disabled),
+.button.action-button:active:not(:disabled) {
+  transform: translateY(0) scale(0.96);
+  transition-duration: 80ms;
+}
+
+.reference-basket-tray .icon-button:active:not(:disabled),
+.reference-basket-toggle:active:not(:disabled) {
+  transform: scale(0.94);
+  transition: transform 80ms ease;
+}
+
+.delete-confirm-close:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+/* ---------- #5 按钮 loader spinner ---------- */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.button-spinner {
+  animation: spin 0.9s linear infinite;
+  /* 保持 baseline 一致 — flex 子元素默认 align-items: center,但 svg
+     在某些字体回退场景会偏 1px,这里 vertical-align 兜底。 */
+  vertical-align: middle;
+}
+
+/* ---------- #2 全局顶部进度条 ---------- */
+/* 2px 固定条,半透明背景兜底色,渐变实条 + 微 glow,从 0% 爬到 80% 再到
+   100% 后淡出。z-index 1000 高于 .topbar(z 10) 但低于 dialog overlay。 */
+.nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  height: 2px;
+  background: transparent;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.nav-progress.visible {
+  opacity: 1;
+}
+
+.nav-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand), var(--brand-2));
+  box-shadow:
+    0 0 8px color-mix(in srgb, var(--brand-2) 55%, transparent),
+    0 0 2px color-mix(in srgb, var(--brand) 80%, transparent);
+  border-radius: 0 999px 999px 0;
+  /* 600ms cubic-bezier 给出"先快后慢"的爬升手感(模仿 nprogress) */
+  transition: width 600ms cubic-bezier(0.4, 0, 0.2, 1);
+}
