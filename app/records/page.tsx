@@ -19,7 +19,7 @@ import { imageThumbnailUrl } from "@/lib/thumbnails";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import type { GenerationJob, GenerationStatus } from "@/lib/types";
 import { modelOptions } from "@/lib/validation";
-import { Info } from "lucide-react";
+import { Info, Image as ImageIcon, Inbox } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -226,6 +226,24 @@ export default async function RecordsPage({
                 }
                 tags={<RecordsBulkActions />}
               />
+              {jobs.length === 0 ? (
+                <div className="empty-state empty-state-illustrated">
+                  {filterCount > 0 ? <Inbox size={72} strokeWidth={1.4} aria-hidden /> : <ImageIcon size={72} strokeWidth={1.4} aria-hidden />}
+                  <p className="empty-state-title">{filterCount > 0 ? "没有匹配的生成记录" : "还没有生成记录"}</p>
+                  <p className="small muted">
+                    {filterCount > 0
+                      ? "换一个关键词、状态、模型或时间范围再试。或者点击重置查看全部。"
+                      : "返回工作台输入提示词，开始你的第一次生成。完成后任务会出现在这里。"}
+                  </p>
+                  <div className="actions">
+                    {filterCount > 0 ? (
+                      <a className="status" href="/records?reset=1">重置筛选</a>
+                    ) : (
+                      <a className="button" href="/">前往工作台</a>
+                    )}
+                  </div>
+                </div>
+              ) : null}
               <div className="records-grid">
                 {jobs.map((job) => {
                   const galleryIndex = job.thumbnail_id ? imageJobs.findIndex((imageJob) => imageJob.id === job.id) : 0;

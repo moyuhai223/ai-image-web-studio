@@ -1770,6 +1770,41 @@ button.action-button:hover:not(:disabled),
   line-height: 1.55;
 }
 
+/* 空状态插画化 (#3):
+   大图标 + 标题 + 引导文案 + 行动按钮,代替单行 "暂无" 文本。
+   渐变 ring + brand 色调让空界面也保持品牌感,避免冷场。 */
+.empty-state-illustrated {
+  gap: 14px;
+  min-height: 380px;
+  padding: 48px 24px;
+}
+
+.empty-state-illustrated svg {
+  width: 72px;
+  height: 72px;
+  padding: 16px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--brand) 18%, transparent), transparent 65%),
+    color-mix(in srgb, var(--brand) 6%, var(--panel-2));
+  color: color-mix(in srgb, var(--brand) 80%, var(--muted));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 18%, var(--border));
+  opacity: 0.88;
+}
+
+.empty-state-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.005em;
+}
+
+.empty-state-illustrated .actions {
+  margin-top: 6px;
+  gap: 8px;
+}
+
 .preview-empty-state {
   position: relative;
   overflow: hidden;

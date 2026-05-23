@@ -13,6 +13,7 @@ import { formatDateTime } from "@/lib/time";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import { modelOptions } from "@/lib/validation";
+import { Heart, Search } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -176,9 +177,21 @@ export default async function FavoritesPage({
               </div>
             </form>
             {images.length === 0 ? (
-              <div className="empty-state">
-                <p>{activeFilterCount(filters) > 0 ? "没有匹配的收藏图片。" : "还没有收藏图片。"}</p>
-                <p className="small muted">{activeFilterCount(filters) > 0 ? "可以换一个关键词、标签或时间范围再试。" : "在生成结果、记录详情或记录页点击“收藏”，好图会集中放在这里。"}</p>
+              <div className="empty-state empty-state-illustrated">
+                {activeFilterCount(filters) > 0 ? <Search size={72} strokeWidth={1.4} aria-hidden /> : <Heart size={72} strokeWidth={1.4} aria-hidden />}
+                <p className="empty-state-title">{activeFilterCount(filters) > 0 ? "没有匹配的收藏图片" : "还没有收藏图片"}</p>
+                <p className="small muted">
+                  {activeFilterCount(filters) > 0
+                    ? "可以换一个关键词、标签或时间范围再试。"
+                    : "在生成结果、记录详情或记录页点击“收藏”，好图会集中放在这里。"}
+                </p>
+                <div className="actions">
+                  {activeFilterCount(filters) > 0 ? (
+                    <a className="status" href="/favorites">重置筛选</a>
+                  ) : (
+                    <a className="button" href="/records">浏览记录找好图</a>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="records-grid favorite-grid">
