@@ -468,7 +468,7 @@ function shouldTryBase64Fallback(error: unknown) {
   if (status) return [400, 404, 405, 422].includes(status);
 
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-  return message.includes("response_format") || message.includes("unsupported") || message.includes("provider returned no images");
+  return message.includes("response_format") || message.includes("unsupported") || message.includes("provider returned no");
 }
 
 function shouldTryAnotherKey(error: unknown) {

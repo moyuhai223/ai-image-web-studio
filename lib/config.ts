@@ -11,6 +11,18 @@ function numberEnv(value: string | undefined, fallback: number, min = 1) {
   return Number.isFinite(parsed) && parsed >= min ? Math.trunc(parsed) : fallback;
 }
 
+function csvEnv(value: string | undefined, fallback: string[]): string[] {
+  const source = (value ?? "").trim();
+  if (!source) return fallback;
+  const items = source
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return items.length > 0 ? items : fallback;
+}
+
+const DEFAULT_ALLOWED_IMAGE_MIMES = ["image/png", "image/jpeg", "image/webp"];
+
 export const config = {
   databaseUrl: process.env.DATABASE_URL ?? "",
   authSecret: process.env.AUTH_SECRET ?? "dev-only-change-me",
@@ -21,6 +33,8 @@ export const config = {
   imageModelNano: process.env.IMAGE_MODEL_NANO_BANANA ?? "Nano Banana 2",
   storageRoot: process.env.LOCAL_STORAGE_ROOT ?? "./storage",
   maxUploadMb: numberEnv(process.env.MAX_UPLOAD_MB, 20),
+  maxReferenceImages: numberEnv(process.env.MAX_REFERENCE_IMAGES, 4),
+  allowedImageMimes: csvEnv(process.env.ALLOWED_IMAGE_MIMES, DEFAULT_ALLOWED_IMAGE_MIMES),
   maxGenerationConcurrency: numberEnv(process.env.MAX_GENERATION_CONCURRENCY, 2),
   maxGenerationQueueSize: numberEnv(process.env.MAX_GENERATION_QUEUE_SIZE, 20),
   dailyGenerationLimit: numberEnv(process.env.DAILY_GENERATION_LIMIT, 50, 0),

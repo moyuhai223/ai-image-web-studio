@@ -2,6 +2,22 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.4.40] - 2026-05-23
+
+### 修复
+
+- Image 2 编辑接口的 base64/url 兜底链：v0.4.37 重写时把触发条件写成了 `"provider returned no images"`（复数），但 v0.4.37 同时把单图编辑流程的报错改成 `"Provider returned no edited image"`（单数），导致单图编辑失败时根本不会触发 fallback。`lib/provider.ts` 的 `shouldTryBase64Fallback` 改为匹配 `"provider returned no"` 前缀，单复数都能触发兜底。
+
+### 变更
+
+- 上游错误归一化：新增 `lib/provider-error-map.ts` 把 `auth_unavailable`、`no auth available`、`Provider returned no edited image`、`HTTP 4xx/5xx`、`ETIMEDOUT`、`fetch failed` 等 14 类原始错误翻译成带建议的中文文案。失败任务的 `error_message`（前端记录页和首页错误条都会显示）从过去的英文堆栈片段变成「上游服务对该模型未配置认证（建议：联系服务商确认...）」之类可操作的提示。未命中的错误模式仍保留原 message，便于排查未知错误。
+- 生成 API 提前 429 守门：原本只检查 `queued`，现在用 `getActiveQueueStats()` 同时核算 `queued + running`，超过 `MAX_GENERATION_QUEUE_SIZE` 直接返回 `{ status: 429, code: "queue_full", retryAfterSeconds: 30 }` + `retry-after` 响应头。前端识别该 code 后会展示「约 30 秒后可再次尝试」。
+- 参考图限制从硬编码挪到 config：`lib/config.ts` 新增 `maxReferenceImages`（环境变量 `MAX_REFERENCE_IMAGES`，默认 4）和 `allowedImageMimes`（环境变量 `ALLOWED_IMAGE_MIMES`，默认 `image/png,image/jpeg,image/webp`）。`lib/validation.ts` 的 `allowedImageTypes` 改为按 config 派生。`app/api/generate/route.ts` 与 `components/workspace.tsx` 不再各自维护 `const MAX_REFERENCE_IMAGES = 4`，前端通过新建的 `app/api/config/limits/route.ts` 拉取运行时配置。
+
+### 新增
+
+- `app/api/config/limits/route.ts`：公开的 GET 端点，返回 `{ maxReferenceImages, allowedImageMimes, maxUploadMb }`，让客户端拿到服务端配置（客户端不能直接 import `lib/config`，那是 Node-only 的）。
+
 ## [0.4.39] - 2026-05-23
 
 ### 变更

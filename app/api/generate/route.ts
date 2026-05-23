@@ -5,13 +5,18 @@ import { requireUser } from "@/lib/auth";
 import { config } from "@/lib/config";
 import { generateSchema, allowedImageTypes } from "@/lib/validation";
 import { enqueueGenerationJob } from "@/lib/generation-queue";
-import { createJob, findReferenceByChecksum, getImageForUser, getJobById, getReferenceImageById } from "@/lib/repository";
+import {
+  createJob,
+  findReferenceByChecksum,
+  getActiveQueueStats,
+  getImageForUser,
+  getJobById,
+  getReferenceImageById
+} from "@/lib/repository";
 import { saveImageBuffer } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
-
-const MAX_REFERENCE_IMAGES = 4;
 
 type ReferenceMetadata = {
   localPath: string;
@@ -46,7 +51,7 @@ function parseReferenceItems(value: FormDataEntryValue | null): ReferenceItem[] 
         return null;
       })
       .filter((item): item is ReferenceItem => Boolean(item));
-    return items.slice(0, MAX_REFERENCE_IMAGES);
+    return items.slice(0, config.maxReferenceImages);
   } catch {
     return [];
   }
@@ -104,13 +109,22 @@ export async function POST(request: Request) {
   }
 
   const requestedCount = parsed.data.count;
-  const active = await query<{ queued: string }>(
-    `select count(*) filter (where status = 'queued')::text as queued
-     from generation_jobs
-     where status in ('queued', 'running')`
-  );
-  if (Number(active.rows[0]?.queued ?? 0) + requestedCount > config.maxGenerationQueueSize) {
-    return NextResponse.json({ error: `当前排队任务较多，请稍后再试（最多排队 ${config.maxGenerationQueueSize} 个）` }, { status: 429 });
+  // 提前 429 守门:queued + running 已占满全局并发上限就拒绝,避免任务排到天荒地老。
+  // 返回结构带 code 让前端能区分"队列满"和"参数错误";retry-after 由 nginx/客户端兼容。
+  const queueStats = await getActiveQueueStats(user);
+  const queueOccupied = queueStats.queued + queueStats.running;
+  if (queueOccupied + requestedCount > config.maxGenerationQueueSize) {
+    return NextResponse.json(
+      {
+        error: `当前队列已满(排队 ${queueStats.queued} / 进行中 ${queueStats.running} / 上限 ${config.maxGenerationQueueSize}),请稍后再试`,
+        code: "queue_full",
+        retryAfterSeconds: 30
+      },
+      {
+        status: 429,
+        headers: { "retry-after": "30" }
+      }
+    );
   }
 
   if (config.dailyGenerationLimit > 0) {
@@ -128,7 +142,7 @@ export async function POST(request: Request) {
   const uploadFiles = formData
     .getAll("referenceImages")
     .filter((value): value is File => value instanceof File && value.size > 0)
-    .slice(0, MAX_REFERENCE_IMAGES);
+    .slice(0, config.maxReferenceImages);
   const legacyFile = formData.get("referenceImage");
   if (legacyFile instanceof File && legacyFile.size > 0 && uploadFiles.length === 0) {
     uploadFiles.push(legacyFile);
@@ -147,7 +161,7 @@ export async function POST(request: Request) {
           ...(typeof formData.get("referenceImageId") === "string" && String(formData.get("referenceImageId")).trim()
             ? [{ type: "generated" as const, id: String(formData.get("referenceImageId")) }]
             : [])
-        ].slice(0, MAX_REFERENCE_IMAGES);
+        ].slice(0, config.maxReferenceImages);
 
   const references: ReferenceMetadata[] = [];
   const seenReferencePaths = new Set<string>();
@@ -188,7 +202,7 @@ export async function POST(request: Request) {
       seenReferencePaths.add(reference.localPath);
       references.push(reference);
     }
-    if (references.length >= MAX_REFERENCE_IMAGES) break;
+    if (references.length >= config.maxReferenceImages) break;
   }
   const referenceMetadata = references[0] ?? null;
 

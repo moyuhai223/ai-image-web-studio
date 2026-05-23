@@ -57,7 +57,23 @@ type GenerateResponse = {
   job?: JobWithImages | null;
   jobs?: JobWithImages[];
   error?: string;
+  code?: string;
+  retryAfterSeconds?: number;
   jobId?: string;
+};
+
+type LimitsConfig = {
+  maxReferenceImages: number;
+  allowedImageMimes: string[];
+  maxUploadMb: number;
+};
+
+// 客户端默认值,与服务端 lib/config.ts 的 fallback 保持一致。
+// 首次挂载时会异步拉取 /api/config/limits 覆盖。
+const DEFAULT_LIMITS: LimitsConfig = {
+  maxReferenceImages: 4,
+  allowedImageMimes: ["image/png", "image/jpeg", "image/webp"],
+  maxUploadMb: 20
 };
 
 type PromptTemplateOption = Pick<PromptTemplate, "id" | "title" | "category" | "content">;
@@ -67,7 +83,6 @@ const countValues = new Set(["1", "2", "3", "4"]);
 const ACTIVE_QUEUE_POLL_MS = 3500;
 const IDLE_QUEUE_POLL_MS = 25000;
 const ACTIVE_JOB_POLL_MS = 1800;
-const MAX_REFERENCE_IMAGES = 4;
 
 const initialQueueSnapshot: QueueSnapshot = { queued: 0, running: 0, concurrency: 1, jobs: [] };
 function isTerminalStatus(status: GenerationJob["status"]) {
@@ -205,6 +220,7 @@ export function Workspace({
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [selectedReferences, setSelectedReferences] = useState<SelectedReference[]>([]);
   const [referencesOpen, setReferencesOpen] = useState(false);
+  const [limits, setLimits] = useState<LimitsConfig>(DEFAULT_LIMITS);
   const autoRunStarted = useRef(false);
   const mountedRef = useRef(false);
   const pollTokenRef = useRef(0);
@@ -307,6 +323,32 @@ export function Workspace({
       for (const url of referenceObjectUrlsRef.current) URL.revokeObjectURL(url);
       referenceObjectUrlsRef.current.clear();
     };
+  }, []);
+
+  // 拉取服务端的 limits 配置(参考图最大张数 / 允许 MIME / 单图大小上限)。
+  // 客户端不能 import lib/config(Node-only),所以走 /api/config/limits。
+  // 失败时静默回退到 DEFAULT_LIMITS,不影响功能。
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const response = await fetch("/api/config/limits", { signal: controller.signal });
+        if (!response.ok) return;
+        const data = (await response.json()) as Partial<LimitsConfig>;
+        if (controller.signal.aborted) return;
+        setLimits({
+          maxReferenceImages: Number(data.maxReferenceImages) || DEFAULT_LIMITS.maxReferenceImages,
+          allowedImageMimes:
+            Array.isArray(data.allowedImageMimes) && data.allowedImageMimes.length > 0
+              ? data.allowedImageMimes
+              : DEFAULT_LIMITS.allowedImageMimes,
+          maxUploadMb: Number(data.maxUploadMb) || DEFAULT_LIMITS.maxUploadMb
+        });
+      } catch {
+        // 静默,沿用 DEFAULT_LIMITS
+      }
+    })();
+    return () => controller.abort();
   }, []);
 
   function clearQueueTimer() {
@@ -429,7 +471,13 @@ export function Workspace({
 
     if (!response.ok) {
       setLoading(false);
-      setError(data.error ?? "生成失败");
+      // 队列已满(429 + code=queue_full)给一句更友好的提示,告诉用户可以稍后再试。
+      const isQueueFull = response.status === 429 && data.code === "queue_full";
+      const baseMessage = data.error ?? "生成失败";
+      const displayMessage = isQueueFull
+        ? `${baseMessage}（约 ${data.retryAfterSeconds ?? 30} 秒后可再次尝试）`
+        : baseMessage;
+      setError(displayMessage);
       setHistory((current) =>
         current.map((item) =>
           pendingIds.has(item.id)
@@ -437,7 +485,7 @@ export function Workspace({
                 ...item,
                 id: pendingJobs.length === 1 ? data.jobId ?? item.id : item.id,
                 status: "failed",
-                error_message: data.error ?? "生成失败",
+                error_message: displayMessage,
                 updated_at: new Date().toISOString(),
                 localOnly: !data.jobId
               }
@@ -615,7 +663,7 @@ export function Workspace({
       let skipped = 0;
       for (const reference of nextReferences) {
         if (next.some((item) => item.key === reference.key)) continue;
-        if (next.length >= MAX_REFERENCE_IMAGES) {
+        if (next.length >= limits.maxReferenceImages) {
           skipped += 1;
           if (reference.objectUrl) {
             URL.revokeObjectURL(reference.objectUrl);
@@ -626,7 +674,7 @@ export function Workspace({
         next.push(reference);
       }
       if (skipped > 0) {
-        window.setTimeout(() => setError(`最多选择 ${MAX_REFERENCE_IMAGES} 张参考图，多余图片已忽略`), 0);
+        window.setTimeout(() => setError(`最多选择 ${limits.maxReferenceImages} 张参考图，多余图片已忽略`), 0);
       }
       return next;
     });
@@ -852,7 +900,7 @@ export function Workspace({
             >
               <span>参考图</span>
               <span className="reference-section-toggle-meta">
-                <span className="small muted">{referenceSummary} · 最多 {MAX_REFERENCE_IMAGES} 张</span>
+                <span className="small muted">{referenceSummary} · 最多 {limits.maxReferenceImages} 张</span>
                 <span className="status reference-section-toggle-status">
                   <ChevronDown size={14} />
                   {referencesOpen ? "收起" : "展开"}

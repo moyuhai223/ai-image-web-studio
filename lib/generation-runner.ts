@@ -3,6 +3,7 @@ import { config } from "./config";
 import { query } from "./db";
 import { createLogger } from "./logger";
 import { generateWithProvider } from "./provider";
+import { formatProviderErrorInfo, mapProviderError } from "./provider-error-map";
 import { deleteStoredImageFiles, imageSourceToBuffer, readStoredFile, saveImageBuffer } from "./storage";
 import type { GenerationJob, GenerationProgress } from "./types";
 
@@ -35,8 +36,18 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "生成失败";
 }
 
+/**
+ * 生成阶段失败时的统一文案。
+ * 先把原始 message 喂给 mapProviderError —— 命中已知模式则展示更友好的中文文案,
+ * 未命中则保留原 message,便于排查未知错误模式。
+ */
 function stageErrorMessage(stage: string, error: unknown) {
-  return `${stage}失败：${errorMessage(error)}`;
+  const raw = errorMessage(error);
+  const info = mapProviderError(raw);
+  if (info) {
+    return `${stage}失败：${formatProviderErrorInfo(info)}`;
+  }
+  return `${stage}失败：${raw}`;
 }
 
 function referenceCount(input: GenerationRunInput) {

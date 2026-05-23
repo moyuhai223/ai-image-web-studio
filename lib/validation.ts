@@ -53,8 +53,26 @@ export const deletePromptTemplateSchema = z.object({
   id: z.string().uuid("模板 ID 无效")
 });
 
-export const allowedImageTypes = new Map([
-  ["image/png", "png"],
-  ["image/jpeg", "jpg"],
-  ["image/webp", "webp"]
-]);
+// 标准 MIME → 文件扩展名 映射(覆盖 config.allowedImageMimes 中可能出现的类型)
+const MIME_EXTENSION_MAP: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/avif": "avif"
+};
+
+function extensionForMime(mime: string): string {
+  if (MIME_EXTENSION_MAP[mime]) return MIME_EXTENSION_MAP[mime];
+  const part = mime.split("/")[1]?.toLowerCase() ?? "bin";
+  return part === "jpeg" ? "jpg" : part;
+}
+
+/**
+ * 允许的图片 MIME → 文件扩展名 映射。
+ * 在模块加载时从 config.allowedImageMimes 派生,与 config 同生命周期。
+ * 后续若要换用动态读取(支持配置热更新)再改 getAllowedImageTypes() 函数。
+ */
+export const allowedImageTypes = new Map<string, string>(
+  config.allowedImageMimes.map((mime) => [mime, extensionForMime(mime)])
+);
