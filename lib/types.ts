@@ -9,7 +9,20 @@ export type User = {
   updated_at: string;
 };
 
-export type GenerationStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
+export type GenerationStatus =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "canceled"
+  | "interrupted"
+  | "upstream_error";
+
+export type GenerationPhaseTimings = {
+  upstream_wait_ms?: number;
+  download_decode_ms?: number;
+  db_insert_ms?: number;
+};
 
 export type GenerationProgress = {
   phase:
@@ -24,7 +37,9 @@ export type GenerationProgress = {
     | "saved"
     | "succeeded"
     | "failed"
-    | "canceled";
+    | "canceled"
+    | "interrupted"
+    | "upstream_error";
   current: number;
   total: number;
   percent: number;
@@ -32,6 +47,7 @@ export type GenerationProgress = {
   referenceCount?: number;
   requestStartedAt?: string;
   slowNotifiedAt?: string;
+  phaseTimings?: GenerationPhaseTimings;
   updatedAt: string;
 };
 

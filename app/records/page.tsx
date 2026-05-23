@@ -12,7 +12,7 @@ import { RecordSelectCheckbox, RecordsBulkActions, RecordsSelectionProvider } fr
 import { RecordsToolPanels } from "@/components/records-tool-panels";
 import { ReferenceBasketButton } from "@/components/reference-basket";
 import { requireUser } from "@/lib/auth";
-import { generationStatusLabel } from "@/lib/generation-status";
+import { generationStatusLabel, isRetryableGenerationStatus } from "@/lib/generation-status";
 import { countJobs, listJobsPage, type JobListFilters } from "@/lib/repository";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
 import { getUiThemePreference } from "@/lib/ui-theme";
@@ -29,6 +29,8 @@ const statusOptions: { label: string; value: GenerationStatus }[] = [
   { label: generationStatusLabel("running"), value: "running" },
   { label: generationStatusLabel("succeeded"), value: "succeeded" },
   { label: generationStatusLabel("failed"), value: "failed" },
+  { label: generationStatusLabel("upstream_error"), value: "upstream_error" },
+  { label: generationStatusLabel("interrupted"), value: "interrupted" },
   { label: generationStatusLabel("canceled"), value: "canceled" }
 ];
 
@@ -266,19 +268,19 @@ export default async function RecordsPage({
                           </div>
                         </div>
                         <div className="actions image-card-actions">
-                          {job.status === "failed" || job.status === "canceled" || job.status === "queued" || job.status === "running" ? null : (
+                          {job.status === "succeeded" ? (
                             <a className="status action-button action-rerun" href={rerunHref(job)}>
                               <RefreshCcw size={13} />
                               重做
                             </a>
-                          )}
+                          ) : null}
                           {job.thumbnail_id ? (
                             <FavoriteImageButton imageId={job.thumbnail_id} initialFavorite={job.thumbnail_favorite ?? false} />
                           ) : null}
                           {job.thumbnail_id ? (
                             <ReferenceBasketButton imageId={job.thumbnail_id} prompt={job.prompt} />
                           ) : null}
-                          {job.status === "failed" || job.status === "canceled" ? (
+                          {isRetryableGenerationStatus(job.status) ? (
                             <JobControlButton action="requeue" recordId={job.id} />
                           ) : null}
                           {job.status === "queued" || job.status === "running" ? (

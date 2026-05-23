@@ -2,6 +2,7 @@
 
 import { CheckCircle2, CircleAlert, CircleX, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { isTerminalGenerationStatus } from "@/lib/generation-status";
 import type { GenerationStatus } from "@/lib/types";
 
 type RecentJob = {
@@ -35,7 +36,7 @@ function isActiveStatus(status: GenerationStatus) {
 }
 
 function isTerminalStatus(status: GenerationStatus) {
-  return status === "succeeded" || status === "failed" || status === "canceled";
+  return isTerminalGenerationStatus(status);
 }
 
 function storageRead(key: string) {
@@ -68,6 +69,20 @@ function statusCopy(job: RecentJob) {
     };
   }
 
+  if (job.status === "upstream_error") {
+    return {
+      title: "上游服务返回失败",
+      message: job.error_message ?? "上游服务暂不可用，可以稍后重试。"
+    };
+  }
+
+  if (job.status === "interrupted") {
+    return {
+      title: "任务被中断",
+      message: job.error_message ?? "服务重启时任务被中断，可点击重试。"
+    };
+  }
+
   return {
     title: "任务已取消",
     message: "后台生成任务已停止。"
@@ -82,13 +97,14 @@ function shortPrompt(prompt: string) {
 
 function toastClass(status: GenerationStatus) {
   if (status === "succeeded") return "succeeded";
-  if (status === "failed") return "failed";
+  if (status === "failed" || status === "upstream_error") return "failed";
+  if (status === "interrupted") return "canceled";
   return "canceled";
 }
 
 function ToastIcon({ status }: { status: GenerationStatus }) {
   if (status === "succeeded") return <CheckCircle2 size={18} />;
-  if (status === "failed") return <CircleAlert size={18} />;
+  if (status === "failed" || status === "upstream_error") return <CircleAlert size={18} />;
   return <CircleX size={18} />;
 }
 

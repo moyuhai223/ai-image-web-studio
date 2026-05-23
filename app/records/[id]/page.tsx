@@ -9,7 +9,7 @@ import { ImageTagsEditor } from "@/components/image-tags-editor";
 import { JobControlButton } from "@/components/job-control-button";
 import { ReferenceBasketButton } from "@/components/reference-basket";
 import { requireUser } from "@/lib/auth";
-import { generationStatusLabel } from "@/lib/generation-status";
+import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGenerationStatus } from "@/lib/generation-status";
 import { getJobById, listImageVersionChainForJob } from "@/lib/repository";
 import { formatDateTime } from "@/lib/time";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
@@ -29,14 +29,15 @@ function getProgressPercent(job: JobWithImages) {
   if (job.progress) return job.progress.percent;
   const savedCount = job.images.length;
   if (job.status === "succeeded") return 100;
-  if (job.status === "failed") return savedCount > 0 ? 80 : 45;
+  if (job.status === "failed" || job.status === "upstream_error") return savedCount > 0 ? 80 : 45;
+  if (job.status === "interrupted") return savedCount > 0 ? 80 : 35;
   if (job.status === "canceled") return 0;
   if (job.status === "queued") return 20;
   return Math.min(90, Math.max(45, 45 + Math.round((savedCount / Math.max(1, job.count)) * 35)));
 }
 
 function isTerminalStatus(status: JobWithImages["status"]) {
-  return status === "succeeded" || status === "failed" || status === "canceled";
+  return isTerminalGenerationStatus(status);
 }
 
 function progressTailLeft(percent: number) {
@@ -73,7 +74,9 @@ function getFlowSteps(job: JobWithImages): FlowStep[] {
   const hasSavedImages = savedCount > 0;
   const referenceCount = referenceCountForJob(job);
   const isFinished = job.status === "succeeded";
-  const isFailed = job.status === "failed";
+  // 'upstream_error' / 'interrupted' 在流程视图里都按"失败"渲染(标红 + 显示 error_message);
+  // job.status 仍能在徽章里区分文案。
+  const isFailed = job.status === "failed" || job.status === "upstream_error" || job.status === "interrupted";
   const isCanceled = job.status === "canceled";
   const isQueued = job.status === "queued";
   const referenceFailed = isFailed && (message.includes("参考图") || message.includes("任务参数"));
@@ -352,7 +355,7 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
                 <RefreshCcw size={13} />
                 重做
               </a>
-              {job.status === "failed" || job.status === "canceled" ? (
+              {isRetryableGenerationStatus(job.status) ? (
                 <JobControlButton action="requeue" recordId={job.id} />
               ) : null}
               {job.status === "queued" || job.status === "running" ? (

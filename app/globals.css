@@ -976,17 +976,34 @@ button.status:hover {
   color: var(--canceled-text);
 }
 
+.status.interrupted {
+  background: color-mix(in srgb, var(--canceled-bg) 58%, var(--panel));
+  color: var(--canceled-text);
+}
+
+.status.upstream_error {
+  background: color-mix(in srgb, var(--danger-bg) 38%, var(--panel));
+  color: var(--danger);
+}
+
 .status.succeeded::before,
 .status.failed::before,
 .status.running::before,
 .status.queued::before,
-.status.canceled::before {
+.status.canceled::before,
+.status.interrupted::before,
+.status.upstream_error::before {
   content: "";
   flex: 0 0 auto;
   width: 6px;
   height: 6px;
   border-radius: 999px;
   background: currentColor;
+}
+
+.phase-timings {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
 }
 
 .status.running::before {
@@ -1017,7 +1034,9 @@ button.status.succeeded::before,
 button.status.failed::before,
 button.status.running::before,
 button.status.queued::before,
-button.status.canceled::before {
+button.status.canceled::before,
+button.status.interrupted::before,
+button.status.upstream_error::before {
   display: none;
   content: none;
 }

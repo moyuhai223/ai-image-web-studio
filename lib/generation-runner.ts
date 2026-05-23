@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import { randomUUID } from "node:crypto";
 import { config } from "./config";
 import { query } from "./db";
@@ -5,7 +6,7 @@ import { createLogger } from "./logger";
 import { generateWithProvider } from "./provider";
 import { formatProviderErrorInfo, mapProviderError } from "./provider-error-map";
 import { deleteStoredImageFiles, imageSourceToBuffer, readStoredFile, saveImageBuffer } from "./storage";
-import type { GenerationJob, GenerationProgress } from "./types";
+import type { GenerationJob, GenerationPhaseTimings, GenerationProgress } from "./types";
 
 const log = createLogger("runner");
 
@@ -104,6 +105,15 @@ function progress(input: Omit<GenerationProgress, "updatedAt">): GenerationProgr
     ...input,
     updatedAt: new Date().toISOString()
   };
+}
+
+/**
+ * 累加阶段计时(毫秒)。负值视为 0,小数四舍五入。
+ */
+function addPhaseTiming(timings: GenerationPhaseTimings, key: keyof GenerationPhaseTimings, deltaMs: number) {
+  if (!Number.isFinite(deltaMs) || deltaMs <= 0) return;
+  const previous = timings[key] ?? 0;
+  timings[key] = Math.round(previous + deltaMs);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -259,20 +269,41 @@ async function markSucceeded(
   if (!result.rows[0]) throw new JobCanceledError();
 }
 
-async function markFailed(jobId: string, runId: string, input: GenerationRunInput, providerResults: unknown[], error: unknown, stage: string) {
+/**
+ * 把错误分类为 'upstream_error' 或 'failed'。
+ * mapProviderError 返回 category === 'upstream' 时,使用更细的终态以便 UI 区分(请稍后重试 vs 检查输入)。
+ */
+function failureStatusForError(error: unknown): "failed" | "upstream_error" {
+  const raw = errorMessage(error);
+  const info = mapProviderError(raw);
+  return info?.category === "upstream" ? "upstream_error" : "failed";
+}
+
+async function markFailed(
+  jobId: string,
+  runId: string,
+  input: GenerationRunInput,
+  providerResults: unknown[],
+  error: unknown,
+  stage: string,
+  phaseTimings: GenerationPhaseTimings
+) {
   const raw = sanitizeProviderMetadata((error as Error & { raw?: unknown }).raw ?? null);
   const message = stageErrorMessage(stage, error);
+  const status = failureStatusForError(error);
+  const phaseLabel: GenerationProgress["phase"] = status === "upstream_error" ? "upstream_error" : "failed";
   const failedProgress = progress({
-    phase: "failed",
+    phase: phaseLabel,
     current: providerResults.length,
     total: input.count,
     percent: providerResults.length > 0 ? Math.min(95, Math.round((providerResults.length / input.count) * 90)) : 35,
-    message
+    message,
+    phaseTimings: Object.keys(phaseTimings).length > 0 ? phaseTimings : undefined
   });
 
   await query(
     `update generation_jobs
-     set status = 'failed',
+     set status = $6,
          error_message = $2,
          response_metadata = $3,
          request_metadata = jsonb_set(request_metadata, '{progress}', $4::jsonb, true),
@@ -282,14 +313,16 @@ async function markFailed(jobId: string, runId: string, input: GenerationRunInpu
      where id = $1
        and status = 'running'
        and request_metadata #>> '{control,runId}' = $5`,
-    [jobId, message, raw, failedProgress, runId]
+    [jobId, message, raw, failedProgress, runId, status]
   );
 }
 
 async function markFailedBeforeInput(jobId: string, runId: string, error: unknown, stage: string) {
   const message = stageErrorMessage(stage, error);
+  const status = failureStatusForError(error);
+  const phaseLabel: GenerationProgress["phase"] = status === "upstream_error" ? "upstream_error" : "failed";
   const failedProgress = progress({
-    phase: "failed",
+    phase: phaseLabel,
     current: 0,
     total: 1,
     percent: 35,
@@ -298,7 +331,7 @@ async function markFailedBeforeInput(jobId: string, runId: string, error: unknow
 
   await query(
     `update generation_jobs
-     set status = 'failed',
+     set status = $6,
          error_message = $2,
          response_metadata = $3,
          request_metadata = jsonb_set(request_metadata, '{progress}', $4::jsonb, true),
@@ -308,7 +341,7 @@ async function markFailedBeforeInput(jobId: string, runId: string, error: unknow
      where id = $1
        and status = 'running'
        and request_metadata #>> '{control,runId}' = $5`,
-    [jobId, message, sanitizeProviderMetadata((error as Error & { raw?: unknown }).raw ?? null), failedProgress, runId]
+    [jobId, message, sanitizeProviderMetadata((error as Error & { raw?: unknown }).raw ?? null), failedProgress, runId, status]
   );
 }
 
@@ -317,6 +350,7 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
   const providerResults = [];
   const runId = claimedRunId ?? randomUUID();
   let failureStage = "读取任务参数";
+  const phaseTimings: GenerationPhaseTimings = {};
 
   try {
     if (!claimedRunId) {
@@ -391,10 +425,12 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
         })
       );
       failureStage = "等待模型返回";
+      const upstreamStartedAt = performance.now();
       const providerResult = await generateWithProvider({
         ...input,
         count: 1
       });
+      addPhaseTiming(phaseTimings, "upstream_wait_ms", performance.now() - upstreamStartedAt);
       providerResults.push(providerResult);
 
       failureStage = "读取模型返回图片";
@@ -424,6 +460,7 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
 
       for (const image of providerResult.images.slice(0, 1)) {
         await assertActiveRun(jobId, runId);
+        const downloadDecodeStart = performance.now();
         const source = await imageSourceToBuffer(image);
         failureStage = "保存图片到本地";
         await updateProgress(
@@ -434,13 +471,16 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
             current: index,
             total: input.count,
             percent: Math.min(95, 22 + Math.round((index / input.count) * 70)),
-            message: `正在保存第 ${current}/${input.count} 张到本地`
+            message: `正在保存第 ${current}/${input.count} 张到本地`,
+            phaseTimings
           })
         );
         const stored = await saveImageBuffer(source.buffer, source.mimeType, "images", `${jobId}-${index + 1}`);
+        addPhaseTiming(phaseTimings, "download_decode_ms", performance.now() - downloadDecodeStart);
         try {
           failureStage = "写入图片记录";
           await assertActiveRun(jobId, runId);
+          const dbInsertStart = performance.now();
           await query(
             `insert into generated_images
                (job_id, parent_image_id, local_path, mime_type, width, height, byte_size, checksum, sort_order)
@@ -457,6 +497,7 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
               index
             ]
           );
+          addPhaseTiming(phaseTimings, "db_insert_ms", performance.now() - dbInsertStart);
         } catch (error) {
           await deleteStoredImageFiles(stored.relativePath).catch((deleteError) => {
             log.warn("Failed to delete canceled image file", { jobId, error: deleteError });
@@ -473,7 +514,8 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
           current,
           total: input.count,
           percent: Math.min(98, 25 + Math.round((current / input.count) * 70)),
-          message: `已保存 ${current}/${input.count} 张图片`
+          message: `已保存 ${current}/${input.count} 张图片`,
+          phaseTimings
         })
       );
     }
@@ -483,7 +525,8 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
       current: input.count,
       total: input.count,
       percent: 100,
-      message: "任务已完成"
+      message: "任务已完成",
+      phaseTimings: Object.keys(phaseTimings).length > 0 ? phaseTimings : undefined
     });
     await markSucceeded(jobId, runId, providerResults, doneProgress);
   } catch (error) {
@@ -493,7 +536,7 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
       log.warn("Generation job failed before loading input", { jobId, stage: failureStage, error });
       return;
     }
-    await markFailed(jobId, runId, input, providerResults, error, failureStage);
+    await markFailed(jobId, runId, input, providerResults, error, failureStage, phaseTimings);
     log.warn("Generation job failed", { jobId, stage: failureStage, error });
   }
 }

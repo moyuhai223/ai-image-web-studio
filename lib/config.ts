@@ -21,6 +21,14 @@ function csvEnv(value: string | undefined, fallback: string[]): string[] {
   return items.length > 0 ? items : fallback;
 }
 
+function booleanEnv(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined) return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off", ""].includes(normalized)) return false;
+  return fallback;
+}
+
 const DEFAULT_ALLOWED_IMAGE_MIMES = ["image/png", "image/jpeg", "image/webp"];
 
 export const config = {
@@ -39,6 +47,11 @@ export const config = {
   maxGenerationQueueSize: numberEnv(process.env.MAX_GENERATION_QUEUE_SIZE, 20),
   dailyGenerationLimit: numberEnv(process.env.DAILY_GENERATION_LIMIT, 50, 0),
   generationTimeoutMs: numberEnv(process.env.GENERATION_TIMEOUT_MS, DEFAULT_GENERATION_TIMEOUT_MS),
+  /**
+   * Stage 2 (v0.5.0): 进程重启时,默认把 running 任务改成 'interrupted' 终态,而非自动重排队。
+   * 设为 true 可恢复旧行为(自动重排队)。
+   */
+  autoRequeueOnRestart: booleanEnv(process.env.AUTO_REQUEUE_ON_RESTART, false),
   githubRepositorySlug: process.env.GITHUB_REPOSITORY_SLUG ?? "moyuhai223/ai-image-web-studio"
 };
 

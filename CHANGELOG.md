@@ -2,6 +2,33 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.5.0] - 2026-05-23
+
+### 新增
+
+- **SSE 队列推流端点 `app/api/queue/stream/route.ts`**：替代过去 4.5s 一次的 `/api/queue` 轮询。前端通过 `EventSource` 长连接订阅，服务端每 500ms 检查一次 `getActiveQueueStats()` + `listJobsForIds()`，仅在 payload 指纹变化时推送 `update` 事件；25s 内无变化推一条 `: heartbeat` 注释保活；超过 10 分钟自动发 `bye` 事件促使客户端重连。`workspace.tsx` 优先用 EventSource，连续 3 次错误后永久降级回旧轮询，文档隐藏时主动关闭连接释放服务端资源。
+- **分段计时埋点**：`lib/generation-runner.ts` 在调用 provider、下载图像 + 落盘、写入 `generated_images` 三个阶段各埋 `performance.now()`，差值累加到 `progress.phaseTimings = { upstream_wait_ms, download_decode_ms, db_insert_ms }`。前端进度条下方实时展示「等待模型 12.0s · 下载 1.2s · 入库 80ms」，便于定位慢在哪一段（模型 vs 网络 vs 数据库）。
+- **任务终态细分**：`GenerationStatus` 从 5 值扩展到 7 值，新增：
+  - `interrupted` — 服务重启时检测到 `running` 任务，默认从过去的 `running → queued`（容易让用户困惑「任务突然又跑了」）改为标记为该终态。新增 `config.autoRequeueOnRestart`（环境变量 `AUTO_REQUEUE_ON_RESTART`，默认 `false`）开关，true 时退回老行为。
+  - `upstream_error` — `markFailed` 调用前用 `mapProviderError(raw).category === "upstream"` 判定，符合时写入新状态而非通用 `failed`。`failureStatusForError(error)` 集中封装该分支判定，runner 和首次入队失败路径都接入。
+- **新两态的 UI 全链路覆盖**：
+  - `lib/generation-status.ts` 加 `interrupted: "已中断"` / `upstream_error: "上游错误"` 标签，导出 `TERMINAL_GENERATION_STATUSES` / `RETRYABLE_GENERATION_STATUSES` 与 `isTerminalGenerationStatus()` / `isRetryableGenerationStatus()` 工具，5 处独立硬编码的 `isTerminalStatus` 改为统一引用。
+  - `app/globals.css` 新增 `.status.interrupted`（橙色）和 `.status.upstream_error`（红色）色系，与原 `.failed` / `.canceled` 视觉风格一致；`.phase-timings` 加 `tabular-nums` 让分段计时数字对齐不抖。
+  - `components/job-notification-center.tsx` `statusCopy()` 加这两种状态的中文标题/正文与 icon。
+  - `app/records/page.tsx` 状态筛选下拉新增「上游错误」/「已中断」两个选项。
+  - `app/records/[id]/page.tsx` 记录详情页 `progressPercent` 与「失败」展示分支识别新两态；重试按钮的可见条件改为 `isRetryableGenerationStatus(status)`，使 `interrupted` / `upstream_error` 默认显示「重试」入口。
+
+### 变更
+
+- `scripts/migrations/003_status_phases.sql`：DROP/重建 `generation_jobs.status` 的 CHECK 约束，加入 `'interrupted'` 和 `'upstream_error'`。`lib/schema.sql` 同步更新（fresh install）。无 DDL 即可扩展 `request_metadata.progress.phaseTimings`（JSONB）。
+- `components/workspace.tsx` 顶部首页/批量重做按钮的可见条件从「负向罗列 `failed||canceled||queued||running` 排除」简化为正向 `status === "succeeded"`，避免新加状态被遗漏。
+
+### 风险与回滚
+
+- DB 改动只动 CHECK 约束，无数据迁移。回滚 SQL：`ALTER TABLE generation_jobs DROP CONSTRAINT generation_jobs_status_check; ALTER TABLE generation_jobs ADD CONSTRAINT generation_jobs_status_check CHECK (status IN ('queued','running','succeeded','failed','canceled'));`；回滚前需把 `interrupted` / `upstream_error` 行 `UPDATE ... SET status = 'failed'`。
+- SSE 客户端有 3 次错误降级机制，老 `/api/queue` 端点保留，不会因为 SSE 异常导致首页轮询断流。
+- `autoRequeueOnRestart=false` 是行为变化：服务重启后 running 任务不再自动回到队列，需手工或自动点「重试」。若用户的部署依赖自动恢复，可设 `AUTO_REQUEUE_ON_RESTART=true` 退回老行为。
+
 ## [0.4.40] - 2026-05-23
 
 ### 修复

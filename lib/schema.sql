@@ -37,7 +37,7 @@ create table if not exists generation_jobs (
   prompt text not null,
   size text not null default '1024x1024',
   count integer not null default 1 check (count between 1 and 4),
-  status text not null check (status in ('queued', 'running', 'succeeded', 'failed', 'canceled')) default 'queued',
+  status text not null check (status in ('queued', 'running', 'succeeded', 'failed', 'canceled', 'interrupted', 'upstream_error')) default 'queued',
   provider text not null default 'provider',
   provider_request_id text,
   error_message text,

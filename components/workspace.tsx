@@ -11,7 +11,7 @@ import { ImageTagsEditor } from "./image-tags-editor";
 import { JobControlButton } from "./job-control-button";
 import { dispatchJobNotification } from "./job-notification-center";
 import { REFERENCE_BASKET_APPLY_EVENT, readReferenceBasketItems, ReferenceBasketButton, type ReferenceBasketItem } from "./reference-basket";
-import { generationStatusLabel } from "@/lib/generation-status";
+import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGenerationStatus } from "@/lib/generation-status";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
 import type { GeneratedImage, GenerationJob, JobWithImages, PromptTemplate, ReferenceImage } from "@/lib/types";
 
@@ -86,13 +86,14 @@ const ACTIVE_JOB_POLL_MS = 1800;
 
 const initialQueueSnapshot: QueueSnapshot = { queued: 0, running: 0, concurrency: 1, jobs: [] };
 function isTerminalStatus(status: GenerationJob["status"]) {
-  return status === "succeeded" || status === "failed" || status === "canceled";
+  return isTerminalGenerationStatus(status);
 }
 
 function progressPercent(job: JobWithImages) {
   if (job.progress) return job.progress.percent;
   if (job.status === "succeeded") return 100;
-  if (job.status === "failed") return job.images.length > 0 ? 80 : 45;
+  if (job.status === "failed" || job.status === "upstream_error") return job.images.length > 0 ? 80 : 45;
+  if (job.status === "interrupted") return job.images.length > 0 ? 80 : 35;
   if (job.status === "canceled") return 0;
   if (job.status === "queued") return 5;
   return Math.min(90, Math.max(35, 35 + Math.round((job.images.length / Math.max(1, job.count)) * 45)));
@@ -104,18 +105,24 @@ function summarizeJobs(jobs: JobWithImages[]) {
   const saved = jobs.reduce((sum, current) => sum + current.images.length, 0);
   const total = jobs.reduce((sum, current) => sum + Math.max(1, current.count), 0);
   const completed = jobs.filter((current) => isTerminalStatus(current.status)).length;
-  const failed = jobs.filter((current) => current.status === "failed").length;
+  const failed = jobs.filter(
+    (current) => current.status === "failed" || current.status === "upstream_error" || current.status === "interrupted"
+  ).length;
   const canceled = jobs.filter((current) => current.status === "canceled").length;
   const succeeded = jobs.filter((current) => current.status === "succeeded").length;
   const status: GenerationJob["status"] = jobs.some((current) => current.status === "running")
     ? "running"
     : jobs.some((current) => current.status === "queued")
       ? "queued"
-      : failed > 0
-        ? "failed"
-        : canceled > 0 && succeeded === 0
-          ? "canceled"
-          : "succeeded";
+      : jobs.some((current) => current.status === "interrupted")
+        ? "interrupted"
+        : jobs.some((current) => current.status === "upstream_error")
+          ? "upstream_error"
+          : failed > 0
+            ? "failed"
+            : canceled > 0 && succeeded === 0
+              ? "canceled"
+              : "succeeded";
   const percent = Math.round(jobs.reduce((sum, current) => sum + progressPercent(current), 0) / jobs.length);
 
   return {
@@ -148,6 +155,40 @@ function jobToRecent(nextJob: JobWithImages): RecentJob {
 
 function progressTailLeft(percent: number) {
   return `${Math.min(99, Math.max(0, percent))}%`;
+}
+
+/**
+ * 把 phaseTimings(毫秒)转成 "等待模型 12.0s · 下载 1.2s · 入库 80ms" 之类的简短文本。
+ * 没有任何阶段数据时返回 null,调用方不渲染。
+ */
+function formatPhaseTimings(timings: NonNullable<JobWithImages["progress"]>["phaseTimings"]) {
+  if (!timings) return null;
+  const parts: string[] = [];
+  const format = (ms: number) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`);
+  if (typeof timings.upstream_wait_ms === "number" && timings.upstream_wait_ms > 0) {
+    parts.push(`等待模型 ${format(timings.upstream_wait_ms)}`);
+  }
+  if (typeof timings.download_decode_ms === "number" && timings.download_decode_ms > 0) {
+    parts.push(`下载 ${format(timings.download_decode_ms)}`);
+  }
+  if (typeof timings.db_insert_ms === "number" && timings.db_insert_ms > 0) {
+    parts.push(`入库 ${format(timings.db_insert_ms)}`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/**
+ * 拿一组并行任务里"任意一个有 phaseTimings 的 job"的计时数据。
+ * 批量场景目前只展示第一个有数据的,够用。
+ */
+function activePhaseTimingsFromJobs(jobs: JobWithImages[]) {
+  for (const job of jobs) {
+    const timings = job.progress?.phaseTimings;
+    if (timings && (timings.upstream_wait_ms || timings.download_decode_ms || timings.db_insert_ms)) {
+      return timings;
+    }
+  }
+  return undefined;
 }
 
 function formatFileSize(byteSize: number) {
@@ -230,6 +271,10 @@ export function Workspace({
   const pollControllerRef = useRef<AbortController | null>(null);
   const queueControllerRef = useRef<AbortController | null>(null);
   const recentControllerRef = useRef<AbortController | null>(null);
+  const queueEventSourceRef = useRef<EventSource | null>(null);
+  const queueStreamFailuresRef = useRef(0);
+  const queueStreamDisabledRef = useRef(false);
+  const queueStreamReconnectTimerRef = useRef<number | null>(null);
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
   const referenceFileInputRef = useRef<HTMLInputElement>(null);
   const referenceObjectUrlsRef = useRef<Set<string>>(new Set());
@@ -238,6 +283,10 @@ export function Workspace({
   const activeImages = useMemo(() => activeJobs.flatMap((currentJob) => currentJob.images), [activeJobs]);
   const activeLightboxItems = useMemo(() => activeImages.map(imageToLightboxItem), [activeImages]);
   const activeSummary = useMemo(() => summarizeJobs(activeJobs), [activeJobs]);
+  const activePhaseTimingsText = useMemo(() => {
+    const timings = activePhaseTimingsFromJobs(activeJobs);
+    return formatPhaseTimings(timings);
+  }, [activeJobs]);
   const modelLabel = models.find((item) => item.value === model)?.label ?? model;
   const referenceSummary = selectedReferences.length > 0 ? `${selectedReferences.length} 张参考图` : "无参考图";
 
@@ -245,15 +294,18 @@ export function Workspace({
     mountedRef.current = true;
     void loadRecentJobs();
     void loadQueueStatus();
+    openQueueStream();
     const handleVisibilityChange = () => {
       if (document.hidden) {
         clearQueueTimer();
         queueControllerRef.current?.abort();
         pollControllerRef.current?.abort();
+        closeQueueStream();
         return;
       }
 
       void loadQueueStatus(true);
+      openQueueStream();
       if (watchedJobIdsRef.current.length > 0) {
         void pollJobs(watchedJobIdsRef.current);
       }
@@ -315,6 +367,7 @@ export function Workspace({
     return () => {
       mountedRef.current = false;
       clearQueueTimer();
+      closeQueueStream();
       window.removeEventListener(REFERENCE_BASKET_APPLY_EVENT, handleBasketApply);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       pollControllerRef.current?.abort();
@@ -361,10 +414,103 @@ export function Workspace({
   function scheduleQueueRefresh(snapshot = queueSnapshotRef.current) {
     clearQueueTimer();
     if (!mountedRef.current || document.hidden) return;
-    const delay = queueHasWork(snapshot) ? ACTIVE_QUEUE_POLL_MS : IDLE_QUEUE_POLL_MS;
+    // 当 SSE 连接活跃时,polling 仅作为兜底心跳(用 idle 间隔,确保最长 25s 内一定 refresh)。
+    const sseActive = queueEventSourceRef.current?.readyState === EventSource.OPEN;
+    const delay = sseActive
+      ? IDLE_QUEUE_POLL_MS
+      : queueHasWork(snapshot)
+        ? ACTIVE_QUEUE_POLL_MS
+        : IDLE_QUEUE_POLL_MS;
     queueTimerRef.current = window.setTimeout(() => {
       void loadQueueStatus(true);
     }, delay);
+  }
+
+  /**
+   * 应用 SSE / polling 拉取到的快照。
+   * 这里集中处理 setState + ref 更新,避免两路接入同一份状态时漏改。
+   */
+  function applyQueueSnapshot(snapshot: QueueSnapshot) {
+    queueSnapshotRef.current = snapshot;
+    setQueue(snapshot);
+  }
+
+  function closeQueueStream() {
+    if (queueStreamReconnectTimerRef.current !== null) {
+      window.clearTimeout(queueStreamReconnectTimerRef.current);
+      queueStreamReconnectTimerRef.current = null;
+    }
+    if (queueEventSourceRef.current) {
+      try {
+        queueEventSourceRef.current.close();
+      } catch {
+        // ignore
+      }
+      queueEventSourceRef.current = null;
+    }
+  }
+
+  function openQueueStream() {
+    if (queueStreamDisabledRef.current) return;
+    if (!mountedRef.current) return;
+    if (typeof window === "undefined" || typeof window.EventSource === "undefined") {
+      queueStreamDisabledRef.current = true;
+      return;
+    }
+    if (queueEventSourceRef.current) return;
+
+    let source: EventSource;
+    try {
+      source = new EventSource("/api/queue/stream", { withCredentials: true });
+    } catch (error) {
+      console.warn("EventSource init failed, falling back to polling:", error);
+      queueStreamDisabledRef.current = true;
+      return;
+    }
+    queueEventSourceRef.current = source;
+
+    const handleSnapshot = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        const nextQueue: QueueSnapshot = {
+          queued: Number(data.queued ?? 0),
+          running: Number(data.running ?? 0),
+          concurrency: Number(data.concurrency ?? 1),
+          jobs: Array.isArray(data.jobs) ? data.jobs : []
+        };
+        applyQueueSnapshot(nextQueue);
+        setQueueLoading(false);
+        queueStreamFailuresRef.current = 0;
+      } catch (error) {
+        console.warn("Queue stream payload parse failed:", error);
+      }
+    };
+
+    source.addEventListener("snapshot", handleSnapshot);
+    source.addEventListener("update", handleSnapshot);
+    source.addEventListener("bye", () => {
+      // 服务端主动关闭(达到最大时长),重连即可。
+      closeQueueStream();
+      queueStreamReconnectTimerRef.current = window.setTimeout(() => {
+        openQueueStream();
+      }, 500);
+    });
+    source.onerror = () => {
+      queueStreamFailuresRef.current += 1;
+      closeQueueStream();
+      // 连续 3 次失败后彻底关掉 SSE,走旧 polling
+      if (queueStreamFailuresRef.current >= 3) {
+        queueStreamDisabledRef.current = true;
+        console.warn("Queue stream disabled after repeated failures, falling back to polling");
+        void loadQueueStatus(true);
+        return;
+      }
+      // 否则指数退避后重连
+      const delay = Math.min(15000, 1000 * 2 ** Math.max(0, queueStreamFailuresRef.current - 1));
+      queueStreamReconnectTimerRef.current = window.setTimeout(() => {
+        openQueueStream();
+      }, delay);
+    };
   }
 
   async function loadQueueStatus(silent = false) {
@@ -383,8 +529,7 @@ export function Workspace({
           concurrency: Number(data.concurrency ?? 1),
           jobs: data.jobs ?? []
         };
-        queueSnapshotRef.current = nextQueue;
-        setQueue(nextQueue);
+        applyQueueSnapshot(nextQueue);
       }
     } catch (error) {
       if (!isAbortError(error)) {
@@ -568,7 +713,9 @@ export function Workspace({
           watchedJobIdsRef.current = [];
           setLoading(false);
           results.forEach(dispatchJobNotification);
-          const failed = results.filter((item) => item.status === "failed");
+          const failed = results.filter(
+            (item) => item.status === "failed" || item.status === "upstream_error" || item.status === "interrupted"
+          );
           if (failed.length > 0) {
             setError(failed.length === 1 ? failed[0].error_message ?? "生成失败" : `${failed.length} 个任务生成失败，请在记录里查看详情`);
           }
@@ -1027,6 +1174,9 @@ export function Workspace({
                       <div className="flow-tail" style={{ left: progressTailLeft(activeSummary.percent) }} />
                     </div>
                     <p className="small muted">{activeSummary.percent}% · 已保存 {activeSummary.saved} / {activeSummary.total} 张</p>
+                    {activePhaseTimingsText ? (
+                      <p className="small muted phase-timings">{activePhaseTimingsText}</p>
+                    ) : null}
                   </div>
                 ) : null}
                 <div className="preview-grid">
@@ -1058,6 +1208,9 @@ export function Workspace({
                         {!activeSummary.terminal ? <div className="flow-tail" style={{ left: progressTailLeft(activeSummary.percent) }} /> : null}
                       </div>
                       <p className="small muted">{activeSummary.percent}% · 已保存 {activeSummary.saved} / {activeSummary.total} 张</p>
+                      {activePhaseTimingsText ? (
+                        <p className="small muted phase-timings">{activePhaseTimingsText}</p>
+                      ) : null}
                     </div>
                   ) : (
                     null
@@ -1115,6 +1268,10 @@ export function Workspace({
                     <p className="small muted">
                       {item.progress.percent}% · 已保存 {item.progress.current} / {item.count} 张
                     </p>
+                    {(() => {
+                      const text = formatPhaseTimings(item.progress.phaseTimings);
+                      return text ? <p className="small muted phase-timings">{text}</p> : null;
+                    })()}
                   </>
                 ) : (
                   <p className="small muted">{item.count} 张 · {item.model}</p>
@@ -1170,7 +1327,7 @@ export function Workspace({
                     {recent.localOnly ? (
                       <span className={`status ${recent.status}`}>{generationStatusLabel(recent.status)}</span>
                     ) : null}
-                    {!recent.localOnly && (recent.status === "failed" || recent.status === "canceled") ? (
+                    {!recent.localOnly && isRetryableGenerationStatus(recent.status) ? (
                       <JobControlButton action="requeue" recordId={recent.id} onDone={refreshJobLists} />
                     ) : null}
                     {!recent.localOnly && (recent.status === "queued" || recent.status === "running") ? (
@@ -1185,12 +1342,12 @@ export function Workspace({
                     {!recent.localOnly && recent.status !== "queued" && recent.status !== "running" ? (
                       <DeleteRecordButton recordId={recent.id} onDeleted={() => removeHistoryItem(recent.id)} />
                     ) : null}
-                    {recent.status === "failed" || recent.status === "canceled" || recent.status === "queued" || recent.status === "running" ? null : (
+                    {recent.status === "succeeded" ? (
                       <button className="status action-button action-rerun" type="button" onClick={() => applyTaskParams(recent)} disabled={loading}>
                         <RefreshCcw size={13} />
                         重做
                       </button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </article>

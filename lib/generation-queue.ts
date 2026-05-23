@@ -130,27 +130,65 @@ async function failTimedOutRunningJobs() {
 }
 
 async function recoverInterruptedJobs() {
+  // Stage 2: 默认把 running 任务标为 'interrupted' 终态,让用户主动决定是否重试;
+  // 设置 AUTO_REQUEUE_ON_RESTART=true 可恢复旧行为(自动重排队)。
+  if (config.autoRequeueOnRestart) {
+    const result = await query<{ id: string }>(
+      `update generation_jobs
+       set status = 'queued',
+           started_at = null,
+           completed_at = null,
+           duration_ms = null,
+           error_message = null,
+           request_metadata = jsonb_set(
+             jsonb_set(
+               request_metadata,
+               '{control}',
+               (coalesce(request_metadata->'control', '{}'::jsonb) - 'runId') || jsonb_build_object('recoveredAt', now()::text),
+               true
+             ),
+             '{progress}',
+             jsonb_build_object(
+               'phase', 'queued',
+               'current', 0,
+               'total', count,
+               'percent', 5,
+               'message', '服务重启后任务已恢复到后台队列',
+               'updatedAt', now()::text
+             ),
+             true
+           ),
+           updated_at = now()
+       where status = 'running'
+       returning id`
+    );
+
+    if (result.rowCount) {
+      log.warn("Auto-requeued interrupted generation jobs after process start", { count: result.rowCount });
+    }
+    return;
+  }
+
   const result = await query<{ id: string }>(
     `update generation_jobs
-     set status = 'queued',
-         started_at = null,
-         completed_at = null,
-         duration_ms = null,
-         error_message = null,
+     set status = 'interrupted',
+         completed_at = now(),
+         duration_ms = greatest(0, floor(extract(epoch from (now() - coalesce(started_at, created_at))) * 1000)::integer),
+         error_message = '服务重启时任务正在执行,已标记为中断。可在记录页点击“重试”重新排队。',
          request_metadata = jsonb_set(
            jsonb_set(
              request_metadata,
              '{control}',
-             (coalesce(request_metadata->'control', '{}'::jsonb) - 'runId') || jsonb_build_object('recoveredAt', now()::text),
+             (coalesce(request_metadata->'control', '{}'::jsonb) - 'runId') || jsonb_build_object('interruptedAt', now()::text),
              true
            ),
            '{progress}',
            jsonb_build_object(
-             'phase', 'queued',
-             'current', 0,
+             'phase', 'interrupted',
+             'current', coalesce((request_metadata #>> '{progress,current}')::integer, 0),
              'total', count,
-             'percent', 5,
-             'message', '服务重启后任务已恢复到后台队列',
+             'percent', coalesce((request_metadata #>> '{progress,percent}')::integer, 35),
+             'message', '服务重启时任务被中断,可在记录页重新排队',
              'updatedAt', now()::text
            ),
            true
@@ -161,7 +199,7 @@ async function recoverInterruptedJobs() {
   );
 
   if (result.rowCount) {
-    log.warn("Recovered interrupted generation jobs after process start", { count: result.rowCount });
+    log.warn("Marked running jobs as interrupted after process start", { count: result.rowCount });
   }
 }
 
