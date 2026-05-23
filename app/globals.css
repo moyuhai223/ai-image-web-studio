@@ -96,6 +96,30 @@ button {
   cursor: pointer;
 }
 
+/* 全局 focus-visible 系统化 (#11):
+   只在键盘聚焦时画 outline,鼠标点击不出环;统一品牌色 + 2px outline + 3px offset。
+   组件级别已有更精细 :focus-visible 规则(input/reference-option/...)会按 CSS 特异性覆盖,
+   这里只兜底所有未声明的可聚焦元素,确保无障碍。 */
+:focus {
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand) 56%, transparent);
+  outline-offset: 3px;
+  border-radius: inherit;
+}
+
+/* 文本输入框聚焦样式(.input/.textarea/.select :focus)在下方组件区已定义,
+   保留鼠标 + 键盘均可见,因为输入框需要持续指示哪个 field 在编辑。 */
+
 .shell {
   min-height: 100vh;
   background: var(--bg);
