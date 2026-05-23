@@ -57,10 +57,22 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: Arial, "Microsoft YaHei", sans-serif;
+  /* 字体链按字符 fallback:Inter 不含中文 → 浏览器自动落到 Noto Sans SC;
+     两者都没的系统(无网/字体加载失败)再依次落到 Apple/PingFang/雅黑。
+     letter-spacing -0.01em 配合 Inter 的紧凑 metric,中文字距保持自然。 */
+  font-family:
+    var(--font-sans-latin),
+    var(--font-sans-cjk),
+    -apple-system,
+    BlinkMacSystemFont,
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    sans-serif;
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv11", "ss01", "ss03"; /* Inter 推荐:更现代的 a/g/l 字形 */
 }
 
 a {
@@ -2457,7 +2469,7 @@ button.action-button:hover:not(:disabled),
 
 .key-preview {
   overflow-wrap: anywhere;
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
 
 .backup-list {
@@ -2493,7 +2505,7 @@ button.action-button:hover:not(:disabled),
 
 .backup-filename {
   overflow-wrap: anywhere;
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
 
 .backup-actions {
