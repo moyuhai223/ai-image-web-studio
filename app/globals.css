@@ -189,20 +189,30 @@ summary:focus-visible,
   position: sticky;
   top: 0;
   z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
   /* 顶栏 64 → 56 收紧 (#7):34px brand-mark + 11px*2 上下 padding = 56px 刚好够,
-     省下 8px 让正文区域上移,首屏多塞一行内容 */
+     省下 8px 让正文区域上移,首屏多塞一行内容。
+     注意:外层只负责全宽背景/sticky/边框,布局由 .topbar-inner 处理,
+     这样在超宽屏下背景仍贯穿整行、内容却能与居中的 .workspace 对齐。 */
   height: 56px;
-  padding: 0 24px;
   background: var(--topbar-bg);
   border-bottom: 1px solid var(--glass-border);
   backdrop-filter: blur(var(--glass-blur-heavy));
   -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
   box-shadow: var(--shadow-sm);
   transition: background var(--transition-base), border-color var(--transition-base);
+}
+
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 100%;
+  padding: 0 24px;
+  /* 与 .workspace 的 max-width 保持一致(1760),margin-inline:auto 居中,
+     超宽屏上 brand/nav 不再贴边、与正文左右对齐。 */
+  max-width: 1760px;
+  margin-inline: auto;
 }
 
 .brand {
@@ -502,7 +512,11 @@ summary:focus-visible,
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(360px, 1fr) minmax(260px, 340px);
+  /* 三栏 cap 放大,宽屏(1700+)上两侧不再卡死在 320/340 的窄壳里,中间也保留充足留白。
+     workspace 整体 max-width 1760 + 居中,避免在 4K/超宽屏上被无限拉伸,内容仍处在可读密度。 */
+  grid-template-columns: minmax(280px, 380px) minmax(420px, 1fr) minmax(300px, 440px);
+  max-width: 1760px;
+  margin-inline: auto;
   gap: 16px;
   align-items: start;
 }
@@ -4170,7 +4184,10 @@ code {
 
   .topbar {
     height: 60px;
-    align-items: center;
+  }
+
+  .topbar-inner {
+    /* flex 容器搬到 .topbar-inner 后,这些覆盖也跟着搬过来。 */
     padding: 14px;
   }
 
@@ -4684,7 +4701,8 @@ code {
 }
 
 @media (max-width: 520px) {
-  .topbar {
+  .topbar-inner {
+    /* flex 容器现在在 .topbar-inner 上,gap/padding 同步搬过来。 */
     gap: 10px;
     padding-inline: 12px;
   }

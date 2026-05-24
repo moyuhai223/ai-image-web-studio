@@ -2,6 +2,13 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.5.6] - 2026-05-24
+
+### 变更
+
+- **宽屏三栏放大 + 超宽居中**：`app/globals.css` `.workspace` 网格列从 `minmax(260px, 320px) minmax(360px, 1fr) minmax(260px, 340px)` 放大到 `minmax(280px, 380px) minmax(420px, 1fr) minmax(300px, 440px)`，1700+ 屏上两侧不再卡死在 320/340 的窄壳里、中间列也保留充足留白；同时为 workspace 加 `max-width: 1760px` + `margin-inline: auto`，避免 4K / 超宽屏被无限拉伸，内容仍处在可读密度。1100px 以下断点继续收为单列，移动端零影响。
+- **顶栏内容居中，与正文对齐**：`components/app-nav.tsx` `<header className="topbar">` 内新增 `<div className="topbar-inner">` 包住 brand / nav / 通知中心 / 参考图托盘；`app/globals.css` 把 `.topbar` 拆为外层（仅保留 `position: sticky / 高度 / 背景 / 边框 / blur / shadow`，背景仍贯穿整行）与 `.topbar-inner`（`display: flex` + `padding: 0 24px` + `max-width: 1760px; margin-inline: auto`，与 `.workspace` 完全对齐）。1100px / 520px 两处媒体查询的 `padding` / `gap` 覆盖同步搬到 `.topbar-inner`，避免落空。2K+ 超宽屏上 brand 不再贴左边、与居中的正文左右严格对齐。
+
 ## [0.5.5] - 2026-05-23
 
 ### 新增
