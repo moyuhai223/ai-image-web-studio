@@ -1,14 +1,17 @@
 "use client";
 
 /**
- * /records 页头部工具条:把 "搜索 / 标签" 两个 tab 上提到 .panel-header 同一行,
- * 展开后的面板仍在 .panel-body 内,占满整行。
+ * /records 与 /favorites 共享的头部工具条:把 "搜索 / 标签" 两个 tab 上提到
+ * .panel-header 同一行,展开后的面板仍在 .panel-body 内,占满整行。
  *
  * 三件套:
  *   <RecordsToolPanelsProvider> — 包住整个 .panel,提供 active state + summary 文案
- *   <RecordsToolTabs />          — tab 按钮组(放进 .panel-header .actions)
+ *   <RecordsToolTabs selectedCount={n} /> — tab 按钮组(放进 .panel-header .actions);
  *                                   宽屏:图标 + 文字 + 计数胶囊
  *                                   窄屏:图标 + 计数胶囊(label 隐藏,见 globals.css 容器查询)
+ *                                   selectedCount 由调用方注入(records 用 useRecordsSelection,
+ *                                   favorites 用 useFavoritesSelection),组件本身不再耦合
+ *                                   任何具体选择上下文。
  *   <RecordsToolContent search tags /> — 展开内容(放进 .panel-body 顶部)
  *
  * 旧的 <RecordsToolPanels> 单组件用法已废弃。
@@ -17,7 +20,6 @@
 import { Search, Tags } from "lucide-react";
 import type { ReactNode } from "react";
 import { createContext, useContext, useState } from "react";
-import { useRecordsSelection } from "./records-bulk-actions";
 
 type ActivePanel = "search" | "tags" | null;
 
@@ -60,9 +62,8 @@ export function RecordsToolPanelsProvider({
   );
 }
 
-export function RecordsToolTabs() {
+export function RecordsToolTabs({ selectedCount = 0 }: { selectedCount?: number }) {
   const { active, toggle, searchSummary } = useRecordsToolContext();
-  const { selectedCount } = useRecordsSelection();
   // 默认无筛选时不显示 badge(避免出现 "展开选项" 这种占位文案)
   const hasSearchBadge = searchSummary.length > 0;
   const hasTagBadge = selectedCount > 0;

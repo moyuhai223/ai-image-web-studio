@@ -1,25 +1,31 @@
 "use client";
 
+/**
+ * /favorites 的批量管理:与 records-bulk-actions 镜像,但
+ *   - 选择单位是 image(收藏行的主键是 image_id)
+ *   - 危险动作不是"删图",而是"批量取消收藏"(只解除当前用户的收藏关联,不动图、不动他人)
+ *   - 加标签调用同一套 `addTagsToImagesForUser` 仓库函数,只是接口走 /api/favorites/bulk
+ *
+ * 同步暴露 `FavoritesToolTabsBridge`,把 `useFavoritesSelection().selectedCount`
+ * 注入到通用的 `<RecordsToolTabs />`(/records 用 RecordsToolTabsBridge 同理).
+ */
+
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Tags, Trash2 } from "lucide-react";
+import { HeartOff, Tags } from "lucide-react";
 import { DangerConfirmDialog } from "./danger-confirm-dialog";
 import { RecordsToolTabs } from "./records-tool-panels";
 
-export const RECORDS_BULK_FORM_ID = "records-bulk-form";
+export const FAVORITES_BULK_FORM_ID = "favorites-bulk-form";
 
 type BulkResponse = {
   error?: string;
-  deleted?: number;
-  blocked?: number;
-  missing?: number;
-  failed?: number;
-  jobCount?: number;
+  removed?: number;
   imageCount?: number;
   tags?: string[];
 };
 
-type RecordsSelectionContextValue = {
+type FavoritesSelectionContextValue = {
   ids: string[];
   selectedIds: Set<string>;
   selectedCount: number;
@@ -31,17 +37,17 @@ type RecordsSelectionContextValue = {
   clearSelection: () => void;
 };
 
-const RecordsSelectionContext = createContext<RecordsSelectionContextValue | null>(null);
+const FavoritesSelectionContext = createContext<FavoritesSelectionContextValue | null>(null);
 
-export function useRecordsSelection() {
-  const context = useContext(RecordsSelectionContext);
+export function useFavoritesSelection() {
+  const context = useContext(FavoritesSelectionContext);
   if (!context) {
-    throw new Error("Records selection context is missing");
+    throw new Error("Favorites selection context is missing");
   }
   return context;
 }
 
-export function RecordsSelectionProvider({ ids, children }: { ids: string[]; children: ReactNode }) {
+export function FavoritesSelectionProvider({ ids, children }: { ids: string[]; children: ReactNode }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(false);
 
@@ -53,7 +59,7 @@ export function RecordsSelectionProvider({ ids, children }: { ids: string[]; chi
     });
   }, [ids]);
 
-  const value = useMemo<RecordsSelectionContextValue>(() => {
+  const value = useMemo<FavoritesSelectionContextValue>(() => {
     const selectedCount = selectedIds.size;
     return {
       ids,
@@ -82,33 +88,33 @@ export function RecordsSelectionProvider({ ids, children }: { ids: string[]; chi
     };
   }, [ids, loading, selectedIds]);
 
-  return <RecordsSelectionContext.Provider value={value}>{children}</RecordsSelectionContext.Provider>;
+  return <FavoritesSelectionContext.Provider value={value}>{children}</FavoritesSelectionContext.Provider>;
 }
 
-export function RecordSelectCheckbox({ id }: { id: string }) {
-  const { loading, selectedIds, toggleId } = useRecordsSelection();
-  const selected = selectedIds.has(id);
+export function FavoriteSelectCheckbox({ imageId }: { imageId: string }) {
+  const { loading, selectedIds, toggleId } = useFavoritesSelection();
+  const selected = selectedIds.has(imageId);
 
   return (
-    <label className={`record-select-control${selected ? " selected" : ""}`} aria-label={selected ? "取消选择记录" : "选择记录"}>
+    <label className={`record-select-control${selected ? " selected" : ""}`} aria-label={selected ? "取消选择图片" : "选择图片"}>
       <input
         data-record-select
         type="checkbox"
         checked={selected}
         disabled={loading}
-        onChange={(event) => toggleId(id, event.target.checked)}
+        onChange={(event) => toggleId(imageId, event.target.checked)}
       />
     </label>
   );
 }
 
-export function RecordsBulkActions() {
+export function FavoritesBulkActions() {
   const router = useRouter();
-  const { ids, selectedIds, selectedCount, allSelected, loading, setLoading, toggleId, togglePage, clearSelection } = useRecordsSelection();
+  const { ids, selectedIds, selectedCount, allSelected, loading, setLoading, toggleId, togglePage, clearSelection } = useFavoritesSelection();
   const [tags, setTags] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmUnfavoriteOpen, setConfirmUnfavoriteOpen] = useState(false);
 
   function selectedIdList() {
     return Array.from(selectedIds);
@@ -122,17 +128,17 @@ export function RecordsBulkActions() {
     setError("");
   }, [selectedCount]);
 
-  async function runBulk(action: "delete" | "add_tags") {
+  async function runBulk(action: "unfavorite" | "add_tags") {
     const ids = selectedIdList();
     setError("");
     setMessage("");
     if (ids.length === 0) {
-      setError("请先选择记录");
+      setError("请先选择图片");
       return;
     }
 
     setLoading(true);
-    const response = await fetch("/api/records/bulk", {
+    const response = await fetch("/api/favorites/bulk", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action, ids, tags: tags.split(/[，,\n]/).map((item) => item.trim()).filter(Boolean) })
@@ -145,28 +151,28 @@ export function RecordsBulkActions() {
       return;
     }
 
-    if (action === "delete") {
-      setConfirmDeleteOpen(false);
-      setMessage(`批量删除完成：已删除 ${data.deleted ?? 0} 条，运行中阻止 ${data.blocked ?? 0} 条，失败 ${data.failed ?? 0} 条。`);
+    if (action === "unfavorite") {
+      setConfirmUnfavoriteOpen(false);
+      setMessage(`已取消 ${data.removed ?? 0} 张图片的收藏。`);
       clearSelection();
       router.refresh();
       return;
     }
 
-    setMessage(`已为 ${data.jobCount ?? 0} 条记录、${data.imageCount ?? 0} 张图片添加标签。`);
+    setMessage(`已为 ${data.imageCount ?? 0} 张图片添加标签。`);
     setTags("");
     router.refresh();
   }
 
-  function closeDeleteConfirm() {
+  function closeUnfavoriteConfirm() {
     if (loading) return;
-    setConfirmDeleteOpen(false);
+    setConfirmUnfavoriteOpen(false);
     setError("");
   }
 
   return (
     <>
-      <form id={RECORDS_BULK_FORM_ID} className="records-bulk-bar" onSubmit={(event) => event.preventDefault()}>
+      <form id={FAVORITES_BULK_FORM_ID} className="records-bulk-bar" onSubmit={(event) => event.preventDefault()}>
         <div className="records-bulk-main">
           <label className="toggle-field records-bulk-select-all">
             <input
@@ -187,7 +193,7 @@ export function RecordsBulkActions() {
           {error ? <span className="small failed-text">{error}</span> : null}
         </div>
         {selectedCount > 0 ? (
-          <div className="records-selected-list" aria-label="已选择记录">
+          <div className="records-selected-list" aria-label="已选择图片">
             {Array.from(selectedIds).map((id) => (
               <button className="record-selected-chip" type="button" key={id} disabled={loading} onClick={() => clearSingle(id)}>
                 {id.slice(0, 8)}
@@ -196,17 +202,16 @@ export function RecordsBulkActions() {
             ))}
           </div>
         ) : (
-          <p className="small muted records-selected-empty">勾选图片卡片左上角选择框，或点击本页全选后再取消不需要的记录。</p>
+          <p className="small muted records-selected-empty">勾选图片卡片左上角选择框,或点击本页全选后再取消不需要的图片。</p>
         )}
         <div className="records-bulk-actions">
           <input
             className="input"
             value={tags}
             disabled={loading}
-            placeholder="批量添加标签，逗号分隔"
+            placeholder="批量为已选图片添加标签,逗号分隔"
             onChange={(event) => setTags(event.target.value)}
           />
-          {/* 改用 .status action-button 风格,与 /records 卡片上的「复制 / 重做 / 删除」、筛选/重置一脉相承 */}
           <button
             className="status action-button action-add"
             type="button"
@@ -222,24 +227,24 @@ export function RecordsBulkActions() {
             className="status action-button action-danger"
             type="button"
             disabled={loading || selectedCount === 0}
-            onClick={() => setConfirmDeleteOpen(true)}
+            onClick={() => setConfirmUnfavoriteOpen(true)}
           >
-            <Trash2 size={13} aria-hidden />
-            批量删除
+            <HeartOff size={13} aria-hidden />
+            批量取消收藏
           </button>
         </div>
       </form>
       <DangerConfirmDialog
-        open={confirmDeleteOpen}
-        title="确认批量删除"
-        description={`会删除所选 ${selectedCount} 条记录及其本地生成图片。排队或运行中的任务会被自动跳过。`}
-        confirmLabel="批量删除"
-        loadingLabel="删除中"
+        open={confirmUnfavoriteOpen}
+        title="确认批量取消收藏"
+        description={`会从你的收藏作品集移除所选 ${selectedCount} 张图片。图片本身不会被删除,其他用户的收藏也不受影响。`}
+        confirmLabel="批量取消收藏"
+        loadingLabel="处理中"
         loading={loading}
         error={error}
-        onClose={closeDeleteConfirm}
+        onClose={closeUnfavoriteConfirm}
         onConfirm={() => {
-          void runBulk("delete");
+          void runBulk("unfavorite");
         }}
       />
     </>
@@ -247,10 +252,10 @@ export function RecordsBulkActions() {
 }
 
 /**
- * 薄壳:server page 不能用 hook,所以把 useRecordsSelection 读 selectedCount 的逻辑
- * 放在这里,把数字注入到通用的 <RecordsToolTabs />(/favorites 同理用 FavoritesToolTabsBridge)
+ * 薄壳:server page 不能用 hook,所以把 useFavoritesSelection 读 selectedCount 的逻辑
+ * 放在这里,把数字注入到通用的 <RecordsToolTabs />(/records 同理用 RecordsToolTabsBridge)
  */
-export function RecordsToolTabsBridge() {
-  const { selectedCount } = useRecordsSelection();
+export function FavoritesToolTabsBridge() {
+  const { selectedCount } = useFavoritesSelection();
   return <RecordsToolTabs selectedCount={selectedCount} />;
 }

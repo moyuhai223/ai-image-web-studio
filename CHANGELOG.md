@@ -2,6 +2,19 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.5.8] - 2026-05-25
+
+### 变更
+
+- **`/favorites` 头部融合搜索/标签 tab,与 `/records` 视觉完全一致**:`app/favorites/page.tsx` 把原本顶部独占整片 panel-body 的筛选表单收进新的「搜索」抽屉,与「批量管理」并列为「标签」tab,两个 tab 上提到与「收藏作品集」标题同一行。窄屏自动退化为图标+计数胶囊,沿用 v0.5.7 在 `.actions.panel-header-actions` 上挂的容器查询。`searchSummary` 计算同 records:有 tag 显示 `#tag`,有其他筛选显示数字,无筛选不显示 badge。
+- **`RecordsToolTabs` 解耦 `useRecordsSelection`,改 prop 注入复用到 favorites**:`components/records-tool-panels.tsx` 不再硬编码读 records 选择上下文,改成 `RecordsToolTabs({ selectedCount?: number })` 由调用方注入。新建 `RecordsToolTabsBridge`(`records-bulk-actions.tsx`)与 `FavoritesToolTabsBridge`(`favorites-bulk-actions.tsx`)两个客户端薄壳,server page 直接挂 bridge 即可。文件名保留以避免无意义大改 import。
+
+### 新增
+
+- **`/favorites` 批量管理(加标签 / 批量取消收藏)**:新建 `components/favorites-bulk-actions.tsx` 镜像 `records-bulk-actions.tsx`:`FavoritesSelectionProvider` + `useFavoritesSelection` + `FavoriteSelectCheckbox({ imageId })` + `FavoritesBulkActions`。「加标签」复用 records 同款 input + `.status action-button action-add`,接 `addTagsToImagesForUser` 仓库函数;「批量取消收藏」用 `HeartOff` 图标 + `.status action-button action-danger`,接新写的 `unfavoriteImagesForUser`(只解除当前用户的收藏关联,不动图、不影响其他用户的收藏,admin 也只清自己的)。危险动作走 `DangerConfirmDialog`,成功后 `router.refresh()` + 清空选择。
+- **`POST /api/favorites/bulk` 端点**:`app/api/favorites/bulk/route.ts` 与 `/api/records/bulk` 同款 schema(`{ action: "add_tags" | "unfavorite", ids: string[], tags?: string[] }`),UUID 校验、≤100 条、`requireUser()` 强制登录、`writeAuditLog` 写审计日志(「批量为收藏图片加标签」/「批量取消收藏」),错误走 `respondError`。
+- **选中态高亮 outline 共享**:`app/globals.css` 把 `.record-card:has(.record-select-control.selected)` 选择器升级到 `.image-card:has(...)`,records 与 favorites 两种卡片共用同一套 brand 色 outline;同时给 `.favorite-card` 补 `position: relative`(原仅 `.record-card` 有),保证左上角 absolute checkbox 与右上角心型按钮各自就位、不相互遮挡。
+
 ## [0.5.7] - 2026-05-25
 
 ### 变更

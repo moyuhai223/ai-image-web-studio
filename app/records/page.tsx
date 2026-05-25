@@ -8,8 +8,8 @@ import { ImageTagsEditor } from "@/components/image-tags-editor";
 import { JobControlButton } from "@/components/job-control-button";
 import { PageSelect } from "@/components/page-select";
 import { RecordsFilterMemory } from "@/components/records-filter-memory";
-import { RecordSelectCheckbox, RecordsBulkActions, RecordsSelectionProvider } from "@/components/records-bulk-actions";
-import { RecordsToolContent, RecordsToolPanelsProvider, RecordsToolTabs } from "@/components/records-tool-panels";
+import { RecordSelectCheckbox, RecordsBulkActions, RecordsSelectionProvider, RecordsToolTabsBridge } from "@/components/records-bulk-actions";
+import { RecordsToolContent, RecordsToolPanelsProvider } from "@/components/records-tool-panels";
 import { ReferenceBasketButton } from "@/components/reference-basket";
 import { RerunButton } from "@/components/rerun-button";
 import { requireUser } from "@/lib/auth";
@@ -164,7 +164,8 @@ export default async function RecordsPage({
                 <h1 className="panel-title">生成记录</h1>
                 <div className="actions panel-header-actions">
                   {/* 搜索/标签 tab 上提到 header,与标题同一行;窄屏自动退化为图标+计数 */}
-                  <RecordsToolTabs />
+                  {/* Bridge 是 client component,把 useRecordsSelection().selectedCount 注入到通用 tabs */}
+                  <RecordsToolTabsBridge />
                   {filterCount > 0 ? <span className="status">已筛选 <span className="num">{filterCount}</span> 项</span> : null}
                   <span className="status">共 <span className="num">{total}</span> 条</span>
                 </div>

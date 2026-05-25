@@ -549,6 +549,63 @@ export async function addTagsToJobsForUser(jobIds: string[], rawTags: unknown, u
   });
 }
 
+/**
+ * 与 addTagsToJobsForUser 同样的 unnest 批插入,但单位是 image id 而不是 job id.
+ * 用于 /favorites 的批量"加标签":选中的是图,直接按 i.id 过滤,无需先解出 job.
+ * user scope:admin 可加任意图;member 只能加自己 job 下的图.
+ */
+export async function addTagsToImagesForUser(imageIds: string[], rawTags: unknown, user: User) {
+  const tags = normalizeImageTags(rawTags);
+  const uniqueImageIds = Array.from(new Set(imageIds)).slice(0, 100);
+  if (uniqueImageIds.length === 0 || tags.length === 0) {
+    return { tags, imageCount: 0 };
+  }
+
+  return transaction(async (client) => {
+    const images = await client.query<{ id: string }>(
+      `select i.id::text as id
+       from generated_images i
+       join generation_jobs j on j.id = i.job_id
+       where i.id = any($1::uuid[])
+         and ($2::text = 'admin' or j.user_id = $3)`,
+      [uniqueImageIds, user.role, user.id]
+    );
+    const allowedIds = images.rows.map((row) => row.id);
+    if (allowedIds.length === 0) {
+      return { tags, imageCount: 0 };
+    }
+
+    await client.query(
+      `insert into generated_image_tags (image_id, tag, created_by)
+       select image_id, tag, $3::uuid
+       from unnest($1::uuid[]) as image_id
+       cross join unnest($2::text[]) as tag
+       on conflict do nothing`,
+      [allowedIds, tags, user.id]
+    );
+
+    return { tags, imageCount: allowedIds.length };
+  });
+}
+
+/**
+ * 批量取消"当前用户"对若干图片的收藏(generated_image_favorites 联合主键 user_id, image_id).
+ * 不影响其他用户的收藏关系;admin 调用也只清自己的收藏,语义符合"我的收藏作品集"页.
+ * 返回实际删除的行数.
+ */
+export async function unfavoriteImagesForUser(imageIds: string[], user: User) {
+  const uniqueImageIds = Array.from(new Set(imageIds)).slice(0, 100);
+  if (uniqueImageIds.length === 0) {
+    return { removed: 0 };
+  }
+  const result = await query(
+    `delete from generated_image_favorites
+     where user_id = $1 and image_id = any($2::uuid[])`,
+    [user.id, uniqueImageIds]
+  );
+  return { removed: result.rowCount ?? 0 };
+}
+
 export async function listImageVersionChainForJob(jobId: string, user: User) {
   const result = await query<ImageVersionNode>(
     `with recursive

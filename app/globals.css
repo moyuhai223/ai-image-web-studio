@@ -2309,11 +2309,14 @@ button.action-button:hover:not(:disabled),
   font-weight: 800;
 }
 
-.record-card {
+.record-card,
+.favorite-card {
+  /* 给左上角的 .record-select-control(absolute)和右上角的收藏按钮提供定位锚 */
   position: relative;
 }
 
-.record-card:has(.record-select-control.selected) {
+/* /records 的 .record-card 与 /favorites 的 .favorite-card 都带 .image-card,统一在 image-card 层处理选中态高亮 outline */
+.image-card:has(.record-select-control.selected) {
   outline: 2px solid color-mix(in srgb, var(--brand) 74%, transparent);
   outline-offset: -2px;
 }

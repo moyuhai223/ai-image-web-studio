@@ -1,10 +1,12 @@
 import { AppNav } from "@/components/app-nav";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { FavoriteImageButton } from "@/components/favorite-image-button";
+import { FavoriteSelectCheckbox, FavoritesBulkActions, FavoritesSelectionProvider, FavoritesToolTabsBridge } from "@/components/favorites-bulk-actions";
 import { ImageLightbox, type LightboxItem } from "@/components/image-lightbox";
 import { ImageTagsEditor } from "@/components/image-tags-editor";
 import { ImageWithSkeleton } from "@/components/image-with-skeleton";
 import { PageSelect } from "@/components/page-select";
+import { RecordsToolContent, RecordsToolPanelsProvider } from "@/components/records-tool-panels";
 import { ReferenceBasketButton } from "@/components/reference-basket";
 import { requireUser } from "@/lib/auth";
 import { generationStatusLabel } from "@/lib/generation-status";
@@ -116,6 +118,9 @@ export default async function FavoritesPage({
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Number.isFinite(requestedPage) ? Math.min(Math.max(1, requestedPage), totalPages) : 1;
   const images = await listFavoriteImagesPage(user, page, PAGE_SIZE, filters);
+  const filterCount = activeFilterCount(filters);
+  // 与 /records 同款的紧凑 badge:有 tag 显示 #tag,有其他筛选显示数字,无筛选返回空串(tabs 内部跳过 badge 渲染)
+  const searchSummary = filters.tag ? `#${filters.tag}` : filterCount > 0 ? `${filterCount}` : "";
   const lightboxItems: LightboxItem[] = images.map((image) => ({
     src: `/api/images/${image.id}`,
     downloadHref: `/api/images/${image.id}/download`,
@@ -127,136 +132,152 @@ export default async function FavoritesPage({
       <AppNav user={user} themeMode={themePreference.mode} />
       <main className="main">
         <section className="panel">
-          <div className="panel-header">
-            <h1 className="panel-title">收藏作品集</h1>
-            <div className="actions">
-              {activeFilterCount(filters) > 0 ? <span className="status">已筛选 <span className="num">{activeFilterCount(filters)}</span> 项</span> : null}
-              <span className="status">共 <span className="num">{total}</span> 张</span>
-            </div>
-          </div>
-          <div className="panel-body">
-            <form className="record-filters favorite-filters" action="/favorites" method="get">
-              <div className="field">
-                <label htmlFor="favorite-q">关键词</label>
-                <input className="input" id="favorite-q" name="q" defaultValue={filters.q ?? ""} placeholder="提示词、模型、标签" />
-              </div>
-              <div className="field">
-                <label htmlFor="favorite-tag">标签</label>
-                <input className="input" id="favorite-tag" name="tag" defaultValue={filters.tag ?? ""} placeholder="图片标签" />
-              </div>
-              <div className="field">
-                <label htmlFor="favorite-model">模型</label>
-                <select className="select" id="favorite-model" name="model" defaultValue={filters.model ?? ""}>
-                  <option value="">全部模型</option>
-                  {modelOptions.map((item) => (
-                    <option value={item.value} key={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor="favorite-size">尺寸</label>
-                <select className="select" id="favorite-size" name="size" defaultValue={filters.size ?? ""}>
-                  <option value="">全部尺寸</option>
-                  {sizeOptions.map((item) => (
-                    <option value={item} key={item}>{item}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor="favorite-period">收藏时间</label>
-                <select className="select" id="favorite-period" name="period" defaultValue={filters.period ?? ""}>
-                  <option value="">全部时间</option>
-                  {periodOptions.map((item) => (
-                    <option value={item.value} key={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="record-filter-actions">
-                {/* .status action-button 风格,与 /records 视觉一致 */}
-                <button className="status action-button action-filter" type="submit">
-                  <Filter size={13} aria-hidden />
-                  筛选
-                </button>
-                <a className="status action-button action-neutral" href="/favorites">
-                  <RotateCcw size={13} aria-hidden />
-                  重置
-                </a>
-              </div>
-            </form>
-            {images.length === 0 ? (
-              <div className="empty-state empty-state-illustrated">
-                {activeFilterCount(filters) > 0 ? <Search size={72} strokeWidth={1.4} aria-hidden /> : <Heart size={72} strokeWidth={1.4} aria-hidden />}
-                <p className="empty-state-title">{activeFilterCount(filters) > 0 ? "没有匹配的收藏图片" : "还没有收藏图片"}</p>
-                <p className="small muted">
-                  {activeFilterCount(filters) > 0
-                    ? "可以换一个关键词、标签或时间范围再试。"
-                    : "在生成结果、记录详情或记录页点击“收藏”，好图会集中放在这里。"}
-                </p>
-                <div className="actions">
-                  {activeFilterCount(filters) > 0 ? (
-                    <a className="button secondary" href="/favorites">
-                      <RotateCcw size={16} aria-hidden />
-                      重置筛选
-                    </a>
-                  ) : (
-                    <a className="button" href="/records">浏览记录找好图</a>
-                  )}
+          <FavoritesSelectionProvider ids={images.map((image) => image.id)}>
+            <RecordsToolPanelsProvider
+              searchSummary={searchSummary}
+              initialActive={filterCount > 0 ? "search" : null}
+            >
+              <div className="panel-header">
+                <h1 className="panel-title">收藏作品集</h1>
+                <div className="actions panel-header-actions">
+                  {/* 搜索/标签 tab 上提到 header,与标题同一行;窄屏自动退化为图标+计数 */}
+                  {/* Bridge 是 client component,把 useFavoritesSelection().selectedCount 注入到通用 tabs */}
+                  <FavoritesToolTabsBridge />
+                  {filterCount > 0 ? <span className="status">已筛选 <span className="num">{filterCount}</span> 项</span> : null}
+                  <span className="status">共 <span className="num">{total}</span> 张</span>
                 </div>
               </div>
-            ) : (
-              <div className="records-grid favorite-grid">
-                {images.map((image, index) => (
-                  <article className="image-card favorite-card" key={image.id}>
-                    <ImageLightbox
-                      src={`/api/images/${image.id}`}
-                      downloadHref={`/api/images/${image.id}/download`}
-                      alt={image.job_prompt}
-                      items={lightboxItems}
-                      initialIndex={index}
-                    >
-                      <ImageWithSkeleton src={imageThumbnailUrl(image.id)} alt={image.job_prompt} />
-                    </ImageLightbox>
-                    <footer className="record-card-footer">
-                      <div className="record-card-body">
-                        <div className="favorite-card-head">
-                          <span className={`status ${image.job_status}`}>{generationStatusLabel(image.job_status)}</span>
-                          <FavoriteImageButton imageId={image.id} initialFavorite={true} refreshOnChange={true} />
-                        </div>
-                        <p className="small record-card-prompt" title={image.job_prompt}>{image.job_prompt}</p>
-                        <div className="record-card-meta-row">
-                          <p className="small muted">{image.job_model} · {image.username}</p>
-                          <CopyPromptButton prompt={image.job_prompt} />
-                        </div>
-                        <div className="asset-mini-row">
-                          <span>{image.width ?? "-"} x {image.height ?? "-"}</span>
-                          <span>{formatBytes(image.byte_size)}</span>
-                          <span>{formatDuration(image.job_duration_ms)}</span>
-                          <span>{formatDateTime(image.favorite_created_at ?? image.created_at)}</span>
-                        </div>
-                        <ImageTagsEditor imageId={image.id} initialTags={image.tags ?? []} tagBasePath="/favorites" />
+              <div className="panel-body">
+                <RecordsToolContent
+                  search={
+                    <form className="record-filters favorite-filters" action="/favorites" method="get">
+                      <div className="field">
+                        <label htmlFor="favorite-q">关键词</label>
+                        <input className="input" id="favorite-q" name="q" defaultValue={filters.q ?? ""} placeholder="提示词、模型、标签" />
                       </div>
-                      <div className="actions image-card-actions">
-                        <a className="status action-button action-detail" href={`/records/${image.job_id}`}>详情</a>
-                        <a className="status action-button action-rerun" href={rerunHref(image)}>重做</a>
-                        <ReferenceBasketButton imageId={image.id} prompt={image.job_prompt} />
-                        <a className="status action-button action-download" href={`/api/images/${image.id}/download`}>下载</a>
+                      <div className="field">
+                        <label htmlFor="favorite-tag">标签</label>
+                        <input className="input" id="favorite-tag" name="tag" defaultValue={filters.tag ?? ""} placeholder="图片标签" />
                       </div>
-                    </footer>
-                  </article>
-                ))}
+                      <div className="field">
+                        <label htmlFor="favorite-model">模型</label>
+                        <select className="select" id="favorite-model" name="model" defaultValue={filters.model ?? ""}>
+                          <option value="">全部模型</option>
+                          {modelOptions.map((item) => (
+                            <option value={item.value} key={item.value}>{item.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label htmlFor="favorite-size">尺寸</label>
+                        <select className="select" id="favorite-size" name="size" defaultValue={filters.size ?? ""}>
+                          <option value="">全部尺寸</option>
+                          {sizeOptions.map((item) => (
+                            <option value={item} key={item}>{item}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label htmlFor="favorite-period">收藏时间</label>
+                        <select className="select" id="favorite-period" name="period" defaultValue={filters.period ?? ""}>
+                          <option value="">全部时间</option>
+                          {periodOptions.map((item) => (
+                            <option value={item.value} key={item.value}>{item.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="record-filter-actions">
+                        {/* .status action-button 风格,与 /records 视觉一致 */}
+                        <button className="status action-button action-filter" type="submit">
+                          <Filter size={13} aria-hidden />
+                          筛选
+                        </button>
+                        <a className="status action-button action-neutral" href="/favorites">
+                          <RotateCcw size={13} aria-hidden />
+                          重置
+                        </a>
+                      </div>
+                    </form>
+                  }
+                  tags={<FavoritesBulkActions />}
+                />
+                {images.length === 0 ? (
+                  <div className="empty-state empty-state-illustrated">
+                    {filterCount > 0 ? <Search size={72} strokeWidth={1.4} aria-hidden /> : <Heart size={72} strokeWidth={1.4} aria-hidden />}
+                    <p className="empty-state-title">{filterCount > 0 ? "没有匹配的收藏图片" : "还没有收藏图片"}</p>
+                    <p className="small muted">
+                      {filterCount > 0
+                        ? "可以换一个关键词、标签或时间范围再试。"
+                        : "在生成结果、记录详情或记录页点击“收藏”，好图会集中放在这里。"}
+                    </p>
+                    <div className="actions">
+                      {filterCount > 0 ? (
+                        <a className="button secondary" href="/favorites">
+                          <RotateCcw size={16} aria-hidden />
+                          重置筛选
+                        </a>
+                      ) : (
+                        <a className="button" href="/records">浏览记录找好图</a>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="records-grid favorite-grid">
+                    {images.map((image, index) => (
+                      <article className="image-card favorite-card" key={image.id}>
+                        <FavoriteSelectCheckbox imageId={image.id} />
+                        <ImageLightbox
+                          src={`/api/images/${image.id}`}
+                          downloadHref={`/api/images/${image.id}/download`}
+                          alt={image.job_prompt}
+                          items={lightboxItems}
+                          initialIndex={index}
+                        >
+                          <ImageWithSkeleton src={imageThumbnailUrl(image.id)} alt={image.job_prompt} />
+                        </ImageLightbox>
+                        <footer className="record-card-footer">
+                          <div className="record-card-body">
+                            <div className="favorite-card-head">
+                              <span className={`status ${image.job_status}`}>{generationStatusLabel(image.job_status)}</span>
+                              <FavoriteImageButton imageId={image.id} initialFavorite={true} refreshOnChange={true} />
+                            </div>
+                            <p className="small record-card-prompt" title={image.job_prompt}>{image.job_prompt}</p>
+                            <div className="record-card-meta-row">
+                              <p className="small muted">{image.job_model} · {image.username}</p>
+                              <CopyPromptButton prompt={image.job_prompt} />
+                            </div>
+                            <div className="asset-mini-row">
+                              <span>{image.width ?? "-"} x {image.height ?? "-"}</span>
+                              <span>{formatBytes(image.byte_size)}</span>
+                              <span>{formatDuration(image.job_duration_ms)}</span>
+                              <span>{formatDateTime(image.favorite_created_at ?? image.created_at)}</span>
+                            </div>
+                            <ImageTagsEditor imageId={image.id} initialTags={image.tags ?? []} tagBasePath="/favorites" />
+                          </div>
+                          <div className="actions image-card-actions">
+                            <a className="status action-button action-detail" href={`/records/${image.job_id}`}>详情</a>
+                            <a className="status action-button action-rerun" href={rerunHref(image)}>重做</a>
+                            <ReferenceBasketButton imageId={image.id} prompt={image.job_prompt} />
+                            <a className="status action-button action-download" href={`/api/images/${image.id}/download`}>下载</a>
+                          </div>
+                        </footer>
+                      </article>
+                    ))}
+                  </div>
+                )}
+                <nav className="pagination" aria-label="收藏分页">
+                  <a className={`status ${page <= 1 ? "disabled" : ""}`} href={page <= 1 ? pageHref(1, filterQuery) : pageHref(page - 1, filterQuery)}>
+                    上一页
+                  </a>
+                  <span className="status">第 {page} / {totalPages} 页</span>
+                  <PageSelect page={page} totalPages={totalPages} query={filterQuery} basePath="/favorites" />
+                  <a className={`status ${page >= totalPages ? "disabled" : ""}`} href={page >= totalPages ? pageHref(totalPages, filterQuery) : pageHref(page + 1, filterQuery)}>
+                    下一页
+                  </a>
+                </nav>
               </div>
-            )}
-            <nav className="pagination" aria-label="收藏分页">
-              <a className={`status ${page <= 1 ? "disabled" : ""}`} href={page <= 1 ? pageHref(1, filterQuery) : pageHref(page - 1, filterQuery)}>
-                上一页
-              </a>
-              <span className="status">第 {page} / {totalPages} 页</span>
-              <PageSelect page={page} totalPages={totalPages} query={filterQuery} basePath="/favorites" />
-              <a className={`status ${page >= totalPages ? "disabled" : ""}`} href={page >= totalPages ? pageHref(totalPages, filterQuery) : pageHref(page + 1, filterQuery)}>
-                下一页
-              </a>
-            </nav>
-          </div>
+            </RecordsToolPanelsProvider>
+          </FavoritesSelectionProvider>
         </section>
       </main>
     </div>
