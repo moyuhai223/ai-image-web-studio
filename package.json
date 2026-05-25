@@ -1,6 +1,6 @@
 {
   "name": "ai-image-web-studio",
-  "version": "0.5.9",
+  "version": "0.6.0",
   "license": "MIT",
   "private": true,
   "type": "module",

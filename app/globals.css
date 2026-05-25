@@ -2515,12 +2515,6 @@ button.action-button:hover:not(:disabled),
   min-height: 0;
 }
 
-/* /favorites 卡片底部 action 一排:与「复制」同款淡灰风格统一(原本详情绿 / 重做蓝 / 参考橙 / 下载绿,4 个不同色调显得花.
-   只在 favorite-card 域内覆盖 --action-color,不影响 /records 或组件本身的其他使用场景) */
-.favorite-card .image-card-actions .action-button,
-.favorite-card .image-card-actions .reference-basket-button {
-  --action-color: color-mix(in srgb, var(--brand) 70%, var(--muted));
-}
 
 .pagination {
   display: flex;

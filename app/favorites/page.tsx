@@ -8,6 +8,7 @@ import { ImageWithSkeleton } from "@/components/image-with-skeleton";
 import { PageSelect } from "@/components/page-select";
 import { RecordsToolContent, RecordsToolPanelsProvider } from "@/components/records-tool-panels";
 import { ReferenceBasketButton } from "@/components/reference-basket";
+import { RerunButton } from "@/components/rerun-button";
 import { requireUser } from "@/lib/auth";
 import { generationStatusLabel } from "@/lib/generation-status";
 import { countFavoriteImages, listFavoriteImagesPage, type FavoriteImageFilters } from "@/lib/repository";
@@ -15,7 +16,7 @@ import { formatDateTime } from "@/lib/time";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import { modelOptions } from "@/lib/validation";
-import { Filter, Heart, RotateCcw, Search } from "lucide-react";
+import { Download, Filter, Heart, Info, RotateCcw, Search } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -255,10 +256,17 @@ export default async function FavoritesPage({
                             <ImageTagsEditor imageId={image.id} initialTags={image.tags ?? []} tagBasePath="/favorites" />
                           </div>
                           <div className="actions image-card-actions">
-                            <a className="status action-button action-detail" href={`/records/${image.job_id}`}>详情</a>
-                            <a className="status action-button action-rerun" href={rerunHref(image)}>重做</a>
+                            {/* 与「复制」按钮同款外框:图标(13px) + 文字,4 个按钮视觉对齐 */}
+                            <a className="status action-button action-detail" href={`/records/${image.job_id}`}>
+                              <Info size={13} aria-hidden />
+                              详情
+                            </a>
+                            <RerunButton href={rerunHref(image)} />
                             <ReferenceBasketButton imageId={image.id} prompt={image.job_prompt} />
-                            <a className="status action-button action-download" href={`/api/images/${image.id}/download`}>下载</a>
+                            <a className="status action-button action-download" href={`/api/images/${image.id}/download`}>
+                              <Download size={13} aria-hidden />
+                              下载
+                            </a>
                           </div>
                         </footer>
                       </article>

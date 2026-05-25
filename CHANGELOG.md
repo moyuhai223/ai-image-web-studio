@@ -2,6 +2,12 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.6.0] - 2026-05-25
+
+### 修复
+
+- **`/favorites` 卡片底部 4 按钮外框统一(图标 + 文字,与「复制」同款)**:撤销 v0.5.9 错误把按钮颜色一律灰化的覆盖(那只统一了色调,没解决外框风格不一致的真问题);改成给「详情 / 重做 / 参考 / 下载」4 个 a/button 加上 13px lucide 图标 — 详情 `Info`、重做改用 `RerunButton` 组件(自带 `RefreshCcw`)、参考已是 `ReferenceBasketButton` 组件(自带图标)、下载 `Download`,与卡片中部「复制」按钮(`Copy size={13}` + 文字)的图标+文字外框一致。颜色仍走各自语义色(action-detail 灰 / action-rerun 蓝 / reference-basket 橙 / action-download 绿),与 `/records` 卡片完全对齐。
+
 ## [0.5.9] - 2026-05-25
 
 ### 修复
