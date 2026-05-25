@@ -37,18 +37,10 @@ export type ProviderPreset = {
   updatedAt: string;
 };
 
-type StoredV1 = {
-  version: 1;
-  aiBaseUrl: string;
-};
-
 type StoredV2 = {
   version: 2;
   presets: ProviderPreset[];
   activePresetId: string | null;
-  /** v1 备份字段，保留一周方便回滚 */
-  legacyAiBaseUrl?: string;
-  legacyMigratedAt?: string;
 };
 
 type StoredProviderSettings = StoredV2;
@@ -95,7 +87,7 @@ export function normalizeAiBaseUrl(value: unknown) {
   return stripTrailingSlash(url.toString());
 }
 
-export function normalizePresetName(value: unknown) {
+function normalizePresetName(value: unknown) {
   if (typeof value !== "string") {
     throw new Error("Preset 名称格式不正确");
   }
@@ -145,45 +137,6 @@ function defaultSettings(): StoredV2 {
     version: 2,
     presets: seed ? [seed] : [],
     activePresetId: seed?.id ?? null
-  };
-}
-
-function isV1(value: Record<string, unknown>): value is StoredV1 {
-  return value.version === 1 && typeof value.aiBaseUrl === "string";
-}
-
-function migrateV1ToV2(value: StoredV1): StoredV2 {
-  const trimmed = value.aiBaseUrl?.trim() ?? "";
-  if (!trimmed) {
-    return {
-      version: 2,
-      presets: [],
-      activePresetId: null,
-      legacyAiBaseUrl: value.aiBaseUrl,
-      legacyMigratedAt: new Date().toISOString()
-    };
-  }
-
-  let baseUrl: string;
-  try {
-    baseUrl = normalizeAiBaseUrl(trimmed);
-  } catch {
-    return {
-      version: 2,
-      presets: [],
-      activePresetId: null,
-      legacyAiBaseUrl: value.aiBaseUrl,
-      legacyMigratedAt: new Date().toISOString()
-    };
-  }
-
-  const preset = newPreset({ id: "default", name: "默认", baseUrl, isDefault: true });
-  return {
-    version: 2,
-    presets: [preset],
-    activePresetId: preset.id,
-    legacyAiBaseUrl: value.aiBaseUrl,
-    legacyMigratedAt: new Date().toISOString()
   };
 }
 
@@ -242,10 +195,6 @@ function normalizeSettings(value: unknown): StoredV2 {
   if (!value || typeof value !== "object") return defaultSettings();
   const record = value as Record<string, unknown>;
 
-  if (isV1(record)) {
-    return migrateV1ToV2(record);
-  }
-
   if (record.version === 2 && Array.isArray(record.presets)) {
     const presets = record.presets.map(normalizeStoredPreset).filter(Boolean) as ProviderPreset[];
     const activePresetId =
@@ -256,9 +205,7 @@ function normalizeSettings(value: unknown): StoredV2 {
     return ensureSingleDefault({
       version: 2,
       presets,
-      activePresetId,
-      legacyAiBaseUrl: typeof record.legacyAiBaseUrl === "string" ? record.legacyAiBaseUrl : undefined,
-      legacyMigratedAt: typeof record.legacyMigratedAt === "string" ? record.legacyMigratedAt : undefined
+      activePresetId
     });
   }
 
@@ -384,10 +331,6 @@ export async function resolveProvider(presetId?: string | null): Promise<Resolve
     throw new Error("Provider Base URL 未配置");
   }
   return { preset, baseUrl };
-}
-
-export async function getProviderBaseUrl(presetId?: string | null) {
-  return (await resolveProvider(presetId)).baseUrl;
 }
 
 /**

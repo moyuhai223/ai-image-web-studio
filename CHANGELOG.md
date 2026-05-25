@@ -2,6 +2,25 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.6.3] - 2026-05-25
+
+### 清理
+
+- **删除 `lib/provider-settings.ts` 中 v1→v2 迁移 shim 与回滚字段**:`StoredV1` 类型、`isV1()` 守卫、`migrateV1ToV2()` 转换、`StoredV2.legacyAiBaseUrl` / `legacyMigratedAt` 字段、`normalizeSettings` 里的 v1 分支与 legacy 反序列化两行全部移除。v0.5.1 部署后 DB 里 `app_settings.value` 早已全部走过一次 `normalizeSettings` 写回 v2,「保留一周方便回滚」的备份窗口早过;即使理论上残留 v1 数据,`normalizeSettings` 默认 fallback `defaultSettings()` 会让 admin 在 `/settings` 重新填一次 base URL —— 不损失业务数据,只丢一次 preset 配置。共减 ~50 行真死代码。
+- **删除无人调用的 `getProviderBaseUrl` 导出**:全库 `grep` 零调用方;所有需要 base URL 的地方都已经在用 `resolveProvider()` 拿完整 `{ preset, baseUrl }` 结构。同时把 `normalizePresetName` 改为文件内私有(只在 `newPreset` + `updateProviderPreset` 两处文件内调用),不再作为公共 API。
+
+### 重构
+
+- **`lib/repository.ts` 抽 `userScopeClause()` helper,统一 4 处 admin/user where 拼接**:`listRecentJobs` / `getActiveQueueStats` / `listActiveQueueJobs` / `listImageTagsForUser` 之前各自手写 `user.role === "admin" ? "" : "where j.user_id = $1"` 三元式,差异在 `where` vs `and` 前缀、有无表别名、params 起始位置 —— 同样的逻辑写了 4 次,未来要给某个 query 加 RLS / multi-tenant 隔离时极易漏改。抽 `userScopeClause(user, { alias?, prefix? })` 返回 `{ clause, params }`,4 处调用方对齐到同一 helper。`listRecentJobs` 顺手对齐 `listJobsPage` 的 `favoriteUserParam` 显式追加 pattern —— 之前 `$1` 同时承担 `where j.user_id = $1` 与 `fav.user_id = $1`(favorites JOIN)两个职责,新写法把 favorites 用的 `user.id` 独立追加到 params 末尾,scope 与 JOIN 解耦更安全。行数净持平,但 DRY 收益:未来加多租户隔离只改一处。`buildJobListWhere`(L55)内部的同样 pattern 暂不动 —— 那个 helper 还要处理 filters / username / period 等多维 clause 拼接,体量更大,留作后续单独重构。
+- **`app/globals.css` 抽 `--shadow-action-sm` / `--shadow-action-md` token 到 `:root`,3 处 box-shadow 复用**:v0.6.2 给 `.action-button` 加同色阴影时,在 base / `.button.action-button` 覆盖 / `:hover` 三处一字不差地写了 `color-mix(in srgb, var(--action-color) ...%, transparent)`。利用 CSS 变量惰性求值(MDN:values are substituted at the point of use, not declaration),把两个阴影常量提到 `:root`,使用时 `var(--action-color)` 仍在调用元素的上下文中解析 —— 蓝按钮拿淡蓝影、橙按钮拿淡橙影、红按钮拿淡红影,与 v0.6.2 行为完全一致。未来调整阴影强度只改 `:root` 一次,全局生效。
+
+## [0.6.2] - 2026-05-25
+
+### 变更
+
+- **`.action-button` 高度全局统一到 28px,与首页"最近记录"对齐**:`app/globals.css`。之前 `.image-card-actions .action-button` 与 `.record-card-status-row .action-button` / `.version-node .actions .action-button` 是 30px,而首页"最近记录"里的 `.history-item .actions .status` 是 28px,卡片底部的「重做 / 收藏 / 参考 / 删除」比首页同款按钮高 2px,视觉不统一。三处 `min-height: 30px → 28px`,box-model 与首页完全对齐。保留 `border-style: solid + border-width: 1.5px`(v0.6.1 a-tag border fix,删除会让 `<a class="action-button">` 渲染的「详情 / 下载」失去外框)与所有 `--action-color` 语义色 token(brand-2 蓝 / running-text 橙 / brand 灰 / danger 红 等)不变 —— 只动尺寸不动配色。
+- **`.action-button` 加同色语义阴影,从扁平改为轻浮起**:`app/globals.css`。之前三处 `box-shadow: none` 让所有标签按钮完全扁平,用户反馈"看不出按钮感"。改为 base `box-shadow: 0 1px 2px color-mix(--action-color 18%, transparent)`、hover `0 2px 6px ... 28%`,阴影色绑 `--action-color` —— 蓝按钮淡蓝影、橙按钮淡橙影、红按钮淡红影,与既有 11% 同色背景 + 34/48% 同色边形成「同色三段」立体感。不与卡片自身 `var(--shadow-sm)` 中性灰阴影撞色(彩色阴影 + 中性卡片影叠加,层次反而拉开)。同时给 `.status` base transition 补 `box-shadow var(--transition-fast)`,让 hover 加深平滑过渡。`.button.action-button` 组合元素同步走轻阴影,覆盖 `.button` 自带的 `0 6px 18px brand 强阴影` —— 避免大 CTA 阴影在紧凑标签按钮场景溢出。
+
 ## [0.6.1] - 2026-05-25
 
 ### 性能

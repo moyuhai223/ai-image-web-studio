@@ -43,6 +43,12 @@
   --shadow-lg: 0 16px 48px rgba(20, 33, 61, 0.08), 0 4px 12px rgba(20, 33, 61, 0.04);
   --shadow-glow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
 
+  /* v0.6.3:.action-button 用的同色彩阴影,绑定调用方的 --action-color。
+     CSS 变量惰性求值 —— 即使在 :root 定义,使用时按元素当前的 --action-color 解析,
+     蓝按钮拿淡蓝影、橙按钮拿淡橙影。light/dark 模式无需复定义。 */
+  --shadow-action-sm: 0 1px 2px color-mix(in srgb, var(--action-color) 18%, transparent);
+  --shadow-action-md: 0 2px 6px color-mix(in srgb, var(--action-color) 28%, transparent);
+
   /* 品牌渐变 token:克制使用——只用在 brand-mark + 主 CTA 按钮上,
      避免到处堆渐变变 Y2K 风。色阶始终 brand → brand-2,135° 同步光感方向 */
   --brand-gradient: linear-gradient(135deg, var(--brand), var(--brand-2));
@@ -1003,7 +1009,8 @@ summary:focus-visible,
   white-space: nowrap;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+  /* v0.6.2:加 box-shadow 到 transition,让 .action-button(继承自 .status)hover 时阴影平滑加深 */
+  transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 a.status:hover,
@@ -1087,7 +1094,11 @@ button.status:hover {
   background: color-mix(in srgb, var(--action-color) 11%, var(--panel));
   color: var(--action-color);
   font-weight: 700;
-  box-shadow: none;
+  /* v0.6.2:阴影色绑 --action-color,每个按钮按自己语义色染色 —— 蓝按钮淡蓝影、橙按钮淡橙影、
+     红按钮淡红影,与 11% 同色背景 + 34% 同色边形成同色三段。之前 box-shadow: none 太扁平,
+     用户反馈"看不出按钮感"。轻 1px 投影,不与卡片自身 var(--shadow-sm) 中性灰阴影撞色。
+     v0.6.3:抽 --shadow-action-sm/-md token 到 :root,3 处 box-shadow 复用。 */
+  box-shadow: var(--shadow-action-sm);
 }
 
 .button.action-button {
@@ -1095,7 +1106,8 @@ button.status:hover {
   border-color: color-mix(in srgb, var(--action-color) 34%, var(--border));
   background: color-mix(in srgb, var(--action-color) 11%, var(--panel));
   color: var(--action-color);
-  box-shadow: none;
+  /* 覆盖 .button 自带的 0 6px 18px brand 强阴影,改用紧凑同色轻阴影,与 .action-button 一致 */
+  box-shadow: var(--shadow-action-sm);
   filter: none;
 }
 
@@ -1116,7 +1128,8 @@ button.action-button:hover:not(:disabled),
 .button.action-button:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--action-color) 48%, var(--border));
   background: color-mix(in srgb, var(--action-color) 15%, var(--panel));
-  box-shadow: none;
+  /* hover 加深到 28%,offset 也从 1px → 2px,配合 translateY(-1px) 视觉上更"浮起来" */
+  box-shadow: var(--shadow-action-md);
   filter: none;
   transform: translateY(-1px);
 }
@@ -1537,13 +1550,13 @@ button.action-button:hover:not(:disabled),
 }
 
 .image-card-actions .action-button {
-  /* 与 .panel-header .actions .status / .version-node .action-button
-     保持一致的小标签按钮风格(30px 高,1.5px 边)。之前 36px / 2px 的
-     "胖按钮"与详情页头部的重做/重试/删除不统一。
+  /* 与首页"最近记录" .history-item .actions 保持完全一致的紧凑按钮风格
+     (28px 高,1.5px 边)。v0.6.1 之前是 30px,卡片底部按钮比首页最近记录
+     略高 2px,视觉不统一;v0.6.2 统一降到 28px。
      border-style: solid 是关键 —— <a class="action-button"> 没有 user-agent
      默认 border-style,只设 border-width/color 不会显示外框,导致 a 标签
      渲染的「详情」「下载」看上去没有按钮外框,与 button 渲染的「重做」「参考」不一致。 */
-  min-height: 30px;
+  min-height: 28px;
   border-style: solid;
   border-width: 1.5px;
   border-color: color-mix(in srgb, var(--action-color) 48%, var(--border));
@@ -1557,7 +1570,11 @@ button.action-button:hover:not(:disabled),
 
 .record-card-status-row .action-button,
 .version-node .actions .action-button {
-  min-height: 30px;
+  /* v0.6.2: 与 .image-card-actions / .history-item .actions 对齐到 28px,
+     全局 .action-button 高度统一(原 30px → 28px)。padding-inline 保留 10px
+     因为这两个上下文是自由流式布局(非 grid stretch),需要稍宽内边距让文字
+     不贴边。 */
+  min-height: 28px;
   border-width: 1.5px;
   padding-inline: 10px;
 }

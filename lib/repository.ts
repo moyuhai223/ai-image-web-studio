@@ -52,6 +52,23 @@ export function normalizeImageTags(input: unknown) {
   return tags;
 }
 
+/**
+ * v0.6.3:抽离 admin/user scope 拼接,统一 4 处 list query 的 ternary。
+ * 返回 { clause, params } —— 调用方负责拼到自己的 SQL + 接续 limit/offset 等。
+ *
+ * scope.params 只包含 user_id 过滤值 (member) 或空数组 (admin)。如果 SQL
+ * 还需要 user.id 用于其它用途(例如 favorites JOIN),应在 params 末尾单独追加,
+ * 不要复用 scope.params 的位置 —— 详见 listRecentJobs / listJobsPage 的 pattern。
+ */
+function userScopeClause(user: User, options: { alias?: string; prefix?: "where" | "and" } = {}) {
+  if (user.role === "admin") {
+    return { clause: "", params: [] as unknown[] };
+  }
+  const alias = options.alias ? `${options.alias}.` : "";
+  const prefix = options.prefix ?? "where";
+  return { clause: `${prefix} ${alias}user_id = $1`, params: [user.id] as unknown[] };
+}
+
 function buildJobListWhere(user: User, filters: JobListFilters = {}) {
   const clauses: string[] = [];
   const params: unknown[] = [];
@@ -121,9 +138,13 @@ function buildJobListWhere(user: User, filters: JobListFilters = {}) {
 }
 
 export async function listRecentJobs(user: User, limit = 24) {
-  const where = user.role === "admin" ? "" : "where j.user_id = $1";
-  const params = [user.id, limit];
-  const limitParam = "$2";
+  // v0.6.3: userScopeClause helper + 显式 favoriteUserParam(对齐 listJobsPage 的 pattern)
+  // 注意 $1 (member 时是 scope.params[0]) 与 favorites JOIN 的 user.id 是同一个值,
+  // 但为了不让 admin 路径的 fav.user_id 错位,这里仍把 user.id 单独追加到 params 末尾。
+  const scope = userScopeClause(user, { alias: "j", prefix: "where" });
+  const params = [...scope.params, user.id, limit];
+  const favoriteUserParam = `$${params.length - 1}`;
+  const limitParam = `$${params.length}`;
 
   // v0.6.1: 相关子查询 → LATERAL JOIN 重构
   // - thumbnail_favorite 改 EXISTS → LEFT JOIN on PK(generated_image_favorites 主键
@@ -150,7 +171,7 @@ export async function listRecentJobs(user: User, limit = 24) {
        limit 1
      ) thumb on true
      left join generated_image_favorites fav
-       on fav.image_id = thumb.id and fav.user_id = $1
+       on fav.image_id = thumb.id and fav.user_id = ${favoriteUserParam}
      left join lateral (
        select array_agg(t.tag order by lower(t.tag), t.tag) as tags
        from generated_image_tags t
@@ -162,7 +183,7 @@ export async function listRecentJobs(user: User, limit = 24) {
        join generated_image_tags t on t.image_id = i.id
        where i.job_id = j.id
      ) job_tags on true
-     ${where}
+     ${scope.clause}
      order by j.created_at desc
      limit ${limitParam}`,
     params
@@ -172,14 +193,13 @@ export async function listRecentJobs(user: User, limit = 24) {
 }
 
 export async function getActiveQueueStats(user: User) {
-  const where = user.role === "admin" ? "" : "and user_id = $1";
-  const params = user.role === "admin" ? [] : [user.id];
+  const scope = userScopeClause(user, { prefix: "and" });
   const result = await query<{ status: GenerationJob["status"]; count: string }>(
     `select status, count(*)::text as count
      from generation_jobs
-     where status in ('queued', 'running') ${where}
+     where status in ('queued', 'running') ${scope.clause}
      group by status`,
-    params
+    scope.params
   );
 
   return {
@@ -189,9 +209,9 @@ export async function getActiveQueueStats(user: User) {
 }
 
 export async function listActiveQueueJobs(user: User, limit = 8) {
-  const where = user.role === "admin" ? "" : "and j.user_id = $1";
-  const params = user.role === "admin" ? [limit] : [user.id, limit];
-  const limitParam = user.role === "admin" ? "$1" : "$2";
+  const scope = userScopeClause(user, { alias: "j", prefix: "and" });
+  const params = [...scope.params, limit];
+  const limitParam = `$${params.length}`;
 
   const result = await query<GenerationJob & { queue_position: number | null; thumbnail_id: string | null }>(
     `select ${jobListColumns},
@@ -203,7 +223,7 @@ export async function listActiveQueueJobs(user: User, limit = 8) {
             end as queue_position
      from generation_jobs j
      join users u on u.id = j.user_id
-     where j.status in ('queued', 'running') ${where}
+     where j.status in ('queued', 'running') ${scope.clause}
      order by case when j.status = 'running' then 0 else 1 end, j.created_at asc
      limit ${limitParam}`,
     params
@@ -478,15 +498,15 @@ export async function setImageFavoriteForUser(imageId: string, user: User, favor
 
 export async function listImageTagsForUser(user: User, limit = 80) {
   const safeLimit = Math.max(1, Math.min(200, limit));
-  const params = user.role === "admin" ? [safeLimit] : [user.id, safeLimit];
-  const where = user.role === "admin" ? "" : "where j.user_id = $1";
-  const limitParam = user.role === "admin" ? "$1" : "$2";
+  const scope = userScopeClause(user, { alias: "j", prefix: "where" });
+  const params = [...scope.params, safeLimit];
+  const limitParam = `$${params.length}`;
   const result = await query<{ tag: string; usage_count: string }>(
     `select t.tag, count(*)::text as usage_count, max(t.created_at) as last_used_at
      from generated_image_tags t
      join generated_images i on i.id = t.image_id
      join generation_jobs j on j.id = i.job_id
-     ${where}
+     ${scope.clause}
      group by t.tag
      order by max(t.created_at) desc, lower(t.tag) asc
      limit ${limitParam}`,
