@@ -125,26 +125,21 @@ export async function listRecentJobs(user: User, limit = 24) {
   const params = [user.id, limit];
   const limitParam = "$2";
 
+  // v0.6.1: 相关子查询 → LATERAL JOIN 重构
+  // - thumbnail_favorite 改 EXISTS → LEFT JOIN on PK(generated_image_favorites 主键
+  //   (user_id, image_id),命中 index-only scan,比 EXISTS 子查询省一次 nested-loop)
+  // - thumbnail_tags / tags 改 LATERAL,planner 可见性更好,future-proof
+  //   依赖索引(已存在,schema.sql:143-149):
+  //     generated_images_job_idx (job_id, sort_order)
+  //     generated_image_tags_image_idx (image_id)
+  //     generated_image_favorites pk (user_id, image_id)
   const result = await query<GenerationJob & { thumbnail_id: string | null; thumbnail_tags: string[]; thumbnail_favorite: boolean }>(
     `select ${jobListColumns},
             u.username,
             thumb.id::text as thumbnail_id,
-            exists(
-              select 1
-              from generated_image_favorites f
-              where f.image_id = thumb.id and f.user_id = $1
-            ) as thumbnail_favorite,
-            (
-              select coalesce(array_agg(t.tag order by lower(t.tag), t.tag), '{}'::text[])
-              from generated_image_tags t
-              where t.image_id = thumb.id
-            ) as thumbnail_tags,
-            (
-              select coalesce(array_agg(distinct t.tag order by t.tag), '{}'::text[])
-              from generated_images i
-              join generated_image_tags t on t.image_id = i.id
-              where i.job_id = j.id
-            ) as tags
+            (fav.image_id is not null) as thumbnail_favorite,
+            coalesce(thumb_tags.tags, '{}'::text[]) as thumbnail_tags,
+            coalesce(job_tags.tags, '{}'::text[]) as tags
      from generation_jobs j
      join users u on u.id = j.user_id
      left join lateral (
@@ -154,6 +149,19 @@ export async function listRecentJobs(user: User, limit = 24) {
        order by i.sort_order asc, i.created_at asc
        limit 1
      ) thumb on true
+     left join generated_image_favorites fav
+       on fav.image_id = thumb.id and fav.user_id = $1
+     left join lateral (
+       select array_agg(t.tag order by lower(t.tag), t.tag) as tags
+       from generated_image_tags t
+       where t.image_id = thumb.id
+     ) thumb_tags on true
+     left join lateral (
+       select array_agg(distinct t.tag order by t.tag) as tags
+       from generated_images i
+       join generated_image_tags t on t.image_id = i.id
+       where i.job_id = j.id
+     ) job_tags on true
      ${where}
      order by j.created_at desc
      limit ${limitParam}`,
@@ -230,26 +238,16 @@ export async function listJobsPage(user: User, page: number, pageSize: number, f
   const limitParam = `$${params.length - 1}`;
   const offsetParam = `$${params.length}`;
 
+  // v0.6.1: 同 listRecentJobs 的相关子查询 → LATERAL JOIN 重构,详见上面的注释。
+  // /records 分页每次 ≤50 行,改完后大列表场景下 PG 可以走 hash aggregate 一次性出标签集合,
+  // 比 50 次相关子查询少一遍 nested-loop。EXISTS → LEFT JOIN 在大数据集上节流更明显。
   const result = await query<JobListItem>(
     `select ${jobListColumns},
             u.username,
             thumb.id::text as thumbnail_id,
-            exists(
-              select 1
-              from generated_image_favorites f
-              where f.image_id = thumb.id and f.user_id = ${favoriteUserParam}
-            ) as thumbnail_favorite,
-            (
-              select coalesce(array_agg(t.tag order by lower(t.tag), t.tag), '{}'::text[])
-              from generated_image_tags t
-              where t.image_id = thumb.id
-            ) as thumbnail_tags,
-            (
-              select coalesce(array_agg(distinct t.tag order by t.tag), '{}'::text[])
-              from generated_images i
-              join generated_image_tags t on t.image_id = i.id
-              where i.job_id = j.id
-            ) as tags
+            (fav.image_id is not null) as thumbnail_favorite,
+            coalesce(thumb_tags.tags, '{}'::text[]) as thumbnail_tags,
+            coalesce(job_tags.tags, '{}'::text[]) as tags
      from generation_jobs j
      join users u on u.id = j.user_id
      left join lateral (
@@ -259,6 +257,19 @@ export async function listJobsPage(user: User, page: number, pageSize: number, f
        order by i.sort_order asc, i.created_at asc
        limit 1
      ) thumb on true
+     left join generated_image_favorites fav
+       on fav.image_id = thumb.id and fav.user_id = ${favoriteUserParam}
+     left join lateral (
+       select array_agg(t.tag order by lower(t.tag), t.tag) as tags
+       from generated_image_tags t
+       where t.image_id = thumb.id
+     ) thumb_tags on true
+     left join lateral (
+       select array_agg(distinct t.tag order by t.tag) as tags
+       from generated_images i
+       join generated_image_tags t on t.image_id = i.id
+       where i.job_id = j.id
+     ) job_tags on true
      ${built.where}
      order by j.created_at desc
      limit ${limitParam}

@@ -106,17 +106,16 @@ async function failTimedOutRunningJobs() {
          updated_at = now()
      from params
      where status = 'running'
-       and (
-         case
-           when request_metadata #>> '{progress,phase}' in ('requesting', 'submitting')
-             then coalesce(
-               (nullif(request_metadata #>> '{progress,requestStartedAt}', ''))::timestamptz,
-               updated_at,
-               started_at,
-               created_at
-             )
-           else coalesce(updated_at, started_at, created_at)
-         end
+       -- v0.6.1: 之前 case 在非 requesting/submitting 阶段 fallback 到 updated_at,
+       -- 但 updated_at 会被每次 progress 写入(包括 watchdog 自己的 slow-warning)
+       -- 推到 now(),导致卡死/失控的下载/处理永远 timeout 不掉。
+       -- 改为统一以 progress.requestStartedAt(模型请求真正开始时间)为基准,
+       -- 走绝对耗时判断;它在 'requesting' 阶段一次性写入,之后不再变化。
+       -- 没有 requestStartedAt(老数据或还没进 requesting)时回退到 started_at → created_at。
+       and coalesce(
+         (nullif(request_metadata #>> '{progress,requestStartedAt}', ''))::timestamptz,
+         started_at,
+         created_at
        ) < now() - (params.timeout_ms * interval '1 millisecond')
      returning id`,
     [config.generationTimeoutMs, timeoutMessage()]

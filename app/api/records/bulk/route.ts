@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { respondError } from "@/lib/api-errors";
-import { deleteJobWithGeneratedImages } from "@/lib/generated-image-cleanup";
+import { deleteJobWithGeneratedImages, type DeleteJobCleanupResult } from "@/lib/generated-image-cleanup";
+import { createLogger } from "@/lib/logger";
 import { addTagsToJobsForUser, normalizeImageTags } from "@/lib/repository";
+
+const log = createLogger("records.bulk");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,33 +56,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, ...result }, { headers: { "cache-control": "no-store" } });
     }
 
-    const results = [];
+    // v0.6.1: 每项独立 try/catch,防止单条抛错导致整批 500 + 客户端
+     //  丢失已删除项的可见性。deleteJobWithGeneratedImages 内部已经是
+     //  「文件清理→事务删 job 记录」,本身原子性已经够;这里只需保证
+     //  批量循环不会因为一项异常就把后面 N-1 项的结果也丢掉。
+    const results: Array<{ id: string; result: DeleteJobCleanupResult | null; errored: boolean }> = [];
     for (const id of ids) {
-      const result = await deleteJobWithGeneratedImages(id, user);
-      results.push({ id, result });
+      try {
+        const result = await deleteJobWithGeneratedImages(id, user);
+        results.push({ id, result, errored: false });
+      } catch (error) {
+        log.warn("Bulk delete: single job threw, continuing with rest", { id, error });
+        results.push({ id, result: null, errored: true });
+      }
     }
 
     const deleted = results.filter((item) => item.result?.status === "deleted").length;
     const blocked = results.filter((item) => item.result?.status === "blocked").length;
-    const missing = results.filter((item) => !item.result).length;
-    const failed = results.length - deleted - blocked - missing;
+    const missing = results.filter((item) => !item.errored && !item.result).length;
+    const errored = results.filter((item) => item.errored).length;
+    const failed = results.length - deleted - blocked - missing - errored;
 
     await writeAuditLog({
       user,
       request,
       action: "批量删除生成记录",
       targetType: "generation_job",
-      detail: { requested: ids.length, deleted, blocked, missing, failed }
+      detail: { requested: ids.length, deleted, blocked, missing, failed, errored }
     });
     return NextResponse.json(
       {
-        ok: failed === 0,
+        ok: failed === 0 && errored === 0,
         deleted,
         blocked,
         missing,
-        failed
+        failed,
+        errored
       },
-      { status: failed === 0 ? 200 : 207, headers: { "cache-control": "no-store" } }
+      { status: failed === 0 && errored === 0 ? 200 : 207, headers: { "cache-control": "no-store" } }
     );
   } catch (error) {
     return respondError(error, { context: "records.bulk.POST" });

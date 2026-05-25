@@ -2,6 +2,21 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.6.1] - 2026-05-25
+
+### 性能
+
+- **DB 连接池上限 10 → 20 + 加 10s 取连接超时**:`lib/db.ts` / `lib/config.ts`。原本硬编码 `max: 10`,在 `maxGenerationConcurrency` 上调或并发用户多时容易撑爆(每个 runner 1-2 连接 + SSE long-lived + API);默认 `max: 20` 覆盖 8 并发 runner + 中等用户量;`connectionTimeoutMillis: 10000` 取代 pg 默认的「无穷等待」,让取连接快返回 5xx,而不是让浏览器自己 timeout。同时给 pool 挂上 `error` 事件监听,防止 idle 客户端错误(DB 重启等)把进程拖崩。新增 `DB_POOL_MAX` / `DB_POOL_CONNECTION_TIMEOUT_MS` env override。
+- **SSE 重连退避(thundering herd 防护)**:`app/api/queue/stream/route.ts` 在 stream 头部 emit `retry: 5000-8000`(每条连接随机抖动 3 秒窗口),取代 EventSource 默认的 ~3 秒重连。服务端重启或 10 分钟 max-duration 到期时,N 个浏览器不会在同一秒挤回来形成连接风暴 + DB burst + 队列接口洪峰。
+- **`listRecentJobs` / `listJobsPage` N+1 → LATERAL JOIN**:`lib/repository.ts`。原本拼了 3 个 correlated subquery(thumbnail / favorite EXISTS / tags array_agg),每行重新执行;改成 `LEFT JOIN LATERAL`(取 first image)+ `LEFT JOIN generated_image_favorites`(走 user_id+image_id PK)+ 两个 LATERAL aggregate(thumb 标签 / job 全集标签),`coalesce(... , '{}'::text[])` 处理空集。返回类型与所有调用方完全不变,执行计划从行级嵌套循环退化为单次 join,首页/记录列表大列表 query 显著降负。
+- **Provider settings 读 cache + 写后主动 invalidate**:`lib/provider-settings.ts`。之前每次 `generateWithProvider()` 都 `resolveProvider() → getProviderSettings() → select value from app_settings`,高并发下纯浪费 DB 连接。加 module-level cache(60s TTL 兜底),四个写函数(`setProviderBaseUrl` / `createProviderPreset` / `updateProviderPreset` / `deleteProviderPreset`)在 transaction 成功后(事务失败会抛出,跳过 invalidate)主动调用 `invalidateProviderSettingsCache()`。PATCH 仍然立即生效,无需重启;generation 路径不再每次 select DB。
+
+### 修复
+
+- **运行中任务超时判据统一为 `progress.requestStartedAt`**:`lib/generation-queue.ts` 的 `failTimedOutRunningJobs` 之前是 `case when phase in ('requesting','submitting') then requestStartedAt else updated_at end`,但 `updated_at` 会被每次 progress 写入(包括 watchdog 自己的 slow-warning)推到 now(),导致卡死的 downloading / processing 阶段永远不会被 timeout 掉。改为统一 `coalesce(progress.requestStartedAt, started_at, created_at)`,走绝对耗时判断,与中间 progress 写入解耦。`requestStartedAt` 在 'requesting' 阶段一次性写入后不再变化,是「这次请求真正开始的时间」最准确的锚点。
+- **批量删除 records 单项异常不再拖累整批**:`app/api/records/bulk/route.ts`。之前 for 循环没有 try/catch,单条 `deleteJobWithGeneratedImages` 抛错(DB 抖动 / 文件 IO 异常等)就让整批返回 500 + 客户端丢失「哪些已删 / 哪些还在」的可见性。每项独立 try/catch,新增 `errored` 计数(与 `failed` 逻辑判定失败区分),写入审计日志与响应。客户端 `RecordsBulkActions` 在 `errored > 0` 时追加「,异常 N 条」后缀,运维不再被一条异常掩盖整批结果。
+- **`/favorites` 卡片底部「详情」「下载」外框补回(v0.6.0 follow-up)**:`app/globals.css`。`.image-card-actions .action-button` 之前只设了 `border-width` / `border-color`,但 `<a class="action-button">` 没有 user-agent 默认 `border-style`,导致 a 标签渲染的「详情 / 下载」看上去没外框,与 button 渲染的「重做 / 参考」不一致(v0.6.0 把图标都加上后,这条 a/button 的 user-agent 差异才显出来)。补 `border-style: solid` 后 4 个按钮外框严格统一。顺手把 `.action-button` 的 `overflow: hidden; text-overflow: ellipsis` 换成 `white-space: nowrap` —— 那两条规则在 inline-flex 容器上会把 svg 图标当成多余内容裁掉(ellipsis 只对单文本节点有意义),一直在偷偷破坏图标渲染。
+
 ## [0.6.0] - 2026-05-25
 
 ### 修复

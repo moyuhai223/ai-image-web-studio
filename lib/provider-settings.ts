@@ -5,6 +5,29 @@ import { query, transaction } from "./db";
 
 const SETTINGS_KEY = "provider_settings";
 
+/**
+ * v0.6.1: provider-settings read cache
+ *
+ * 之前每次 generateWithProvider() 都会 resolveProvider() → getProviderSettings()
+ * → SQL select。高并发下纯浪费 DB 连接。改为 module-level cache,写路径
+ * 主动 invalidate,加 TTL 兜底防止漏 invalidate。
+ *
+ * 单进程模型下足够。如果未来真上多 worker(目前 next start 单进程),
+ * 需要换 listen/notify 或 short-TTL only 策略。
+ */
+const SETTINGS_CACHE_TTL_MS = 60_000;
+
+type CachedSummary = {
+  summary: ProviderSettingsSummary;
+  expiresAt: number;
+};
+
+let cachedSettings: CachedSummary | null = null;
+
+export function invalidateProviderSettingsCache() {
+  cachedSettings = null;
+}
+
 export type ProviderPreset = {
   id: string;
   name: string;
@@ -305,11 +328,18 @@ function envFallbackUrl() {
 }
 
 export async function getProviderSettings(): Promise<ProviderSettingsSummary> {
-  const result = await query<{ value: unknown }>(`select value from app_settings where key = $1`, [SETTINGS_KEY]);
-  if (!result.rows[0]) {
-    return summarize(defaultSettings(), envFallbackUrl());
+  const now = Date.now();
+  if (cachedSettings && cachedSettings.expiresAt > now) {
+    return cachedSettings.summary;
   }
-  return summarize(normalizeSettings(result.rows[0].value), envFallbackUrl());
+
+  const result = await query<{ value: unknown }>(`select value from app_settings where key = $1`, [SETTINGS_KEY]);
+  const summary = result.rows[0]
+    ? summarize(normalizeSettings(result.rows[0].value), envFallbackUrl())
+    : summarize(defaultSettings(), envFallbackUrl());
+
+  cachedSettings = { summary, expiresAt: now + SETTINGS_CACHE_TTL_MS };
+  return summary;
 }
 
 export async function listProviderPresets(): Promise<ProviderPreset[]> {
@@ -367,7 +397,7 @@ export async function getProviderBaseUrl(presetId?: string | null) {
 export async function setProviderBaseUrl(input: { aiBaseUrl: string; userId: string }) {
   const aiBaseUrl = normalizeAiBaseUrl(input.aiBaseUrl);
 
-  return transaction(async (client) => {
+  const summary = await transaction(async (client) => {
     const settings = await loadSettingsForUpdate(client);
     let defaultPreset = settings.presets.find((preset) => preset.isDefault) ?? settings.presets[0];
     if (defaultPreset) {
@@ -382,10 +412,13 @@ export async function setProviderBaseUrl(input: { aiBaseUrl: string; userId: str
     await saveSettings(client, settings, input.userId);
     return summarize(settings, envFallbackUrl());
   });
+  // v0.6.1: 写后 invalidate,放在 transaction 之外 —— 事务失败会抛出,这里不执行
+  invalidateProviderSettingsCache();
+  return summary;
 }
 
 export async function createProviderPreset(input: { name: string; baseUrl: string; isDefault?: boolean; userId: string }) {
-  return transaction(async (client) => {
+  const result = await transaction(async (client) => {
     const settings = await loadSettingsForUpdate(client);
     const preset = newPreset({
       name: input.name,
@@ -404,6 +437,8 @@ export async function createProviderPreset(input: { name: string; baseUrl: strin
     await saveSettings(client, settings, input.userId);
     return { preset, summary: summarize(settings, envFallbackUrl()) };
   });
+  invalidateProviderSettingsCache();
+  return result;
 }
 
 export async function updateProviderPreset(input: {
@@ -413,7 +448,7 @@ export async function updateProviderPreset(input: {
   isDefault?: boolean;
   userId: string;
 }) {
-  return transaction(async (client) => {
+  const result = await transaction(async (client) => {
     const settings = await loadSettingsForUpdate(client);
     const preset = settings.presets.find((existing) => existing.id === input.id);
     if (!preset) {
@@ -436,10 +471,12 @@ export async function updateProviderPreset(input: {
     await saveSettings(client, settings, input.userId);
     return { preset, summary: summarize(settings, envFallbackUrl()) };
   });
+  invalidateProviderSettingsCache();
+  return result;
 }
 
 export async function deleteProviderPreset(input: { id: string; userId: string }) {
-  return transaction(async (client) => {
+  const summary = await transaction(async (client) => {
     const settings = await loadSettingsForUpdate(client);
     const preset = settings.presets.find((existing) => existing.id === input.id);
     if (!preset) {
@@ -456,6 +493,8 @@ export async function deleteProviderPreset(input: { id: string; userId: string }
     await saveSettings(client, settings, input.userId);
     return summarize(settings, envFallbackUrl());
   });
+  invalidateProviderSettingsCache();
+  return summary;
 }
 
 export async function setDefaultProviderPreset(input: { id: string; userId: string }) {

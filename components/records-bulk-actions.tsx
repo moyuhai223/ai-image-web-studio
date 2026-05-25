@@ -14,6 +14,7 @@ type BulkResponse = {
   blocked?: number;
   missing?: number;
   failed?: number;
+  errored?: number;
   jobCount?: number;
   imageCount?: number;
   tags?: string[];
@@ -147,7 +148,10 @@ export function RecordsBulkActions() {
 
     if (action === "delete") {
       setConfirmDeleteOpen(false);
-      setMessage(`批量删除完成：已删除 ${data.deleted ?? 0} 条，运行中阻止 ${data.blocked ?? 0} 条，失败 ${data.failed ?? 0} 条。`);
+      // v0.6.1: errored 是单条 throw 异常的数量,与 failed(逻辑判定失败)区分
+      const erroredCount = data.errored ?? 0;
+      const erroredSuffix = erroredCount > 0 ? `，异常 ${erroredCount} 条` : "";
+      setMessage(`批量删除完成：已删除 ${data.deleted ?? 0} 条，运行中阻止 ${data.blocked ?? 0} 条，失败 ${data.failed ?? 0} 条${erroredSuffix}。`);
       clearSelection();
       router.refresh();
       return;

@@ -21,8 +21,16 @@ function createPool() {
 
   const pool = new Pool({
     connectionString: config.databaseUrl,
-    max: 10,
+    // v0.6.1: 上调默认 max 10→20 + 加 connectionTimeoutMillis(pg 默认 0=无穷等)
+    // 当 maxGenerationConcurrency 上调或并发用户多时,旧的 10 个连接很容易撑爆。
+    max: config.dbPoolMax,
+    connectionTimeoutMillis: config.dbPoolConnectionTimeoutMs,
     options: postgresTimeZoneOption()
+  });
+  pool.on("error", (error) => {
+    // v0.6.1: idle 客户端发生错误时(比如 DB 重启) pg 默认会 throw,
+    // 必须监听 error 事件防止 unhandled exception 把进程拖崩。
+    log.warn("Idle pool client error", { error });
   });
   pool.on("connect", (client) => {
     client.query(`set time zone '${config.timeZone.replaceAll("'", "''")}'`).catch((error) => {

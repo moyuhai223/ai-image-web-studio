@@ -13,6 +13,18 @@ const POLL_INTERVAL_MS = 500;
 const HEARTBEAT_INTERVAL_MS = 25_000;
 const MAX_STREAM_DURATION_MS = 10 * 60 * 1000; // 10 分钟后端主动关闭,客户端会自动重连
 
+/**
+ * v0.6.1: SSE 重连退避(thundering herd 防护)
+ *
+ * EventSource 默认 reconnect 间隔约 3s,服务端重启或 MAX_STREAM_DURATION_MS 到期
+ * 时所有 N 个浏览器会几乎同时打回来,形成连接风暴 + DB 抖动 + 队列接口 burst。
+ *
+ * SSE 协议允许服务端用 `retry: <ms>` 行指定下次重连间隔,且浏览器会持久化使用这个值。
+ * 每条连接在开头随机选 5-8 秒,自然把重连时刻打散到 3 秒窗口里。
+ */
+const RECONNECT_RETRY_MIN_MS = 5_000;
+const RECONNECT_RETRY_JITTER_MS = 3_000;
+
 type StreamPayload = {
   ts: string;
   queued: number;
@@ -85,6 +97,12 @@ export async function GET(request: Request) {
       request.signal.addEventListener("abort", () => {
         cleanup();
       });
+
+      // v0.6.1: 必须是流里的第一条 emit —— `retry:` 行让浏览器 EventSource 把
+      // 下次自动重连等待时间设为 5-8 秒(每条连接随机),取代默认 ~3 秒。
+      // 这样服务端重启时 N 个浏览器不会一秒内挤回来。
+      const retryMs = RECONNECT_RETRY_MIN_MS + Math.floor(Math.random() * RECONNECT_RETRY_JITTER_MS);
+      if (!safeEnqueue(`retry: ${retryMs}\n\n`)) return;
 
       // 立即推一份初始快照
       try {

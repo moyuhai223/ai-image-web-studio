@@ -1530,15 +1530,21 @@ button.action-button:hover:not(:disabled),
   width: 100%;
   min-width: 0;
   padding-inline: 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* 不再 overflow: hidden + text-overflow: ellipsis —— 那条规则在 inline-flex 容器上会
+     把 svg 图标当成多余内容裁掉(ellipsis 只对单文本节点有意义);
+     让按钮按内容自然渲染,图标 + 文字都保留,窄屏时由 padding 6px + flex gap 5px 自己消化 */
+  white-space: nowrap;
 }
 
 .image-card-actions .action-button {
   /* 与 .panel-header .actions .status / .version-node .action-button
      保持一致的小标签按钮风格(30px 高,1.5px 边)。之前 36px / 2px 的
-     "胖按钮"与详情页头部的重做/重试/删除不统一。 */
+     "胖按钮"与详情页头部的重做/重试/删除不统一。
+     border-style: solid 是关键 —— <a class="action-button"> 没有 user-agent
+     默认 border-style,只设 border-width/color 不会显示外框,导致 a 标签
+     渲染的「详情」「下载」看上去没有按钮外框,与 button 渲染的「重做」「参考」不一致。 */
   min-height: 30px;
+  border-style: solid;
   border-width: 1.5px;
   border-color: color-mix(in srgb, var(--action-color) 48%, var(--border));
   background: color-mix(in srgb, var(--action-color) 11%, var(--panel));

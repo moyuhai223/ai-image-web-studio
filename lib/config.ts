@@ -45,6 +45,17 @@ export const config = {
   allowedImageMimes: csvEnv(process.env.ALLOWED_IMAGE_MIMES, DEFAULT_ALLOWED_IMAGE_MIMES),
   maxGenerationConcurrency: numberEnv(process.env.MAX_GENERATION_CONCURRENCY, 2),
   maxGenerationQueueSize: numberEnv(process.env.MAX_GENERATION_QUEUE_SIZE, 20),
+  /**
+   * v0.6.1: DB 连接池上限。之前硬编码 10,在 maxGenerationConcurrency 上调
+   * 或并发用户多时会被打满(每个 runner 占 1-2 连接 + SSE long-lived + API 请求)。
+   * 默认 20 可覆盖 8 并发 runner + 中等用户量。
+   */
+  dbPoolMax: numberEnv(process.env.DB_POOL_MAX, 20),
+  /**
+   * v0.6.1: 拿连接的超时(毫秒)。pg 默认 0(无穷等待)会让 API 端 hang 死,
+   * 改为 10s 失败快返回,前端能拿到 5xx 而不是浏览器自己 timeout。
+   */
+  dbPoolConnectionTimeoutMs: numberEnv(process.env.DB_POOL_CONNECTION_TIMEOUT_MS, 10000),
   dailyGenerationLimit: numberEnv(process.env.DAILY_GENERATION_LIMIT, 50, 0),
   generationTimeoutMs: numberEnv(process.env.GENERATION_TIMEOUT_MS, DEFAULT_GENERATION_TIMEOUT_MS),
   /**
