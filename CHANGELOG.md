@@ -2,6 +2,19 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.5.7] - 2026-05-25
+
+### 变更
+
+- **`/records` 头部融合搜索/标签 tab + 按钮风格统一**：把原本独立一行的「搜索」「标签」抽屉收起按钮上提到与「生成记录」标题同一行(`app/records/page.tsx` 头部加 `<RecordsToolPanelsProvider>` 包裹，新建 `RecordsToolTabs` 紧凑胶囊放进 `.panel-header .actions`,展开内容 `RecordsToolContent` 仍在 `.panel-body` 顶部独占一行);筛选/重置按钮从原来的 `.button.secondary` (大 CTA 风格) 改为 `.status action-button action-filter` / `.status action-button action-neutral`(13px 图标 + 紧凑胶囊),与卡片上的「复制 / 重做 / 删除 / 详情」一脉相承。`/favorites` 同步换风格。
+- **`RecordsBulkActions` 加标签 / 批量删除按钮同款化**：`components/records-bulk-actions.tsx` 把「加标签」从 `.button.secondary` 换 `.status action-button action-add`、「批量删除」从 `.button.danger` 换 `.status action-button action-danger`(图标 13px),与上方筛选/重置 + 卡片 action 三者完全统一。
+- **头部 tab 文字自动隐藏**:`app/globals.css` 在 `.actions.panel-header-actions` 上挂 `container-type: inline-size` 容器查询,可用环境下 460px 以下隐藏 tab 文字、只剩图标+计数;不可用环境用 `@media (max-width: 1280px)` 兜底,1281px 以上再让容器查询接管。tab 默认不展示空 badge(`searchSummary` 空字符串 / `selectedCount` 为 0 时跳过渲染),不再有「展开选项」之类占位文案。
+
+### 修复
+
+- **移动端 `/records` 头部不再断成两行**:`app/globals.css` 全局 `.actions { flex-wrap: wrap }` 一直在覆盖新加的 `.panel-header-actions { flex-wrap: nowrap }`(specificity 相同,后者后定义胜出),选择器升级为 `.actions.panel-header-actions`(0,0,2,0) 才稳压住。同时给容器加 `align-items: center` + `min-width: 0`,420px 以下视口隐藏「已筛选 N 项」次要 status 胶囊保留 tab + 总数,移动端「搜索图标 / 标签图标 / 共 N 条」始终一行展示。
+- **`RecordsBulkActions` 输入框 + 按钮回归一行**:`.records-bulk-actions` 从与 `.records-bulk-main` 共享的 `flex-wrap: wrap` 规则里拆出,改为独立 `flex-wrap: nowrap`,输入框 `flex: 1 1 140px` 主动收缩、两个 action-button `flex: 0 0 auto white-space: nowrap` 保持原宽,「批量添加标签 / 加标签 / 批量删除」三件套永远同一行;移动端原本强制 `.records-bulk-actions .button { width: 100% }` 拉满规则一并清掉(已无 `.button`)。
+
 ## [0.5.6] - 2026-05-24
 
 ### 变更

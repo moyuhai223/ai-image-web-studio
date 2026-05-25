@@ -13,7 +13,7 @@ import { formatDateTime } from "@/lib/time";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import { modelOptions } from "@/lib/validation";
-import { Heart, Search } from "lucide-react";
+import { Filter, Heart, RotateCcw, Search } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -172,8 +172,15 @@ export default async function FavoritesPage({
                 </select>
               </div>
               <div className="record-filter-actions">
-                <button className="button" type="submit">筛选</button>
-                <a className="status" href="/favorites">重置</a>
+                {/* .status action-button 风格,与 /records 视觉一致 */}
+                <button className="status action-button action-filter" type="submit">
+                  <Filter size={13} aria-hidden />
+                  筛选
+                </button>
+                <a className="status action-button action-neutral" href="/favorites">
+                  <RotateCcw size={13} aria-hidden />
+                  重置
+                </a>
               </div>
             </form>
             {images.length === 0 ? (
@@ -187,7 +194,10 @@ export default async function FavoritesPage({
                 </p>
                 <div className="actions">
                   {activeFilterCount(filters) > 0 ? (
-                    <a className="status" href="/favorites">重置筛选</a>
+                    <a className="button secondary" href="/favorites">
+                      <RotateCcw size={16} aria-hidden />
+                      重置筛选
+                    </a>
                   ) : (
                     <a className="button" href="/records">浏览记录找好图</a>
                   )}

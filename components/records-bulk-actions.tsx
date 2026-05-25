@@ -205,24 +205,25 @@ export function RecordsBulkActions() {
             placeholder="批量添加标签，逗号分隔"
             onChange={(event) => setTags(event.target.value)}
           />
+          {/* 改用 .status action-button 风格,与 /records 卡片上的「复制 / 重做 / 删除」、筛选/重置一脉相承 */}
           <button
-            className="button secondary"
+            className="status action-button action-add"
             type="button"
             disabled={loading || selectedCount === 0 || !tags.trim()}
             onClick={() => {
               void runBulk("add_tags");
             }}
           >
-            <Tags size={16} />
+            <Tags size={13} aria-hidden />
             加标签
           </button>
           <button
-            className="button danger"
+            className="status action-button action-danger"
             type="button"
             disabled={loading || selectedCount === 0}
             onClick={() => setConfirmDeleteOpen(true)}
           >
-            <Trash2 size={16} />
+            <Trash2 size={13} aria-hidden />
             批量删除
           </button>
         </div>

@@ -2094,84 +2094,123 @@ button.action-button:hover:not(:disabled),
   gap: 14px;
 }
 
-.record-tool-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
-  gap: 12px;
-  margin-bottom: 16px;
-  align-items: start;
-}
+/* /records 头部工具条:搜索/标签 tabs 已上提到 .panel-header.
+   设计:tab 是紧凑胶囊(图标 + 文字 label + 计数 badge),空间不够时
+   通过 .panel-header-actions 上的容器查询自动隐藏文字,只剩图标 + 计数.
+   展开内容 .record-tool-content 留在 panel-body 顶部、占整行. */
 
-.record-tool-tab,
-.record-tool-panel {
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--panel) 72%, transparent);
-  overflow: hidden;
+.record-tool-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 
 .record-tool-tab {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 44px;
-  min-width: 0;
-  padding: 10px 12px;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
   color: var(--text);
   cursor: pointer;
   font: inherit;
+  font-size: 13px;
   font-weight: 700;
-  text-align: left;
-  transition: border-color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
+  white-space: nowrap;
+  transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
 .record-tool-tab:hover,
 .record-tool-tab.active {
-  border-color: color-mix(in srgb, var(--brand) 32%, var(--glass-border));
-  background: color-mix(in srgb, var(--brand) 9%, var(--panel));
+  border-color: color-mix(in srgb, var(--brand) 36%, var(--glass-border));
+  background: color-mix(in srgb, var(--brand) 12%, var(--panel));
+  color: var(--text);
 }
 
 .record-tool-tab.active {
-  box-shadow: inset 0 -3px 0 var(--brand);
+  border-color: color-mix(in srgb, var(--brand) 64%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 28%, transparent);
 }
 
-.record-tool-tab span:first-child {
+.record-tool-tab-label {
+  display: inline;
+}
+
+.record-tool-tab-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.record-tool-tab::after {
-  content: "展开";
-  flex: 0 0 auto;
-  padding: 4px 10px;
+  justify-content: center;
+  min-width: 22px;
+  padding: 0 6px;
   border-radius: 999px;
   background: var(--panel-2);
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
 }
 
-.record-tool-tab.active::after {
-  content: "收起";
+.record-tool-tab.active .record-tool-tab-badge {
+  background: color-mix(in srgb, var(--brand) 18%, var(--panel-2));
+  color: var(--text);
 }
 
 .record-tool-content {
-  grid-column: 1 / -1;
+  margin-bottom: 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
+  overflow: hidden;
   animation: fadeInUp 240ms ease backwards;
 }
 
-.record-filter-summary-meta {
+/* panel-header 同行 actions 容器:出现 .record-tool-tabs 时给它一点呼吸空间.
+   nowrap 防止窄屏出现"标题在第一行 / tab+计数胶囊跑到第二行"的视觉断裂.
+   注意:必须用 .actions.panel-header-actions 组合选择器才能覆盖全局
+   .actions { flex-wrap: wrap }(后者后定义,specificity 相同会胜出). */
+.actions.panel-header-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
-  margin-left: auto;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* 容器查询:当 header actions 区域过窄,自动把 tab 文字隐去,只剩图标+计数 */
+  container-type: inline-size;
+  container-name: panel-header-actions;
+}
+
+/* 真正小屏(小于 420px)时,把"已筛选 N 项"挤出去保留 tab+总数胶囊. */
+@media (max-width: 420px) {
+  .actions.panel-header-actions > .status:not(:last-child):not(.action-button) {
+    display: none;
+  }
+}
+
+/* 容器查询不可用时的兜底:1280 以下隐藏 tab 文字 */
+@media (max-width: 1280px) {
+  .record-tool-tab-label {
+    display: none;
+  }
+}
+
+@container panel-header-actions (max-width: 460px) {
+  .record-tool-tab-label {
+    display: none;
+  }
+}
+
+/* 支持容器查询的环境下,1280 以上即使视口大也允许容器查询接管(避免兜底误伤) */
+@supports (container-type: inline-size) {
+  @media (min-width: 1281px) {
+    .record-tool-tab-label {
+      display: inline;
+    }
+  }
 }
 
 .record-filters {
@@ -2192,10 +2231,8 @@ button.action-button:hover:not(:disabled),
   justify-content: flex-end;
   gap: 8px;
   min-height: 40px;
-}
-
-.record-filter-actions .button {
-  min-height: 40px;
+  /* 内部按钮已是 .status action-button(~30px 高),容器自身保留 40px
+     是为了与同行表单字段的视觉基线对齐. */
 }
 
 .records-bulk-bar {
@@ -2212,8 +2249,7 @@ button.action-button:hover:not(:disabled),
   -webkit-backdrop-filter: blur(12px);
 }
 
-.records-bulk-main,
-.records-bulk-actions {
+.records-bulk-main {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -2221,13 +2257,24 @@ button.action-button:hover:not(:disabled),
   min-width: 0;
 }
 
+/* 用户要求:加标签 + 批量删除按钮与输入框保持同一行,不再 wrap 到第二行. */
 .records-bulk-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
 }
 
 .records-bulk-actions .input {
-  flex: 1 1 180px;
+  flex: 1 1 140px;
   min-width: 0;
+}
+
+.records-bulk-actions .action-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .records-selected-list {
@@ -4326,31 +4373,21 @@ code {
     grid-template-columns: 1fr;
   }
 
-  .record-tool-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
+  /* 1100 以下手机/平板:tab 已经默认就是图标+计数(>1280 mq 兜底命中),
+     这里只需保留紧凑 padding 防止挤压. record-tool-row / ::after /
+     record-filter-summary-meta 在 0.5.7 已删除,无需再写覆盖. */
   .record-tool-tab {
-    justify-content: center;
     padding-inline: 8px;
   }
 
-  .record-tool-tab::after {
-    display: none;
-  }
-
-  .record-tool-tab .record-filter-summary-meta {
-    display: none;
-  }
-
-  .records-bulk-actions,
   .audit-log-side {
     justify-content: flex-start;
     justify-items: start;
     text-align: left;
   }
 
-  .records-bulk-actions .button,
+  /* 0.5.7:.records-bulk-actions 改用 .status action-button 风格 + 强制单行,
+     不再让按钮在窄屏占满 100%.bulk-actions 内部已自带 nowrap + flex 收缩. */
   .backup-upload-row .button {
     width: 100%;
   }
