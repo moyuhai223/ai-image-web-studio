@@ -2492,23 +2492,34 @@ button.action-button:hover:not(:disabled),
   display: none;
 }
 
+/* records 与 favorites 卡片缩略图统一 1:1 居中裁剪(原本只在 .record-card 上,favorite 卡片按原比例显示导致竖图把卡片撑得很高、且与 records 不一致) */
 .record-card .image-open-button,
+.favorite-card .image-open-button,
 .record-card-preview-empty {
   aspect-ratio: 1 / 1;
 }
 
-.record-card .image-open-button {
+.record-card .image-open-button,
+.favorite-card .image-open-button {
   overflow: hidden;
   background: var(--media-bg);
 }
 
-.record-card .image-open-button img {
+.record-card .image-open-button img,
+.favorite-card .image-open-button img {
   height: 100%;
   object-fit: cover;
 }
 
 .record-card-preview-empty {
   min-height: 0;
+}
+
+/* /favorites 卡片底部 action 一排:与「复制」同款淡灰风格统一(原本详情绿 / 重做蓝 / 参考橙 / 下载绿,4 个不同色调显得花.
+   只在 favorite-card 域内覆盖 --action-color,不影响 /records 或组件本身的其他使用场景) */
+.favorite-card .image-card-actions .action-button,
+.favorite-card .image-card-actions .reference-basket-button {
+  --action-color: color-mix(in srgb, var(--brand) 70%, var(--muted));
 }
 
 .pagination {

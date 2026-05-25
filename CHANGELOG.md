@@ -2,6 +2,13 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.5.9] - 2026-05-25
+
+### 修复
+
+- **`/favorites` 卡片缩略图与 `/records` 对齐(1:1 居中裁剪)**:原本 `.record-card .image-open-button { aspect-ratio: 1/1; object-fit: cover }` 只挂在 records 卡片上,favorites 的图按原比例(常见 2:3 竖图)完整撑开,卡片高度参差、视觉与 records 不一致。选择器扩到 `.favorite-card .image-open-button` 共享同一套裁剪规则,两个页面卡片视觉完全统一。
+- **`/favorites` 卡片底部 action 一排灰化,与「复制」同款**:原本「详情(灰)/ 重做(蓝)/ 参考(橙)/ 下载(绿)」4 个不同色调显得花。在 `.favorite-card .image-card-actions` 域内覆盖 `--action-color` 为 `color-mix(brand 70%, muted)`(与 `.action-copy` 同款灰调),不影响 `/records` 或这些组件在其他位置的使用。
+
 ## [0.5.8] - 2026-05-25
 
 ### 变更
