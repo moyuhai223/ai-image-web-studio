@@ -2,6 +2,13 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.6.4] - 2026-05-25
+
+### 变更
+
+- **任务详情页 `/records/[id]` 的「添加标签 / 参考 / 编辑 / 下载」4 个按钮上移到 panel-header,与「重做 / 删除」同行**:`app/records/[id]/page.tsx`。之前这 4 个按钮藏在每张 `<article class="image-card">` 的 footer 最底部 —— 用户要往下滚过 `asset-card-head`(图片 #N + 收藏)和 `asset-meta-grid`(7 格 meta:尺寸/文件/耗时/模型/Key/Preset/链路)才能点到,常用动作埋得太深。改为在页头 `.actions` 末尾(`DeleteRecordButton` 之后)追加 `ImageTagsEditor` + `ReferenceBasketButton` + 编辑 link + 下载 link,与 `RerunButton`、`DeleteRecordButton` 等任务级动作在同一行,首屏即可点。新增的 4 个按钮共用 `job.images[0]` 作为目标图(多图任务以第一张为准 —— 单图任务是绝大多数,与用户「不用管位置」的明确指示一致);若任务还没产出任何图片(queued / running 状态)则整组隐藏,避免空 id 报错。image-card footer 内部对应的 `.asset-tags-row` 与 `.image-card-actions` 两个 div(共 14 行 JSX)同步删除,保留 `asset-card-head` 与 `asset-meta-grid` —— 那些是真正的「每图独立信息」,不归类为页头任务级动作。底部「参考图 N/M」浮动篮子组件(`<ReferenceBasket>`)不动,与本次重排正交。
+- **`/changelog` 页面移动端适配**:`app/globals.css`。之前 `.changelog-body` 只有桌面端布局,窄屏下 h2 18px / h3 14px 字号偏大、ul `padding-left: 22px` 缩进偏宽,而本身包含的长 inline `code`(`app/records/[id]/page.tsx`、`<article class="image-card">` 等文件路径与选择器)在 320~400px 窄屏会撑破容器、触发横向滚动条。两处修复:**全局 `code` 加 `overflow-wrap: anywhere`** —— 优先按词/空白断行,词内只在防溢出时才任意断,是 CJK 内容里比 `word-break: break-all` 更安全的兜底,长路径自动换行,顺手惠及全站所有 inline code(任务详情 prompt 区、错误提示等);**680px breakpoint 加 `.changelog-body` 块** —— h2 18→16、h3 14→13、ul 缩进 22→18、`gap: 10→8` + `line-height: 1.7→1.6`,小屏阅读密度更紧,顶部 `.panel-header` 与 `.panel-body` 共享既有 12px padding(680px 通用块已写过)。
+
 ## [0.6.3] - 2026-05-25
 
 ### 清理

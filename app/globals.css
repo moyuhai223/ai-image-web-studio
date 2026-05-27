@@ -3942,6 +3942,8 @@ code {
   border-radius: 5px;
   background: var(--panel-2);
   color: var(--text);
+  /* 长路径 / 长选择器在窄屏不撑破容器,优先按词/空白断行,词内才允许任意断 */
+  overflow-wrap: anywhere;
 }
 
 .lightbox {
@@ -4306,6 +4308,27 @@ code {
 
   .panel-body {
     padding: 12px;
+  }
+
+  /* /changelog 页面移动端适配:窄屏收紧标题字号、列表缩进与段间距,
+     长 inline code(文件路径 / CSS 选择器)由全局 code overflow-wrap 处理 */
+  .changelog-body {
+    gap: 8px;
+    line-height: 1.6;
+  }
+
+  .changelog-body h2 {
+    padding-top: 4px;
+    font-size: 16px;
+  }
+
+  .changelog-body h3 {
+    padding-top: 0;
+    font-size: 13px;
+  }
+
+  .changelog-body ul {
+    padding-left: 18px;
   }
 
   .preview-grid,

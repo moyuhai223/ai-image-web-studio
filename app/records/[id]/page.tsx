@@ -382,6 +382,20 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
               {job.status === "queued" || job.status === "running" ? null : (
                 <DeleteRecordButton recordId={job.id} redirectTo="/records" />
               )}
+              {job.images[0] ? (
+                <>
+                  <ImageTagsEditor imageId={job.images[0].id} initialTags={job.images[0].tags ?? []} />
+                  <ReferenceBasketButton imageId={job.images[0].id} prompt={job.prompt} />
+                  <a className="status action-button action-edit" href={`/?referenceImageId=${job.images[0].id}`}>
+                    <Pencil size={13} />
+                    编辑
+                  </a>
+                  <a className="status action-button action-download" href={`/api/images/${job.images[0].id}/download`}>
+                    <Download size={13} />
+                    下载
+                  </a>
+                </>
+              ) : null}
             </div>
           </div>
           <div className="panel-body form-stack">
@@ -451,20 +465,6 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
                         <span>链路</span>
                         <strong>{lineageLabel(image, showVersionChain)}</strong>
                       </div>
-                    </div>
-                    <div className="image-card-meta asset-tags-row">
-                      <ImageTagsEditor imageId={image.id} initialTags={image.tags ?? []} />
-                    </div>
-                    <div className="actions image-card-actions">
-                      <ReferenceBasketButton imageId={image.id} prompt={job.prompt} />
-                      <a className="status action-button action-edit" href={`/?referenceImageId=${image.id}`}>
-                        <Pencil size={13} />
-                        编辑
-                      </a>
-                      <a className="status action-button action-download" href={`/api/images/${image.id}/download`}>
-                        <Download size={13} />
-                        下载
-                      </a>
                     </div>
                   </footer>
                 </article>
