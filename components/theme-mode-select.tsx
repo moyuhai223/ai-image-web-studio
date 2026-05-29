@@ -17,13 +17,24 @@ function saveThemeMode(mode: UiThemeMode) {
   document.cookie = `${UI_THEME_COOKIE_NAME}=${encodeURIComponent(mode)}; Path=/; Max-Age=${COOKIE_MAX_AGE}; SameSite=Lax`;
 }
 
+let themeTransitionTimer: number | undefined;
+
 function applyThemeMode(mode: UiThemeMode) {
   const theme = resolveUiThemeMode(mode);
-  document.documentElement.dataset.themeMode = mode;
-  document.documentElement.dataset.theme = theme;
+  const root = document.documentElement;
+  // 切换瞬间打开过渡开关:globals.css 里 `.theme-transitioning *` 只在此 class
+  // 存在时给 color/background/border 加 transition,避免常态交互/首屏被全局 transition 拖累。
+  // 仅在 prefers-reduced-motion: no-preference 下生效(媒体查询里),尊重减少动效偏好。
+  root.classList.add("theme-transitioning");
+  root.dataset.themeMode = mode;
+  root.dataset.theme = theme;
   document.querySelectorAll<HTMLElement>(".shell, .login-wrap").forEach((node) => {
     node.dataset.theme = theme;
   });
+  window.clearTimeout(themeTransitionTimer);
+  themeTransitionTimer = window.setTimeout(() => {
+    root.classList.remove("theme-transitioning");
+  }, 280);
 }
 
 export function ThemeModeSelect({ initialMode }: { initialMode: UiThemeMode }) {

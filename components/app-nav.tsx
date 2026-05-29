@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Cloud, FileText, Heart, Image, LogOut, Settings, Table2 } from "lucide-react";
 import { JobNotificationCenter } from "./job-notification-center";
+import { MobileTabBar } from "./mobile-tab-bar";
 import { ReferenceBasketTray } from "./reference-basket";
 import { ThemeModeSelect } from "./theme-mode-select";
 import type { User } from "@/lib/types";
@@ -55,6 +56,9 @@ export function AppNav({ user, themeMode }: { user: User; themeMode: UiThemeMode
         <JobNotificationCenter />
         <ReferenceBasketTray />
       </div>
+      {/* 移动端底部 Tab 导航:桌面端 CSS 隐藏,≤680px 承载主导航。
+          fixed 定位,放 header 末尾即可,不影响顶栏布局。 */}
+      <MobileTabBar user={user} />
     </header>
   );
 }

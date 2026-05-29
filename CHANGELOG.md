@@ -2,6 +2,24 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.7.0] - 2026-05-29
+
+### 新增
+
+- **移动端底部 Tab 导航栏**:新建 `components/mobile-tab-bar.tsx`,在 `components/app-nav.tsx` 内挂载。手机端(≤680px)原本只是把顶栏导航缩成 38px 图标,拇指够不着、不像原生 app;现在改为页面底部固定 Tab 栏(生成 / 记录 / 收藏 / 更多),每格 ≥54px 触控、跟随路由高亮 `aria-current`。低频入口(设置 admin 限定 / 缓存 / 日志 / 退出登录)收进「更多」底部 sheet(`role="dialog"` + Esc 关闭 + 背景滚动锁 + 路由切换自动收起),避免把 6+ 项硬塞进底栏。桌面/平板(>680px)由 `display:none` 完全隐藏,顶栏导航一字未动。
+- **`/records`、`/favorites` 路由级骨架屏**:新建 `components/route-skeleton.tsx` + `app/records/loading.tsx` + `app/favorites/loading.tsx`。这两页是 `force-dynamic` server component,导航时要等 DB 取数,之前只能靠顶部进度条 + 旧页冻结。现在 Next 的 `loading.tsx` 约定会在等待时即时显示骨架。因本项目 `.shell`+顶栏+底部 Tab 写在每个 page 内(无共享 layout),`loading.tsx` 会替换整页 —— 故 `RouteSkeleton` 渲染**主题正确的壳 + 占位顶栏/底栏 + 骨架网格**,全部复用真实页面 class 对齐尺寸避免跳动;主题从 cookie 读(`getUiThemePreference` 无 DB)避免暗色闪白;骨架卡复用 `@keyframes skeleton-sweep` 微光。**纯新增文件,零改动复杂的 `page.tsx`,无回归风险。**
+
+### 变更
+
+- **刘海/手势条安全区适配**:`app/layout.tsx` 补 `export const viewport`(`viewportFit: "cover"`)——此前连 `viewport` 导出都没有,`env(safe-area-inset-*)` 全部失效。配合 `app/globals.css`:顶栏 `padding-top: env(safe-area-inset-top)`(避开刘海)、底部 Tab 栏与参考篮托盘 `env(safe-area-inset-bottom)`(避开 home indicator);浏览器内 inset 通常为 0,无可见变化,只在刘海屏全屏场景生效。
+- **移动端触控目标 ≥44px**:`app/globals.css` ≤680px 媒体块内,把可点击的 `.action-button` / `.input` / `.select` / `.lightbox-nav-button` `min-height` 提到 44px(iOS/Android 准则)。**只命中可点击元素**,纯标签 `<span class="status">`(模型/尺寸/状态徽章)与桌面端 28px 紧凑态保持不动。
+- **内容避让 + 顶栏瘦身**:≤680px 时 `.main` 底部留白 `calc(54px + 安全区 + 12px)` 让内容不被 Tab 栏遮住;顶栏导航链接 `.topbar .nav > a` 与退出表单 `.topbar .nav > form` 隐藏(已移到底部 Tab + 更多 sheet),仅保留主题选择 `.theme-mode-control`;参考篮托盘 `.reference-basket-tray` 上移到 Tab 栏之上,避免重叠。
+- **主题切换平滑过渡**:`components/theme-mode-select.tsx` 的 `applyThemeMode()` 在切换瞬间给 `<html>` 挂 280ms 的 `.theme-transitioning` class;`app/globals.css` 在 `@media (prefers-reduced-motion: no-preference)` 下用它给 `color`/`background-color`/`border-color`/`fill` 加 0.26s transition。之前切深浅色是颜色硬跳,现在平滑淡变。只在切换瞬间启用,不拖累首屏加载与常态交互;`reduce` 偏好下不应用,尊重无障碍。
+
+### 不变
+
+- 桌面/平板(>680px)布局、视觉、导航行为完全不变;登录页(无 `AppNav`)不显示底部 Tab;主题切换 / 通知中心 / 参考篮 / lightbox 行为均未改动。视觉保持现有玻璃拟态语言(本次不做风格重定义)。
+
 ## [0.6.4] - 2026-05-25
 
 ### 变更
