@@ -2,6 +2,12 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.7.2] - 2026-05-29
+
+### 修复
+
+- **「更多」菜单点击空白 + 底部 Tab 栏错位(v0.7.0 第二处回归)**:`components/app-nav.tsx`。v0.7.1 让底部 Tab 栏重新渲染后,它和「更多」sheet 的位置都不对——sheet 点开是空白。根因:`<MobileTabBar>` 被放在 `<header className="topbar">` 内,而 `.topbar` 带 `backdrop-filter: blur()`。**带 `backdrop-filter`(或 `transform`/`filter`)的祖先会成为后代 `position: fixed` 元素的"包含块"**,于是固定定位的 Tab 栏、遮罩、sheet 全部相对 `.topbar`(顶部约 60px 的盒子)定位,而非视口——Tab 栏被挤到顶栏底边,sheet 渲染在那一小块里且被 `padding` 推出可视区,看着就是空白。修复:把 `<MobileTabBar>` 移出 `<header>`,让 `AppNav` 返回 fragment、使其成为 `.shell` 的直接子级(`.shell` 仅 `min-height`/`background`/`color`,无 `transform`/`filter`,已确认 `body`/`html`/`.main` 同样干净)——固定定位回归相对视口,Tab 栏稳在屏幕底部、sheet 全宽从底部升起。
+
 ## [0.7.1] - 2026-05-29
 
 ### 修复

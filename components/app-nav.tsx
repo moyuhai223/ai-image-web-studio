@@ -10,6 +10,7 @@ import { APP_VERSION_LABEL } from "@/lib/version";
 
 export function AppNav({ user, themeMode }: { user: User; themeMode: UiThemeMode }) {
   return (
+    <>
     <header className="topbar">
       {/* topbar-inner 把内容宽度与 workspace 对齐(同 max-width + margin auto)。
           外层 header 保留全宽背景/边框/sticky 行为,内层做布局和居中,
@@ -56,9 +57,13 @@ export function AppNav({ user, themeMode }: { user: User; themeMode: UiThemeMode
         <JobNotificationCenter />
         <ReferenceBasketTray />
       </div>
-      {/* 移动端底部 Tab 导航:桌面端 CSS 隐藏,≤680px 承载主导航。
-          fixed 定位,放 header 末尾即可,不影响顶栏布局。 */}
-      <MobileTabBar user={user} />
     </header>
+    {/* 移动端底部 Tab 导航必须放在 .topbar 之外:.topbar 有 backdrop-filter,
+        会成为 position:fixed 后代的"包含块",若放 header 内,fixed 的 Tab 栏与
+        "更多" sheet 会相对 topbar(顶部 60px 盒子)而非视口定位 → 错位/空白。
+        放到 .shell 直接子级(.shell 仅 min-height/bg/color,无 transform/filter),
+        fixed 正确相对视口。桌面端 CSS 隐藏,≤680px 显示。 */}
+      <MobileTabBar user={user} />
+    </>
   );
 }
