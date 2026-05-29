@@ -4287,8 +4287,12 @@ code {
     overflow-x: hidden;
   }
 
-  /* 移动端启用底部 Tab 栏 */
-  .mobile-tab-bar {
+  /* 移动端启用底部 Tab 栏。
+     用 .shell 提特异性(0,0,2,0)稳胜文件后方的 .mobile-tab-bar 基样式
+     display:none(0,0,1,0)—— 否则同特异性下"后定义者胜",基样式靠后会把
+     这条媒体查询里的 display:flex 盖掉,导致手机端底栏永不显示。
+     两个渲染处(AppNav 顶栏 / RouteSkeleton)都在 .shell 内,选择器命中。 */
+  .shell .mobile-tab-bar {
     display: flex;
   }
 
