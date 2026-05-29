@@ -4263,9 +4263,7 @@ code {
   }
 
   .topbar {
-    /* 刘海安全区:顶栏整体下移,内容不被状态栏/刘海压住(浏览器内 inset 通常为 0,无变化) */
-    height: calc(60px + env(safe-area-inset-top));
-    padding-top: env(safe-area-inset-top);
+    height: 60px;
   }
 
   .topbar-inner {
@@ -4282,35 +4280,7 @@ code {
 
   .main {
     padding: 12px;
-    /* 底部留白避开固定 Tab 栏(54px)+ home indicator 安全区 */
-    padding-bottom: calc(54px + env(safe-area-inset-bottom) + 12px);
     overflow-x: hidden;
-  }
-
-  /* 移动端启用底部 Tab 栏。
-     用 .shell 提特异性(0,0,2,0)稳胜文件后方的 .mobile-tab-bar 基样式
-     display:none(0,0,1,0)—— 否则同特异性下"后定义者胜",基样式靠后会把
-     这条媒体查询里的 display:flex 盖掉,导致手机端底栏永不显示。
-     两个渲染处(AppNav 顶栏 / RouteSkeleton)都在 .shell 内,选择器命中。 */
-  .shell .mobile-tab-bar {
-    display: flex;
-  }
-
-  /* 顶栏导航链接(记录/收藏/缓存/日志/设置)与退出表单移到底部 Tab + "更多" sheet;
-     只保留主题选择(.theme-mode-control)留在顶栏。JobNotificationCenter 在 .nav
-     之外,不受影响。 */
-  .topbar .nav > a,
-  .topbar .nav > form {
-    display: none;
-  }
-
-  /* 触控目标 ≥44px(仅移动端;桌面 28px 紧凑态不动)。
-     只命中"可点击"的动作按钮与表单控件,不动纯标签 <span class="status">。 */
-  .action-button,
-  .input,
-  .select,
-  .lightbox-nav-button {
-    min-height: 44px;
   }
 
   .workspace,
@@ -4559,8 +4529,7 @@ code {
 
   .reference-basket-tray {
     right: 12px;
-    /* 抬到底部 Tab 栏之上(54px + 安全区 + 间距),避免托盘被导航遮住 */
-    bottom: calc(54px + env(safe-area-inset-bottom) + 12px);
+    bottom: max(12px, env(safe-area-inset-bottom));
     width: calc(100vw - 24px);
   }
 
@@ -4840,190 +4809,6 @@ code {
 
   .nav {
     gap: 6px;
-  }
-}
-
-/* ============================================================
-   移动端底部 Tab 导航(v0.7.0)
-   默认隐藏(桌面/平板 >680px 用顶栏导航,完全不受影响);
-   ≤680px 由下方媒体查询 display:flex 显示,并隐藏顶栏导航链接。
-   ============================================================ */
-.mobile-tab-bar {
-  display: none;
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 40;
-  align-items: stretch;
-  /* home indicator 安全区:Tab 栏整体下移留白,内容不被系统手势条压住 */
-  padding-bottom: env(safe-area-inset-bottom);
-  border-top: 1px solid var(--glass-border);
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-heavy));
-  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
-  box-shadow: 0 -4px 16px rgba(20, 33, 61, 0.06);
-}
-
-.mobile-tab {
-  flex: 1 1 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  min-height: 54px;
-  padding: 6px 4px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1;
-  text-decoration: none;
-  cursor: pointer;
-  transition: color var(--transition-fast);
-}
-
-.mobile-tab:hover {
-  color: var(--text);
-}
-
-.mobile-tab.active {
-  color: var(--brand);
-}
-
-.mobile-tab svg {
-  transition: transform var(--transition-fast);
-}
-
-.mobile-tab.active svg {
-  transform: translateY(-1px);
-}
-
-/* "更多" sheet:从底部升起的半屏面板 */
-.mobile-more-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 45;
-  background: rgba(10, 18, 32, 0.42);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  animation: fadeIn var(--transition-base) both;
-}
-
-.mobile-more-sheet {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 46;
-  display: grid;
-  gap: 12px;
-  /* 底部留白 = Tab 栏高度 + 安全区,让链接浮在 Tab 栏之上 */
-  padding: 14px 14px calc(54px + env(safe-area-inset-bottom) + 14px);
-  border-top: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-heavy));
-  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
-  box-shadow: var(--shadow-lg);
-  animation: slideInUp var(--transition-slow) cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-.mobile-more-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.mobile-more-links {
-  display: grid;
-  gap: 8px;
-}
-
-.mobile-more-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 48px;
-  padding: 0 14px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  background: var(--control-bg);
-  color: var(--text);
-  font-size: 14px;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background var(--transition-fast), transform var(--transition-fast);
-}
-
-.mobile-more-link:hover {
-  background: var(--glass-bg);
-}
-
-.mobile-more-link:active {
-  transform: scale(0.99);
-}
-
-.mobile-more-logout {
-  margin: 0;
-}
-
-@keyframes slideInUp {
-  from { opacity: 0; transform: translateY(100%); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* ============================================================
-   路由级骨架占位(v0.7.0)
-   复用 .image-skeleton 的 sweep 技术(gradient + --media-bg + 移动
-   background-position),暗色下 --media-bg 自动变深、微光保持一致。
-   ============================================================ */
-.skeleton-block {
-  position: relative;
-  display: block;
-  overflow: hidden;
-  border-radius: var(--radius-sm);
-  background:
-    linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.3) 40%,
-      rgba(255, 255, 255, 0.5) 50%,
-      rgba(255, 255, 255, 0.3) 60%,
-      transparent 100%
-    ),
-    var(--media-bg);
-  background-size: 200% 100%, 100% 100%;
-  animation: skeleton-sweep 1400ms ease-in-out infinite;
-}
-
-.skeleton-card {
-  height: 240px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-}
-
-.skeleton-line {
-  height: 14px;
-  border-radius: 999px;
-}
-
-/* ============================================================
-   主题切换平滑过渡(v0.7.0)
-   仅在切换瞬间(.theme-transitioning 由 ThemeModeSelect 临时挂在 <html>)
-   给颜色类属性加 transition,避免首屏加载与常态交互被全局 transition 拖累。
-   包在 no-preference 媒体查询里 —— prefers-reduced-motion: reduce 时不应用,
-   尊重减少动效偏好(且不与文件末尾的 reduce !important 块打架)。
-   ============================================================ */
-@media (prefers-reduced-motion: no-preference) {
-  .theme-transitioning,
-  .theme-transitioning *,
-  .theme-transitioning *::before,
-  .theme-transitioning *::after {
-    transition: background-color 0.26s ease, border-color 0.26s ease, color 0.26s ease, fill 0.26s ease !important;
   }
 }
 

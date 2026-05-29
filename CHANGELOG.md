@@ -2,36 +2,6 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
-## [0.7.2] - 2026-05-29
-
-### 修复
-
-- **「更多」菜单点击空白 + 底部 Tab 栏错位(v0.7.0 第二处回归)**:`components/app-nav.tsx`。v0.7.1 让底部 Tab 栏重新渲染后,它和「更多」sheet 的位置都不对——sheet 点开是空白。根因:`<MobileTabBar>` 被放在 `<header className="topbar">` 内,而 `.topbar` 带 `backdrop-filter: blur()`。**带 `backdrop-filter`(或 `transform`/`filter`)的祖先会成为后代 `position: fixed` 元素的"包含块"**,于是固定定位的 Tab 栏、遮罩、sheet 全部相对 `.topbar`(顶部约 60px 的盒子)定位,而非视口——Tab 栏被挤到顶栏底边,sheet 渲染在那一小块里且被 `padding` 推出可视区,看着就是空白。修复:把 `<MobileTabBar>` 移出 `<header>`,让 `AppNav` 返回 fragment、使其成为 `.shell` 的直接子级(`.shell` 仅 `min-height`/`background`/`color`,无 `transform`/`filter`,已确认 `body`/`html`/`.main` 同样干净)——固定定位回归相对视口,Tab 栏稳在屏幕底部、sheet 全宽从底部升起。
-
-## [0.7.1] - 2026-05-29
-
-### 修复
-
-- **手机端菜单栏完全消失(v0.7.0 回归)**:`app/globals.css`。v0.7.0 给底部 Tab 栏写了基样式 `.mobile-tab-bar { display: none }`,放在文件靠后位置;而"≤680px 显示"的 `@media (max-width: 680px) { .mobile-tab-bar { display: flex } }` 在文件靠前。两条选择器特异性相同(都是 0,0,1,0),CSS 同特异性下"后定义者胜" —— 靠后的 `display: none` 把媒体查询里的 `display: flex` 盖掉,**底部 Tab 栏在任何宽度都不显示**;又因为同一版把手机端顶栏导航链接隐藏了(已"移到"底部 Tab),结果手机端顶栏没导航、底部也没 Tab,菜单整个消失。修复:把显示规则提特异性为 `.shell .mobile-tab-bar`(0,0,2,0),稳胜基样式且不依赖源码顺序;两个渲染处(`AppNav` 顶栏内、`RouteSkeleton`)的 `.mobile-tab-bar` 都在 `.shell` 内,选择器命中。桌面端(>680px)媒体查询不匹配、仅基样式 `display:none` 生效,行为不变。
-
-## [0.7.0] - 2026-05-29
-
-### 新增
-
-- **移动端底部 Tab 导航栏**:新建 `components/mobile-tab-bar.tsx`,在 `components/app-nav.tsx` 内挂载。手机端(≤680px)原本只是把顶栏导航缩成 38px 图标,拇指够不着、不像原生 app;现在改为页面底部固定 Tab 栏(生成 / 记录 / 收藏 / 更多),每格 ≥54px 触控、跟随路由高亮 `aria-current`。低频入口(设置 admin 限定 / 缓存 / 日志 / 退出登录)收进「更多」底部 sheet(`role="dialog"` + Esc 关闭 + 背景滚动锁 + 路由切换自动收起),避免把 6+ 项硬塞进底栏。桌面/平板(>680px)由 `display:none` 完全隐藏,顶栏导航一字未动。
-- **`/records`、`/favorites` 路由级骨架屏**:新建 `components/route-skeleton.tsx` + `app/records/loading.tsx` + `app/favorites/loading.tsx`。这两页是 `force-dynamic` server component,导航时要等 DB 取数,之前只能靠顶部进度条 + 旧页冻结。现在 Next 的 `loading.tsx` 约定会在等待时即时显示骨架。因本项目 `.shell`+顶栏+底部 Tab 写在每个 page 内(无共享 layout),`loading.tsx` 会替换整页 —— 故 `RouteSkeleton` 渲染**主题正确的壳 + 占位顶栏/底栏 + 骨架网格**,全部复用真实页面 class 对齐尺寸避免跳动;主题从 cookie 读(`getUiThemePreference` 无 DB)避免暗色闪白;骨架卡复用 `@keyframes skeleton-sweep` 微光。**纯新增文件,零改动复杂的 `page.tsx`,无回归风险。**
-
-### 变更
-
-- **刘海/手势条安全区适配**:`app/layout.tsx` 补 `export const viewport`(`viewportFit: "cover"`)——此前连 `viewport` 导出都没有,`env(safe-area-inset-*)` 全部失效。配合 `app/globals.css`:顶栏 `padding-top: env(safe-area-inset-top)`(避开刘海)、底部 Tab 栏与参考篮托盘 `env(safe-area-inset-bottom)`(避开 home indicator);浏览器内 inset 通常为 0,无可见变化,只在刘海屏全屏场景生效。
-- **移动端触控目标 ≥44px**:`app/globals.css` ≤680px 媒体块内,把可点击的 `.action-button` / `.input` / `.select` / `.lightbox-nav-button` `min-height` 提到 44px(iOS/Android 准则)。**只命中可点击元素**,纯标签 `<span class="status">`(模型/尺寸/状态徽章)与桌面端 28px 紧凑态保持不动。
-- **内容避让 + 顶栏瘦身**:≤680px 时 `.main` 底部留白 `calc(54px + 安全区 + 12px)` 让内容不被 Tab 栏遮住;顶栏导航链接 `.topbar .nav > a` 与退出表单 `.topbar .nav > form` 隐藏(已移到底部 Tab + 更多 sheet),仅保留主题选择 `.theme-mode-control`;参考篮托盘 `.reference-basket-tray` 上移到 Tab 栏之上,避免重叠。
-- **主题切换平滑过渡**:`components/theme-mode-select.tsx` 的 `applyThemeMode()` 在切换瞬间给 `<html>` 挂 280ms 的 `.theme-transitioning` class;`app/globals.css` 在 `@media (prefers-reduced-motion: no-preference)` 下用它给 `color`/`background-color`/`border-color`/`fill` 加 0.26s transition。之前切深浅色是颜色硬跳,现在平滑淡变。只在切换瞬间启用,不拖累首屏加载与常态交互;`reduce` 偏好下不应用,尊重无障碍。
-
-### 不变
-
-- 桌面/平板(>680px)布局、视觉、导航行为完全不变;登录页(无 `AppNav`)不显示底部 Tab;主题切换 / 通知中心 / 参考篮 / lightbox 行为均未改动。视觉保持现有玻璃拟态语言(本次不做风格重定义)。
-
 ## [0.6.4] - 2026-05-25
 
 ### 变更

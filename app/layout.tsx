@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Noto_Sans_SC } from "next/font/google";
 import { Suspense } from "react";
 import { NavigationProgress } from "@/components/navigation-progress";
@@ -43,17 +43,6 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "AI Image Web Studio",
   description: "Small-team AI image generation workspace"
-};
-
-/**
- * viewport-fit=cover 让页面延伸到刘海/圆角区域,配合 globals.css 里的
- * env(safe-area-inset-*) 把顶栏、底部 Tab 栏、参考篮托盘避开刘海与 home indicator。
- * 不设 maximumScale,保留用户缩放(无障碍)。
- */
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  viewportFit: "cover"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
