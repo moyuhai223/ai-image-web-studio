@@ -391,6 +391,13 @@ function isNanoBananaModel(model: string) {
   return model === config.imageModelNano || model.toLowerCase().includes("banana");
 }
 
+// Gemini flash-image(本质与 Nano Banana 同源,都是 Google 多模态出图模型),
+// 通过 OpenAI 兼容代理时走 /v1/chat/completions(text + image_url 多模态),
+// 而非 /v1/images/edits。匹配显式配置值或名字里带 "gemini" 的自定义模型。
+function isGeminiImageModel(model: string) {
+  return model === config.imageModelGemini || model.toLowerCase().includes("gemini");
+}
+
 type PreparedReference = Awaited<ReturnType<typeof prepareImage2Reference>>;
 
 function buildImageEditForm(input: GenerateInput, references: PreparedReference[], responseFormat?: "url" | "b64_json") {
@@ -551,7 +558,7 @@ async function generateWithSelectedKey(input: GenerateInput, apiKey: string, dea
       : generateImageGeneration(input, apiKey, deadline, baseUrl);
   }
 
-  if (isNanoBananaModel(input.model)) {
+  if (isNanoBananaModel(input.model) || isGeminiImageModel(input.model)) {
     return generateChatImage(input, apiKey, deadline, baseUrl);
   }
 

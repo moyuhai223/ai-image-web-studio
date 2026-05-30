@@ -2,6 +2,19 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.7.3] - 2026-05-30
+
+> 版本号从 0.6.4 跳到 0.7.3:0.7.0–0.7.2 的移动端改动(底部 Tab 导航等)已整体撤销回 0.6.4,为避开远端仍存在的 v0.7.0/0.7.1/0.7.2 tag,本次顺延到 0.7.3 发布。
+
+### 新增
+
+- **新增图片模型 Gemini 3.1 Flash Image(支持图片编辑)**:在模型下拉里增加「Gemini 3.1 Flash Image」,默认模型值 `gemini-3.1-flash-image`(可用环境变量 `IMAGE_MODEL_GEMINI` 覆盖)。
+  - `lib/config.ts` 加 `imageModelGemini`;`lib/validation.ts` 的 `modelOptions` 加第三项(工作台下拉 + 记录筛选自动出现)。
+  - **路由**:`lib/provider.ts` 新增 `isGeminiImageModel()`,把 Gemini 模型与 Nano Banana 一并走 `/v1/chat/completions` 多模态路径(text + `image_url`)—— Gemini flash-image 与 Nano Banana 同源,都是 Google 多模态出图模型,编辑时把参考图作为 `image_url` 传入,而非 OpenAI 式 `/v1/images/edits`。这样图片编辑(带参考图)直接走正确接口,避免先打一次注定失败的 `/images/edits` 再回退。
+  - `lib/generation-runner.ts` 同步加 `isGeminiImageModel()` + 流程文案「Gemini 多模态编辑/生成流程」。
+  - 配置/部署同步:`.env.example`、`docker-compose.yml`、`README.md`、`packaging/1panel/version-data.yml` 都加上 `IMAGE_MODEL_GEMINI`(1Panel 部署表单可在 UI 里改模型名)。
+  - 说明:能否真正出图取决于上游 Provider/代理是否提供 `gemini-3.1-flash-image` 这个模型;本次只接通应用侧的选择与路由。
+
 ## [0.6.4] - 2026-05-25
 
 ### 变更

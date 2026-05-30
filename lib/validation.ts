@@ -3,7 +3,8 @@ import { config } from "./config";
 
 export const modelOptions = [
   { label: "GPT Image 2", value: config.imageModelGpt },
-  { label: "Nano Banana 2", value: config.imageModelNano }
+  { label: "Nano Banana 2", value: config.imageModelNano },
+  { label: "Gemini 3.1 Flash Image", value: config.imageModelGemini }
 ];
 
 export const generateSchema = z.object({

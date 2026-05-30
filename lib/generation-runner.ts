@@ -66,12 +66,19 @@ function isNanoBananaModel(model: string) {
   return model === config.imageModelNano || model.toLowerCase().includes("banana");
 }
 
+function isGeminiImageModel(model: string) {
+  return model === config.imageModelGemini || model.toLowerCase().includes("gemini");
+}
+
 function providerFlowLabel(input: GenerationRunInput, referenceTotal: number) {
   if (isGptImageModel(input.model)) {
     return referenceTotal > 0 ? "Image 2 编辑接口" : "Image 2 生成接口";
   }
   if (isNanoBananaModel(input.model)) {
     return referenceTotal > 0 ? "Banana 2 多模态编辑流程" : "Banana 2 多模态生成流程";
+  }
+  if (isGeminiImageModel(input.model)) {
+    return referenceTotal > 0 ? "Gemini 多模态编辑流程" : "Gemini 多模态生成流程";
   }
   return referenceTotal > 0 ? "图片编辑流程" : "图片生成流程";
 }

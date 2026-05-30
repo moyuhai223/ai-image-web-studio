@@ -124,6 +124,17 @@ additionalProperties:
         zh-Hant: Nano Banana 模型
       required: true
       type: text
+    - default: gemini-3.1-flash-image
+      edit: true
+      envKey: IMAGE_MODEL_GEMINI
+      labelEn: Gemini Image Model
+      labelZh: Gemini 图片模型
+      label:
+        en: Gemini Image Model
+        zh: Gemini 图片模型
+        zh-Hant: Gemini 圖片模型
+      required: true
+      type: text
     - default: 20
       edit: true
       envKey: MAX_UPLOAD_MB

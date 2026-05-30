@@ -39,6 +39,7 @@ export const config = {
   aiApiKey: process.env.PROVIDER_API_KEY ?? "",
   imageModelGpt: process.env.IMAGE_MODEL_GPT ?? "gpt-image-2",
   imageModelNano: process.env.IMAGE_MODEL_NANO_BANANA ?? "Nano Banana 2",
+  imageModelGemini: process.env.IMAGE_MODEL_GEMINI ?? "gemini-3.1-flash-image",
   storageRoot: process.env.LOCAL_STORAGE_ROOT ?? "./storage",
   maxUploadMb: numberEnv(process.env.MAX_UPLOAD_MB, 20),
   maxReferenceImages: numberEnv(process.env.MAX_REFERENCE_IMAGES, 4),
