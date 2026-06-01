@@ -244,6 +244,21 @@ docker compose up -d --build
 
 1Panel 本地应用部署可下载最新 Release 附件里的 zip 后，在 1Panel 中手动导入更新。
 
+### 一键更新脚本（推荐）
+
+`scripts/update.sh` 会自动下载最新 Release 包、覆盖安装目录并重建容器（保留 `.env` 与 `storage/`，覆盖前自动备份最近 3 份可回滚）。安装一次后随时运行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/moyuhai223/ai-image-web-studio/main/scripts/update.sh -o /usr/local/bin/aiws-update
+chmod +x /usr/local/bin/aiws-update
+
+aiws-update              # 更新到最新版本
+aiws-update v0.7.4       # 更新到指定版本
+FORCE=1 aiws-update      # 版本相同也强制重建
+```
+
+默认安装目录为 `/opt/1panel/apps/ai-image-web-studio`，可用 `APP_DIR=/你的路径 aiws-update` 覆盖。脚本只更新 `source/`、`docker-compose.yml`、`scripts/`，不会动 `.env`（连接串/密钥）和 `storage/`（图片数据）。
+
 ## 上传文件说明
 
 部署时不需要上传这些目录：
