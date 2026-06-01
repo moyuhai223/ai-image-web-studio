@@ -118,6 +118,13 @@ fi
 
 [ -f "$APP_DIR/.env" ] || err "警告:$APP_DIR/.env 不存在,compose 可能因缺少 DATABASE_URL 等变量而失败。"
 
+# ---------- 修正 storage 归属 ----------
+# 容器以非 root 用户 nextjs(uid 1001)运行,宿主 storage 目录需对其可写,
+# 否则保存图片报 "EACCES: permission denied, mkdir '/app/storage/images'"。
+log "确保 storage 目录对容器用户(uid 1001)可写"
+mkdir -p "$APP_DIR/storage/images" "$APP_DIR/storage/references"
+chown -R 1001:1001 "$APP_DIR/storage" 2>/dev/null || chmod -R 0777 "$APP_DIR/storage" 2>/dev/null || true
+
 # ---------- 重建 ----------
 log "重建容器:$DC up -d --build(首次构建需联网装依赖,耗时数分钟)..."
 cd "$APP_DIR"

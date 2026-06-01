@@ -2,6 +2,15 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.7.5] - 2026-06-02
+
+### 修复
+
+- **生成图片报 `EACCES: permission denied, mkdir '/app/storage/images'`**:容器内应用以非 root 用户 `nextjs`(uid 1001)运行,而 1Panel 安装阶段(root)创建的宿主 `./storage` 目录默认归 root,bind mount 进容器后 `nextjs` 无权在其中创建 `images/`、`references/` 子目录。修复:
+  - `packaging/1panel/scripts/init.sh`:安装时创建 `storage/{images,references}` 并把 `storage` 归属设为 uid 1001(chown 失败回退 `chmod 0777`)。
+  - `scripts/update.sh`:重建前同样修正一次 storage 归属,更新已有部署时一并修好。
+  - 已安装且不便重装的机器,可立即执行一次:`docker exec -u 0 ai-image-web-studio sh -c "mkdir -p /app/storage/images /app/storage/references && chown -R nextjs:nodejs /app/storage"`,然后重试生成(无需重启)。
+
 ## [0.7.4] - 2026-06-01
 
 ### 修复

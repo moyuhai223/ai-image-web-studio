@@ -201,6 +201,12 @@ postgres://用户名:密码@1Panel-postgresql-xxxx:5432/数据库名
 
 如果出现 `getaddrinfo ENOTFOUND PostgreSQL容器名`，通常是应用容器和数据库容器不在同一个 Docker 网络。
 
+如果生成图片时报 `EACCES: permission denied, mkdir '/app/storage/images'`，是宿主 `storage` 目录归属与容器内用户（uid 1001）不一致所致。v0.7.5+ 的安装/更新脚本已自动修正；已装的旧版本执行一次即可解除（随后重试生成，无需重启）：
+
+```bash
+docker exec -u 0 ai-image-web-studio sh -c "mkdir -p /app/storage/images /app/storage/references && chown -R nextjs:nodejs /app/storage"
+```
+
 ## 在线更新
 
 项目支持 GitHub Release 更新流。
