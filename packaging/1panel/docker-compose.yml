@@ -1,0 +1,54 @@
+# 1Panel 本地应用包专用 compose。
+# 与仓库根目录的 docker-compose.yml 完全一致,唯一区别:build.context 指向 ./source。
+# 原因:发布包结构为 {版本}/docker-compose.yml + {版本}/source/{Dockerfile,源码},
+# 1Panel 在 {版本}/ 目录执行 docker compose build,context 必须指到真正含 Dockerfile 的 ./source,
+# 否则会在 {版本}/ 根下找不到 Dockerfile(报 "transferring dockerfile: 2B" 后构建失败)。
+# 根 compose 用于仓库本地开发(Dockerfile 在仓库根),context 保持 . 不变。
+services:
+  ai-image-web-studio:
+    build:
+      context: ./source
+      dockerfile: Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    container_name: ${CONTAINER_NAME:-ai-image-web-studio}
+    restart: unless-stopped
+    labels:
+      createdBy: Apps
+    networks:
+      - 1panel-network
+    ports:
+      - "${PANEL_APP_PORT_HTTP:-3100}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      TZ: ${TZ:-Asia/Shanghai}
+      APP_TIME_ZONE: ${APP_TIME_ZONE:-Asia/Shanghai}
+      GITHUB_REPOSITORY_SLUG: ${GITHUB_REPOSITORY_SLUG:-moyuhai223/ai-image-web-studio}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to your existing 1Panel PostgreSQL connection string}
+      AUTH_SECRET: ${AUTH_SECRET:-replace-with-a-long-random-secret}
+      PROVIDER_BASE_URL: ${PROVIDER_BASE_URL:?Set PROVIDER_BASE_URL in 1Panel env}
+      PROVIDER_API_KEY: ${PROVIDER_API_KEY:?Set PROVIDER_API_KEY in 1Panel env}
+      IMAGE_MODEL_GPT: ${IMAGE_MODEL_GPT:-gpt-image-2}
+      IMAGE_MODEL_NANO_BANANA: ${IMAGE_MODEL_NANO_BANANA:-Nano Banana 2}
+      IMAGE_MODEL_GEMINI: ${IMAGE_MODEL_GEMINI:-gemini-3.1-flash-image}
+      LOCAL_STORAGE_ROOT: /app/storage
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}
+      MAX_GENERATION_CONCURRENCY: ${MAX_GENERATION_CONCURRENCY:-2}
+      MAX_GENERATION_QUEUE_SIZE: ${MAX_GENERATION_QUEUE_SIZE:-20}
+      DAILY_GENERATION_LIMIT: ${DAILY_GENERATION_LIMIT:-50}
+      GENERATION_TIMEOUT_MS: ${GENERATION_TIMEOUT_MS:-900000}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - ./storage:/app/storage
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+networks:
+  1panel-network:
+    external: true

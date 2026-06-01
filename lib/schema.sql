@@ -10,6 +10,8 @@ create table if not exists users (
   updated_at timestamptz not null default now()
 );
 
+alter table users add column if not exists must_change_password boolean not null default false;
+
 create table if not exists login_attempts (
   id uuid primary key default gen_random_uuid(),
   username text not null,

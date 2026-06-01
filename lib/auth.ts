@@ -76,7 +76,7 @@ export async function getCurrentUser(): Promise<User | null> {
   if (!session) return null;
 
   const result = await query<User>(
-    `select id, username, role, active, created_at, updated_at
+    `select id, username, role, active, must_change_password, created_at, updated_at
      from users
      where id = $1 and active = true`,
     [session.userId]
@@ -88,6 +88,7 @@ export async function getCurrentUser(): Promise<User | null> {
 export async function requireUser() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (user.must_change_password) redirect("/change-password");
   return user;
 }
 

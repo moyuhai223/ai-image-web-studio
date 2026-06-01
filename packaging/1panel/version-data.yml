@@ -204,11 +204,11 @@ additionalProperties:
     - default: ""
       edit: true
       envKey: ADMIN_PASSWORD
-      labelEn: Initial Admin Password
-      labelZh: 初始管理员密码
+      labelEn: Initial Admin Password (blank = admin/admin)
+      labelZh: 初始管理员密码(留空=admin/admin,首次登录强制改密)
       label:
-        en: Initial Admin Password
-        zh: 初始管理员密码
-        zh-Hant: 初始管理員密碼
+        en: Initial Admin Password (blank = admin/admin, forced change on first login)
+        zh: 初始管理员密码(留空=admin/admin,首次登录强制改密)
+        zh-Hant: 初始管理員密碼(留空=admin/admin,首次登入強制改密)
       required: false
       type: password

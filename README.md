@@ -155,7 +155,11 @@ cp .env.1panel.example .env
 docker compose up -d --build
 ```
 
-容器首次启动会自动执行数据库初始化。设置了 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD` 时，会自动创建初始管理员；如果同名用户已存在，不会覆盖密码。
+容器首次启动会自动执行数据库初始化并创建初始管理员：
+
+- 留空 `ADMIN_PASSWORD` 时，自动创建默认管理员 `admin / admin`，并在**首次登录时强制修改密码**（改密完成前无法使用任何功能）。
+- 自行填写 `ADMIN_PASSWORD` 时，使用你填写的密码、不强制改密；可用 `ADMIN_USERNAME` 自定义账号名（默认 `admin`）。
+- 如果同名用户已存在，不会覆盖密码（既有部署不受影响）。忘记密码可在容器内执行 `node scripts/create-admin.mjs <用户名> <新密码>` 重置。
 
 ### 1Panel 部署
 
@@ -171,7 +175,7 @@ ai-image-web-studio-1panel-local-app.zip
 - PostgreSQL 连接串
 - 登录密钥 `AUTH_SECRET`
 - Provider Base URL 和 API Key
-- 初始管理员账号和密码
+- 初始管理员账号和密码（密码留空则默认 `admin/admin`，首次登录强制改密）
 - 并发、队列、每日限制、超时时间等参数
 
 如果 1Panel 已经安装 PostgreSQL 容器，需要确保应用容器和 PostgreSQL 容器在同一个 Docker 网络。当前本地应用的 compose 已默认接入：

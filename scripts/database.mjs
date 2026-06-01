@@ -149,13 +149,20 @@ export async function initializeDatabase({
     await client.query(schema);
     const appliedMigrations = await applyMigrations(client);
 
-    if (createAdmin && adminUsername && adminPassword) {
-      const passwordHash = await hashPassword(adminPassword);
+    if (createAdmin) {
+      // 新装即使密码留空也建默认管理员 admin/admin,并强制首次登录改密;
+      // 管理员若在安装表单里自填了密码,视为已设密、不强制。
+      // on conflict do nothing：既有安装(admin 已存在)完全不受影响。
+      const username = (adminUsername ?? "").trim() || "admin";
+      const explicitPassword = typeof adminPassword === "string" && adminPassword.length > 0;
+      const password = explicitPassword ? adminPassword : "admin";
+      const mustChangePassword = !explicitPassword;
+      const passwordHash = await hashPassword(password);
       await client.query(
-        `insert into users (username, password_hash, role, active)
-         values ($1, $2, 'admin', true)
+        `insert into users (username, password_hash, role, active, must_change_password)
+         values ($1, $2, 'admin', true, $3)
          on conflict (username) do nothing`,
-        [adminUsername, passwordHash]
+        [username, passwordHash, mustChangePassword]
       );
     }
 

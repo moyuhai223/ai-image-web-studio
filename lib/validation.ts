@@ -26,6 +26,11 @@ export const loginSchema = z.object({
   password: z.string().min(1)
 });
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "请输入当前密码"),
+  newPassword: z.string().min(8, "新密码至少 8 位").max(128, "新密码太长")
+});
+
 export const createUserSchema = z.object({
   username: z.string().trim().min(2).max(64),
   password: z.string().min(8).max(128),

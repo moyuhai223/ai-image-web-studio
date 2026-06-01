@@ -285,6 +285,9 @@ export function Workspace({
   const queueStreamFailuresRef = useRef(0);
   const queueStreamDisabledRef = useRef(false);
   const queueStreamReconnectTimerRef = useRef<number | null>(null);
+  // 最近记录自动同步:记上一次队列快照的「活动任务签名」,变化时去抖刷新最近记录。
+  const prevQueueSignatureRef = useRef<string | null>(null);
+  const recentSyncTimerRef = useRef<number | null>(null);
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
   const referenceFileInputRef = useRef<HTMLInputElement>(null);
   const referenceObjectUrlsRef = useRef<Set<string>>(new Set());
@@ -383,6 +386,7 @@ export function Workspace({
       pollControllerRef.current?.abort();
       queueControllerRef.current?.abort();
       recentControllerRef.current?.abort();
+      if (recentSyncTimerRef.current !== null) window.clearTimeout(recentSyncTimerRef.current);
       for (const url of referenceObjectUrlsRef.current) URL.revokeObjectURL(url);
       referenceObjectUrlsRef.current.clear();
     };
@@ -487,6 +491,26 @@ export function Workspace({
     }, delay);
   }
 
+  // 队列「活动任务签名」= 所有在队/运行任务的 id:status 集合(排序后拼接)。
+  // 任务入队 / queued→running / 完成离开队列,签名都会变,用来判断是否要同步最近记录。
+  function queueSignature(snapshot: QueueSnapshot) {
+    const jobs = Array.isArray(snapshot.jobs) ? snapshot.jobs : [];
+    return jobs
+      .map((item) => `${item.id}:${item.status}`)
+      .sort()
+      .join("|");
+  }
+
+  // 去抖刷新最近记录:SSE 高频推送 / 生成结束多次触发都合并成一次「静默」拉取
+  // (不闪 loading、保留本地乐观占位),避免连打 /api/recent-jobs。
+  function scheduleRecentSync() {
+    if (recentSyncTimerRef.current !== null) return;
+    recentSyncTimerRef.current = window.setTimeout(() => {
+      recentSyncTimerRef.current = null;
+      if (mountedRef.current && !document.hidden) void loadRecentJobs(true);
+    }, 400);
+  }
+
   /**
    * 应用 SSE / polling 拉取到的快照。
    * 这里集中处理 setState + ref 更新,避免两路接入同一份状态时漏改。
@@ -494,6 +518,13 @@ export function Workspace({
   function applyQueueSnapshot(snapshot: QueueSnapshot) {
     queueSnapshotRef.current = snapshot;
     setQueue(snapshot);
+    // 「首页刷新状态时同步刷新最近记录」:SSE 与 polling 都汇聚到这里,
+    // 活动任务签名一变(新任务 / 状态流转 / 完成)就去抖刷新最近记录。
+    const signature = queueSignature(snapshot);
+    if (prevQueueSignatureRef.current !== null && prevQueueSignatureRef.current !== signature) {
+      scheduleRecentSync();
+    }
+    prevQueueSignatureRef.current = signature;
   }
 
   function closeQueueStream() {
@@ -606,8 +637,9 @@ export function Workspace({
     }
   }
 
-  async function loadRecentJobs() {
-    setHistoryLoading(true);
+  async function loadRecentJobs(silent = false) {
+    // silent=true 用于自动同步(SSE/生成结束):不闪 loading 占位,体验更顺。
+    if (!silent) setHistoryLoading(true);
     recentControllerRef.current?.abort();
     const controller = new AbortController();
     recentControllerRef.current = controller;
@@ -615,7 +647,14 @@ export function Workspace({
       const response = await fetch("/api/recent-jobs", { cache: "no-store", signal: controller.signal });
       const data = await response.json().catch(() => ({}));
       if (response.ok && mountedRef.current && !controller.signal.aborted) {
-        setHistory(data.jobs ?? []);
+        const serverJobs: HistoryJob[] = data.jobs ?? [];
+        const serverIds = new Set(serverJobs.map((item) => item.id));
+        // 保留尚未出现在服务端结果里的本地乐观占位(刚点生成、还没拿到真实 jobId),
+        // 避免自动同步把 pending 占位冲掉。
+        setHistory((current) => {
+          const pendingLocal = current.filter((item) => item.localOnly && !serverIds.has(item.id));
+          return [...pendingLocal, ...serverJobs].slice(0, 6);
+        });
       }
     } catch (error) {
       if (!isAbortError(error)) {
@@ -625,7 +664,7 @@ export function Workspace({
       if (recentControllerRef.current === controller) recentControllerRef.current = null;
       if (mountedRef.current) {
         setHistoryLoaded(true);
-        setHistoryLoading(false);
+        if (!silent) setHistoryLoading(false);
       }
     }
   }
@@ -718,6 +757,8 @@ export function Workspace({
       if (returnedJobs.every((item) => isTerminalStatus(item.status))) {
         setLoading(false);
         returnedJobs.forEach(dispatchJobNotification);
+        // 生成结束(直接终态,如缓存命中/秒回)→ 同步刷新最近记录,拿真实缩略图/状态。
+        scheduleRecentSync();
       } else {
         void pollJobs(returnedJobs.map((item) => item.id));
       }
@@ -780,6 +821,8 @@ export function Workspace({
           if (failed.length > 0) {
             setError(failed.length === 1 ? failed[0].error_message ?? "生成失败" : `${failed.length} 个任务生成失败，请在记录里查看详情`);
           }
+          // 生成结束 → 同步刷新最近记录(真实缩略图/状态/标签),不只靠轮询的乐观更新。
+          scheduleRecentSync();
           return;
         }
       }
@@ -1373,7 +1416,7 @@ export function Workspace({
           <div className="panel-header">
             <h2 className="panel-title">最近记录</h2>
             <div className="actions">
-              <button className="status" type="button" onClick={loadRecentJobs} disabled={historyLoading}>
+              <button className="status" type="button" onClick={() => loadRecentJobs()} disabled={historyLoading}>
                 {historyLoading ? "加载中" : "加载"}
               </button>
               <a className="status" href="/records">全部</a>

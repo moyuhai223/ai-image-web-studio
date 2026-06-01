@@ -26,10 +26,10 @@ await client.connect();
 try {
   const passwordHash = await hashPassword(password);
   await client.query(
-    `insert into users (username, password_hash, role, active)
-     values ($1, $2, 'admin', true)
+    `insert into users (username, password_hash, role, active, must_change_password)
+     values ($1, $2, 'admin', true, false)
      on conflict (username) do update
-     set password_hash = excluded.password_hash, role = 'admin', active = true, updated_at = now()`,
+     set password_hash = excluded.password_hash, role = 'admin', active = true, must_change_password = false, updated_at = now()`,
     [username, passwordHash]
   );
   console.log(`Admin user saved: ${username}`);

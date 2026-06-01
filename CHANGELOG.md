@@ -2,6 +2,23 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.7.4] - 2026-06-01
+
+### 修复
+
+- **1Panel 本地应用包安装失败(构建出空 Dockerfile)**:发布包里 `docker-compose.yml` 用 `build.context: .` 指向版本目录,但 `Dockerfile` 与源码实际在 `{版本}/source/` 下,1Panel 在版本目录执行 `docker compose build` 时在该目录根下找不到 Dockerfile(安装日志停在 `transferring dockerfile: 2B done` 后失败)。新增包专用 `packaging/1panel/docker-compose.yml`(`build.context: ./source`),并改 `.github/workflows/release.yml` 打包时用它替换根 compose;根 `docker-compose.yml` 保持 `context: .` 供仓库本地开发与 `source/` 内部使用。
+
+### 新增
+
+- **新装默认管理员 + 首次登录强制改密**:此前 1Panel 安装表单「管理员密码」非必填,留空时 `scripts/database.mjs` 的 `if (createAdmin && adminUsername && adminPassword)` 会静默**不创建任何管理员**,导致装完无法登录。现在:
+  - 留空 `ADMIN_PASSWORD` → 自动创建默认管理员 `admin / admin` 并标记 `must_change_password`;首次登录被强制跳到 `/change-password`,改密(≥8 位)完成前无法访问任何页面或接口。
+  - 自填 `ADMIN_PASSWORD` → 使用你填写的密码、**不**强制改密;`ADMIN_USERNAME` 可自定义账号(默认 `admin`)。既有部署(管理员已存在)`on conflict do nothing` 完全不受影响,`must_change_password` 默认 false 不会被强制。
+  - 实现:`users` 表加 `must_change_password` 列(`lib/schema.sql`);唯一鉴权总闸 `requireUser()`(`lib/auth.ts`)统一拦截,覆盖所有页面与 API;新增独立改密页 `app/change-password/page.tsx` + 表单 `components/change-password-form.tsx` + 自助改密接口 `app/api/auth/change-password`;`scripts/create-admin.mjs` 设密时清除该标志(亦作忘密码恢复手段)。
+
+### 变更
+
+- **首页生成状态刷新时同步刷新「最近记录」**:`components/workspace.tsx`。SSE/轮询状态在活动任务集合(`id:status`)变化时,以及每次生成结束时,去抖(400ms 合并)静默刷新最近记录列表,自动跟上其他标签页/后台 worker 完成的任务,无需手动刷新整页;静默刷新不闪「加载中」、保留尚未拿到真实 jobId 的乐观占位。
+
 ## [0.7.3] - 2026-05-30
 
 > 版本号从 0.6.4 跳到 0.7.3:0.7.0–0.7.2 的移动端改动(底部 Tab 导航等)已整体撤销回 0.6.4,为避开远端仍存在的 v0.7.0/0.7.1/0.7.2 tag,本次顺延到 0.7.3 发布。

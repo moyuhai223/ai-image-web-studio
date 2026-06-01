@@ -62,7 +62,7 @@ jobs:
           cp packaging/1panel/version-data.yml "${APP_ROOT}/${VERSION}/data.yml"
           cp packaging/1panel/scripts/*.sh "${APP_ROOT}/${VERSION}/scripts/"
           chmod +x "${APP_ROOT}/${VERSION}/scripts/"*.sh
-          cp docker-compose.yml "${APP_ROOT}/${VERSION}/docker-compose.yml"
+          cp packaging/1panel/docker-compose.yml "${APP_ROOT}/${VERSION}/docker-compose.yml"
           cp .env.example "${APP_ROOT}/${VERSION}/.env.sample"
 
           cp -R app components lib public scripts "${SOURCE}/"
