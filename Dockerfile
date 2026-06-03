@@ -28,7 +28,7 @@ ENV HOSTNAME=0.0.0.0
 ENV TZ=Asia/Shanghai
 ENV APP_TIME_ZONE=Asia/Shanghai
 
-RUN apk add --no-cache tzdata \
+RUN apk add --no-cache tzdata su-exec \
   && addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs \
   && mkdir -p /app/storage/images /app/storage/references \
@@ -41,7 +41,19 @@ COPY --from=builder --chown=nextjs:nodejs /app/CHANGELOG.md ./CHANGELOG.md
 COPY --from=builder --chown=nextjs:nodejs /app/lib/schema.sql ./lib/schema.sql
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 
-USER nextjs
+# 入口脚本:以 root 确保 bind-mount 进来的 storage 目录可写(创建 images/references 并归属 nextjs),
+# 再用 su-exec 降权到 nextjs 运行应用。这样无论宿主挂载目录归谁,每次启动都自愈,
+# 避免上传参考图 / 保存生成图时报 "EACCES: permission denied, mkdir '/app/storage/...'"。
+RUN printf '%s\n' \
+  '#!/bin/sh' \
+  'set -e' \
+  'mkdir -p /app/storage/images /app/storage/references' \
+  'chown nextjs:nodejs /app/storage /app/storage/images /app/storage/references 2>/dev/null || true' \
+  'exec su-exec nextjs:nodejs "$@"' \
+  > /usr/local/bin/docker-entrypoint.sh \
+  && chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 3000
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "scripts/start-production.mjs"]

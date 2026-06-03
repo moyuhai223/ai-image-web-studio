@@ -2,6 +2,14 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.7.8] - 2026-06-02
+
+### 修复
+
+- **上传参考图生成「生成失败」(storage 目录权限,根治)**:参考图上传会先写入 `/app/storage/references`;容器以非 root 用户 `nextjs`(uid 1001)运行,若宿主 bind-mount 的 storage 目录归 root,创建子目录即报 `EACCES`,提交时直接失败(此时还没建任务,记录页看不到)。此前靠 `init.sh`/`update.sh` 在安装/更新时 `chown` 修一次,但卷重挂、容器重建或重装后会复发。
+  - **改为容器启动时自动修权限**:`Dockerfile` 加 `su-exec` + 入口脚本——以 root 确保 `/app/storage` 及 `images`/`references` 子目录存在且归属 `nextjs`,再降权运行应用。**每次启动自愈**,无需再手动 `chown`,新机器/重装/换卷都不会再犯。
+  - 已装旧版本如暂不重建,仍可临时解除:`docker exec -u 0 ai-image-web-studio sh -c "mkdir -p /app/storage/references /app/storage/images && chown -R nextjs:nodejs /app/storage"`。
+
 ## [0.7.7] - 2026-06-02
 
 ### 新增
