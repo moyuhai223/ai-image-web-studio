@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, Download, ImagePlus, Pencil, Play, RefreshCcw, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Download, ImagePlus, Pencil, Play, RefreshCcw, Sparkles, X } from "lucide-react";
 import { CopyPromptButton } from "./copy-prompt-button";
 import { DeleteRecordButton } from "./delete-record-button";
 import { FavoriteImageButton } from "./favorite-image-button";
@@ -11,7 +11,6 @@ import { ImageTagsEditor } from "./image-tags-editor";
 import { JobControlButton } from "./job-control-button";
 import { dispatchJobNotification } from "./job-notification-center";
 import { REFERENCE_BASKET_APPLY_EVENT, readReferenceBasketItems, ReferenceBasketButton, type ReferenceBasketItem } from "./reference-basket";
-import { UploadUpscaleButton } from "./upload-upscale-button";
 import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGenerationStatus } from "@/lib/generation-status";
 import { normalizeImageSize } from "@/lib/image-size";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
@@ -269,6 +268,7 @@ export function Workspace({
   const [size, setSize] = useState("auto");
   const [customWidth, setCustomWidth] = useState("2048");
   const [customHeight, setCustomHeight] = useState("2048");
+  const [upscalingKey, setUpscalingKey] = useState("");
   const [count, setCount] = useState("1");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [selectedReferences, setSelectedReferences] = useState<SelectedReference[]>([]);
@@ -1073,6 +1073,43 @@ export function Workspace({
     }
   }
 
+  // 对单张参考图做 AI 4K 高清化:上传项发文件、参考库项发 referenceImageId、生成图项走生成图高清化接口。
+  // 结果作为新记录入队,完成后经队列同步出现在「最近记录 / 记录」。
+  async function upscaleReference(reference: SelectedReference) {
+    setUpscalingKey(reference.key);
+    setError("");
+    try {
+      let response: Response;
+      if (reference.type === "generated" && reference.id) {
+        response = await fetch(`/api/images/${reference.id}/upscale`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ mode: "ai" })
+        });
+      } else if (reference.type === "upload" && reference.file) {
+        const body = new FormData();
+        body.append("image", reference.file, reference.file.name || "upload.png");
+        response = await fetch("/api/images/upscale-upload", { method: "POST", body });
+      } else if (reference.type === "library" && reference.id) {
+        const body = new FormData();
+        body.append("referenceImageId", reference.id);
+        response = await fetch("/api/images/upscale-upload", { method: "POST", body });
+      } else {
+        return;
+      }
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        setError(data.error ?? "高清化失败");
+        return;
+      }
+      void loadRecentJobs(true);
+    } catch {
+      setError("网络错误,请重试");
+    } finally {
+      setUpscalingKey("");
+    }
+  }
+
   function appendSelectedReferences(formData: FormData) {
     const items: Array<{ type: "upload" | "generated" | "library"; id?: string; uploadIndex?: number }> = [];
     let uploadIndex = 0;
@@ -1329,6 +1366,15 @@ export function Workspace({
                             >
                               <ArrowDown size={13} />
                             </button>
+                            <button
+                              className="status action-button action-upscale"
+                              type="button"
+                              disabled={upscalingKey === reference.key}
+                              onClick={() => upscaleReference(reference)}
+                            >
+                              <Sparkles size={13} />
+                              {upscalingKey === reference.key ? "处理中…" : "高清化"}
+                            </button>
                             <button className="status" type="button" onClick={() => removeSelectedReference(reference.key)}>
                               <X size={13} />
                               移除
@@ -1347,8 +1393,6 @@ export function Workspace({
               </div>
             ) : null}
           </section>
-
-          <UploadUpscaleButton />
 
           <div className="generation-submit">
             {error ? <p className="small form-error">{error}</p> : null}
