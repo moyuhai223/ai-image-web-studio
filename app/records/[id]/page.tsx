@@ -10,6 +10,7 @@ import { JobAutoRefresh } from "@/components/job-auto-refresh";
 import { JobControlButton } from "@/components/job-control-button";
 import { ReferenceBasketButton } from "@/components/reference-basket";
 import { RerunButton } from "@/components/rerun-button";
+import { UpscaleButton } from "@/components/upscale-button";
 import { requireUser } from "@/lib/auth";
 import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGenerationStatus } from "@/lib/generation-status";
 import { getJobById, listImageVersionChainForJob } from "@/lib/repository";
@@ -328,6 +329,7 @@ function VersionChain({ nodes }: { nodes: ImageVersionNode[] }) {
                     <Download size={13} />
                     下载
                   </a>
+                  <UpscaleButton imageId={node.id} />
                 </div>
               </div>
             </article>
@@ -394,6 +396,7 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
                     <Download size={13} />
                     下载
                   </a>
+                  <UpscaleButton imageId={job.images[0].id} />
                 </>
               ) : null}
             </div>

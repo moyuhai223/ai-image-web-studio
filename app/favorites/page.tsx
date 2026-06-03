@@ -26,7 +26,7 @@ function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-const sizeOptions = ["auto", "1024x1024", "1024x1824", "1824x1024", "1360x1024", "1024x1360"];
+const sizeOptions = ["auto", "1024x1024", "1024x1824", "1824x1024", "1360x1024", "1024x1360", "2880x2880", "3840x2160", "2160x3840"];
 
 const periodOptions: { label: string; value: NonNullable<FavoriteImageFilters["period"]> }[] = [
   { label: "今天收藏", value: "today" },

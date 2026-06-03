@@ -59,6 +59,8 @@ export const config = {
   dbPoolConnectionTimeoutMs: numberEnv(process.env.DB_POOL_CONNECTION_TIMEOUT_MS, 10000),
   dailyGenerationLimit: numberEnv(process.env.DAILY_GENERATION_LIMIT, 50, 0),
   generationTimeoutMs: numberEnv(process.env.GENERATION_TIMEOUT_MS, DEFAULT_GENERATION_TIMEOUT_MS),
+  /** 4K 高清化的目标长边像素(快速放大与 AI 收尾共用)。默认 3840(4K UHD)。 */
+  upscaleLongEdge: numberEnv(process.env.UPSCALE_LONG_EDGE, 3840),
   /**
    * Stage 2 (v0.5.0): 进程重启时,默认把 running 任务改成 'interrupted' 终态,而非自动重排队。
    * 设为 true 可恢复旧行为(自动重排队)。

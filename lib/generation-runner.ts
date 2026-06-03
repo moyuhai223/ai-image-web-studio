@@ -6,6 +6,7 @@ import { createLogger } from "./logger";
 import { generateWithProvider } from "./provider";
 import { formatProviderErrorInfo, mapProviderError } from "./provider-error-map";
 import { deleteStoredImageFiles, imageSourceToBuffer, readStoredFile, saveImageBuffer } from "./storage";
+import { ensureLongEdge } from "./upscale";
 import type { GenerationJob, GenerationPhaseTimings, GenerationProgress } from "./types";
 
 const log = createLogger("runner");
@@ -20,6 +21,8 @@ export type GenerationRunInput = {
   parentImageId?: string;
   /** 来自 request_metadata.providerPresetId;runner 透传给 provider 用于选 baseUrl + key */
   presetId?: string | null;
+  /** 来自 request_metadata.upscale.targetLongEdge;非空时把模型输出存盘前 sharp 放大到该长边(AI 高清化收尾到 4K) */
+  upscaleTargetLongEdge?: number;
 };
 
 type StoredJobInput = Pick<GenerationJob, "prompt" | "model" | "size" | "count" | "request_metadata">;
@@ -178,12 +181,18 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
       ? (job.request_metadata.providerPresetId as string)
       : null;
 
+  const upscaleMeta = asRecord(job.request_metadata?.upscale);
+  const upscaleTargetRaw = upscaleMeta ? Number(upscaleMeta.targetLongEdge) : NaN;
+  const upscaleTargetLongEdge =
+    Number.isFinite(upscaleTargetRaw) && upscaleTargetRaw > 0 ? Math.trunc(upscaleTargetRaw) : undefined;
+
   return {
     prompt: job.prompt,
     model: job.model,
     size: job.size,
     count: job.count,
     presetId,
+    upscaleTargetLongEdge,
     ...referenceInfo
   };
 }
@@ -493,7 +502,18 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
             phaseTimings
           })
         );
-        const stored = await saveImageBuffer(source.buffer, source.mimeType, "images", `${jobId}-${index + 1}`);
+        let outputBuffer: Buffer = source.buffer;
+        let outputMime = source.mimeType;
+        if (input.upscaleTargetLongEdge) {
+          // AI 高清化的 4K 收尾(兜底):模型已原生出到目标长边则保留不动,
+          // 仅当代理/模型没给够时才 sharp 放大,保证最终落 4K 像素。
+          const upscaled = await ensureLongEdge(source.buffer, input.upscaleTargetLongEdge);
+          if (upscaled) {
+            outputBuffer = upscaled.buffer;
+            outputMime = upscaled.mimeType;
+          }
+        }
+        const stored = await saveImageBuffer(outputBuffer, outputMime, "images", `${jobId}-${index + 1}`);
         addPhaseTiming(phaseTimings, "download_decode_ms", performance.now() - downloadDecodeStart);
         try {
           failureStage = "写入图片记录";

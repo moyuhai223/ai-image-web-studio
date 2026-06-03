@@ -1197,6 +1197,10 @@ button.action-button:hover:not(:disabled),
   --action-color: var(--ok);
 }
 
+.action-upscale {
+  --action-color: var(--brand-2);
+}
+
 .action-danger,
 .action-cancel {
   --action-color: var(--danger);
@@ -1529,6 +1533,18 @@ button.action-button:hover:not(:disabled),
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.upscale-menu {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.upscale-message {
+  color: var(--muted);
 }
 
 .actions.image-card-actions {

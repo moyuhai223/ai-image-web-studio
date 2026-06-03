@@ -86,7 +86,7 @@ const PRESET_STORAGE_KEY = "ai-image-web-studio:preset-id";
 
 type PromptTemplateOption = Pick<PromptTemplate, "id" | "title" | "category" | "content">;
 
-const sizeValues = new Set(["auto", "1024x1024", "1024x1824", "1824x1024", "1360x1024", "1024x1360"]);
+const sizeValues = new Set(["auto", "1024x1024", "1024x1824", "1824x1024", "1360x1024", "1024x1360", "2880x2880", "3840x2160", "2160x3840"]);
 const countValues = new Set(["1", "2", "3", "4"]);
 const ACTIVE_QUEUE_POLL_MS = 3500;
 const IDLE_QUEUE_POLL_MS = 25000;
@@ -1148,6 +1148,9 @@ export function Workspace({
                   <option value="1824x1024">16:9 - 1824x1024</option>
                   <option value="1360x1024">4:3 - 1360x1024</option>
                   <option value="1024x1360">3:4 - 1024x1360</option>
+                  <option value="2880x2880">1:1 4K - 2880x2880</option>
+                  <option value="3840x2160">16:9 4K - 3840x2160</option>
+                  <option value="2160x3840">9:16 4K - 2160x3840</option>
                 </select>
               </div>
               <div className="field">
