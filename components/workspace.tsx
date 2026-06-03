@@ -11,6 +11,7 @@ import { ImageTagsEditor } from "./image-tags-editor";
 import { JobControlButton } from "./job-control-button";
 import { dispatchJobNotification } from "./job-notification-center";
 import { REFERENCE_BASKET_APPLY_EVENT, readReferenceBasketItems, ReferenceBasketButton, type ReferenceBasketItem } from "./reference-basket";
+import { UploadUpscaleButton } from "./upload-upscale-button";
 import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGenerationStatus } from "@/lib/generation-status";
 import { normalizeImageSize } from "@/lib/image-size";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
@@ -1346,6 +1347,8 @@ export function Workspace({
               </div>
             ) : null}
           </section>
+
+          <UploadUpscaleButton />
 
           <div className="generation-submit">
             {error ? <p className="small form-error">{error}</p> : null}
