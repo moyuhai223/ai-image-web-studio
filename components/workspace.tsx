@@ -698,6 +698,12 @@ export function Workspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 有参考图时默认展开参考区(便于查看/管理);无参考图保持收起(初始)。只自动展开,不强制收起,
+  // 这样没有参考图时仍可手动展开去上传。
+  useEffect(() => {
+    if (selectedReferences.length > 0) setReferencesOpen(true);
+  }, [selectedReferences.length]);
+
   async function startGeneration(formData: FormData) {
     pollTokenRef.current += 1;
     pollControllerRef.current?.abort();
@@ -1291,7 +1297,7 @@ export function Workspace({
               <span>参考图</span>
               <span className="reference-section-toggle-meta">
                 <span className="small muted">{referenceSummary} · 最多 {limits.maxReferenceImages} 张</span>
-                <span className="status reference-section-toggle-status">
+                <span className="status action-button action-neutral reference-section-toggle-status">
                   <ChevronDown size={14} />
                   {referencesOpen ? "收起" : "展开"}
                 </span>
