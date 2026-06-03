@@ -34,34 +34,6 @@ export async function upscaleBufferToLongEdge(
   };
 }
 
-// gpt-image-2 的 4K 像素预算(约 8.3MP);超过会被模型自动降采样。
-export const UPSCALE_MAX_PIXELS = 8_294_400;
-
-function roundDownTo16(value: number) {
-  return Math.max(16, Math.floor(value / 16) * 16);
-}
-
-/**
- * 按源图宽高比算一个尽量接近 longEdge 的「原生 4K」尺寸字符串(WxH),满足 gpt-image-2 约束:
- * 长边 ≤ longEdge(≤3840)、宽高均为 16 的倍数、总像素 ≤ UPSCALE_MAX_PIXELS(向下取整以稳妥落在预算内)。
- * 例:1024×1024 → 2880x2880;1024×576 → 3840x2160。
- */
-export function computeUpscaleSize(width: number, height: number, longEdge: number = UPSCALE_DEFAULT_LONG_EDGE): string {
-  const w0 = Math.max(1, Math.trunc(width));
-  const h0 = Math.max(1, Math.trunc(height));
-  const cap = Math.min(Math.max(16, Math.trunc(longEdge)), 3840);
-  const scale = cap / Math.max(w0, h0);
-  let w = w0 * scale;
-  let h = h0 * scale;
-  const pixels = w * h;
-  if (pixels > UPSCALE_MAX_PIXELS) {
-    const k = Math.sqrt(UPSCALE_MAX_PIXELS / pixels);
-    w *= k;
-    h *= k;
-  }
-  return `${roundDownTo16(w)}x${roundDownTo16(h)}`;
-}
-
 /**
  * 兜底:若图片长边已达 longEdge 的 ~95%(模型已原生出到目标分辨率),返回 null 表示无需处理,
  * 保留原生质量(不重新编码/锐化);否则 sharp 放大到 longEdge。

@@ -12,6 +12,7 @@ import { JobControlButton } from "./job-control-button";
 import { dispatchJobNotification } from "./job-notification-center";
 import { REFERENCE_BASKET_APPLY_EVENT, readReferenceBasketItems, ReferenceBasketButton, type ReferenceBasketItem } from "./reference-basket";
 import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGenerationStatus } from "@/lib/generation-status";
+import { normalizeImageSize } from "@/lib/image-size";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
 import type { GeneratedImage, GenerationJob, JobWithImages, PromptTemplate, ReferenceImage } from "@/lib/types";
 
@@ -86,7 +87,7 @@ const PRESET_STORAGE_KEY = "ai-image-web-studio:preset-id";
 
 type PromptTemplateOption = Pick<PromptTemplate, "id" | "title" | "category" | "content">;
 
-const sizeValues = new Set(["auto", "1024x1024", "1024x1824", "1824x1024", "1360x1024", "1024x1360", "2880x2880", "3840x2160", "2160x3840"]);
+const sizeValues = new Set(["auto", "1024x1024", "1024x1824", "1824x1024", "1360x1024", "1024x1360", "2880x2880", "3840x2160", "2160x3840", "3264x2448", "2448x3264"]);
 const countValues = new Set(["1", "2", "3", "4"]);
 const ACTIVE_QUEUE_POLL_MS = 3500;
 const IDLE_QUEUE_POLL_MS = 25000;
@@ -265,6 +266,8 @@ export function Workspace({
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState(models[0]?.value ?? "");
   const [size, setSize] = useState("auto");
+  const [customWidth, setCustomWidth] = useState("2048");
+  const [customHeight, setCustomHeight] = useState("2048");
   const [count, setCount] = useState("1");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [selectedReferences, setSelectedReferences] = useState<SelectedReference[]>([]);
@@ -330,12 +333,16 @@ export function Workspace({
     const shouldImportBasket = params.get("basket") === "1";
     const nextPrompt = params.get("prompt") ?? "";
     const nextModel = normalizeModel(params.get("model"), models, model);
-    const nextSize = normalizeSize(params.get("size"));
+    const sizeSel = pickSizeSelection(params.get("size"));
     const nextCount = normalizeCount(params.get("count"));
 
     if (nextPrompt) setPrompt(nextPrompt);
     if (nextModel) setModel(nextModel);
-    setSize(nextSize);
+    setSize(sizeSel.size);
+    if (sizeSel.size === "custom") {
+      setCustomWidth(sizeSel.width);
+      setCustomHeight(sizeSel.height);
+    }
     setCount(nextCount);
 
     const urlReferences: Array<{ type: "generated" | "library"; id: string }> = [];
@@ -362,7 +369,7 @@ export function Workspace({
       const formData = new FormData();
       formData.set("prompt", nextPrompt);
       formData.set("model", nextModel);
-      formData.set("size", nextSize);
+      formData.set("size", normalizeImageSize(params.get("size") ?? ""));
       formData.set("count", nextCount);
       if (urlReferences.length > 0) {
         formData.set("referenceItems", JSON.stringify(urlReferences));
@@ -772,6 +779,8 @@ export function Workspace({
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    // 自定义尺寸时用归一化后的 WxH 覆盖 select 的 "custom" 占位值;预设/auto 原样提交
+    formData.set("size", size === "custom" ? normalizeImageSize(`${customWidth}x${customHeight}`) : size);
     appendSelectedReferences(formData);
     await startGeneration(formData);
   }
@@ -840,7 +849,12 @@ export function Workspace({
   function applyTaskParams(recent: RecentJob) {
     setPrompt(recent.prompt);
     setModel(normalizeModel(recent.model, models, model));
-    setSize(normalizeSize(recent.size));
+    const recentSel = pickSizeSelection(recent.size);
+    setSize(recentSel.size);
+    if (recentSel.size === "custom") {
+      setCustomWidth(recentSel.width);
+      setCustomHeight(recentSel.height);
+    }
     setCount(normalizeCount(String(recent.count)));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -1151,7 +1165,38 @@ export function Workspace({
                   <option value="2880x2880">1:1 4K - 2880x2880</option>
                   <option value="3840x2160">16:9 4K - 3840x2160</option>
                   <option value="2160x3840">9:16 4K - 2160x3840</option>
+                  <option value="3264x2448">4:3 4K - 3264x2448</option>
+                  <option value="2448x3264">3:4 4K - 2448x3264</option>
+                  <option value="custom">自定义…</option>
                 </select>
+                {size === "custom" ? (
+                  <div className="custom-size-row">
+                    <input
+                      className="input"
+                      type="number"
+                      min={256}
+                      max={3840}
+                      step={16}
+                      value={customWidth}
+                      onChange={(event) => setCustomWidth(event.target.value)}
+                      aria-label="自定义宽度（像素）"
+                      placeholder="宽"
+                    />
+                    <span className="custom-size-x">×</span>
+                    <input
+                      className="input"
+                      type="number"
+                      min={256}
+                      max={3840}
+                      step={16}
+                      value={customHeight}
+                      onChange={(event) => setCustomHeight(event.target.value)}
+                      aria-label="自定义高度（像素）"
+                      placeholder="高"
+                    />
+                    <span className="small muted custom-size-hint">→ {normalizeImageSize(`${customWidth}x${customHeight}`)}（自动取 16 倍数 / 限 4K）</span>
+                  </div>
+                ) : null}
               </div>
               <div className="field">
                 <label htmlFor="count">数量</label>
@@ -1492,8 +1537,13 @@ function normalizeModel(value: string | null, models: ModelOption[], fallback: s
   return fallback || models[0]?.value || "";
 }
 
-function normalizeSize(value: string | null) {
-  return value && sizeValues.has(value) ? value : "auto";
+// 把一个尺寸值解析成下拉选择状态:命中预设档→选中该档;形如 WxH 的非预设→「自定义」并回填宽高;否则 auto。
+function pickSizeSelection(raw: string | null): { size: string; width: string; height: string } {
+  const value = (raw ?? "").trim();
+  if (value && sizeValues.has(value)) return { size: value, width: "", height: "" };
+  const match = /^(\d{2,5})x(\d{2,5})$/.exec(value);
+  if (match) return { size: "custom", width: match[1], height: match[2] };
+  return { size: "auto", width: "", height: "" };
 }
 
 function normalizeCount(value: string | null) {

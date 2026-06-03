@@ -14,6 +14,7 @@ import {
   getReferenceImageById
 } from "@/lib/repository";
 import { saveImageBuffer } from "@/lib/storage";
+import { normalizeImageSize } from "@/lib/image-size";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -110,6 +111,8 @@ export async function POST(request: Request) {
   }
 
   const requestedCount = parsed.data.count;
+  // 自定义/预设尺寸统一自动裁剪成合规值(/16、长边≤3840、像素预算);"auto" 原样保留
+  const requestedSize = normalizeImageSize(parsed.data.size);
   // 提前 429 守门:queued + running 已占满全局并发上限就拒绝,避免任务排到天荒地老。
   // 返回结构带 code 让前端能区分"队列满"和"参数错误";retry-after 由 nginx/客户端兼容。
   const queueStats = await getActiveQueueStats(user);
@@ -217,11 +220,11 @@ export async function POST(request: Request) {
           user_id: user.id,
           model: parsed.data.model,
           prompt: parsed.data.prompt,
-          size: parsed.data.size,
+          size: requestedSize,
           count: 1,
           status: "queued",
           request_metadata: {
-            size: parsed.data.size,
+            size: requestedSize,
             count: 1,
             requestedCount,
             batch: {

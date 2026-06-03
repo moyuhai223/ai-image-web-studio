@@ -5,7 +5,8 @@ import { query, transaction } from "@/lib/db";
 import { enqueueGenerationJob } from "@/lib/generation-queue";
 import { createJob, getActiveQueueStats, getImageForUser, getJobById } from "@/lib/repository";
 import { readStoredFile, saveImageBuffer } from "@/lib/storage";
-import { computeUpscaleSize, upscaleBufferToLongEdge } from "@/lib/upscale";
+import { computeUpscaleSize } from "@/lib/image-size";
+import { upscaleBufferToLongEdge } from "@/lib/upscale";
 import { upscaleSchema } from "@/lib/validation";
 
 export const runtime = "nodejs";

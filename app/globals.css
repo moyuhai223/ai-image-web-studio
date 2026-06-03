@@ -1547,6 +1547,27 @@ button.action-button:hover:not(:disabled),
   color: var(--muted);
 }
 
+.custom-size-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.custom-size-row .input {
+  width: 96px;
+  min-height: 34px;
+}
+
+.custom-size-x {
+  color: var(--muted);
+}
+
+.custom-size-hint {
+  flex-basis: 100%;
+}
+
 .actions.image-card-actions {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

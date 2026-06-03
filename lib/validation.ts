@@ -10,18 +10,8 @@ export const modelOptions = [
 export const generateSchema = z.object({
   prompt: z.string().trim().min(1, "请输入提示词").max(4000, "提示词太长"),
   model: z.string().trim().min(1),
-  size: z.enum([
-    "auto",
-    "1024x1024",
-    "1024x1824",
-    "1824x1024",
-    "1360x1024",
-    "1024x1360",
-    // gpt-image-2 原生 4K(长边≤3840、宽高/16、像素≤8.3MP);其它模型可能不支持会降采样
-    "2880x2880",
-    "3840x2160",
-    "2160x3840"
-  ]),
+  // 接受预设档或自定义 WxH;实际值由服务端 normalizeImageSize 自动裁剪成合规尺寸(/16、限最大、像素预算)
+  size: z.string().trim().regex(/^(auto|\d{2,5}x\d{2,5})$/i, "尺寸格式无效"),
   count: z.coerce.number().int().min(1).max(4),
   /** 可选的 Provider Preset ID;未传或空串等价于使用默认 preset */
   presetId: z
