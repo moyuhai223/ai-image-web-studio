@@ -676,6 +676,27 @@ export function Workspace({
     }
   }
 
+  useEffect(() => {
+    // 全局粘贴:剪贴板里有图片(如截图 Ctrl+V)就加为参考图;只有文字时放行,不影响往提示词粘贴
+    function handlePaste(event: ClipboardEvent) {
+      const items = event.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.kind === "file" && item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+      if (files.length === 0) return;
+      event.preventDefault();
+      addUploadFiles(files);
+    }
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function startGeneration(formData: FormData) {
     pollTokenRef.current += 1;
     pollControllerRef.current?.abort();
@@ -1019,9 +1040,16 @@ export function Workspace({
     addLibraryReference(reference.id, reference.byte_size);
   }
 
-  function handleReferenceFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.currentTarget.files ?? []);
-    const nextReferences = files.map((file) => {
+  function addUploadFiles(files: File[]) {
+    // 只收 PNG/JPG/WebP(与后端 allowedImageTypes 一致);剪贴板/拖拽来的非法类型直接忽略
+    const allowed = ["image/png", "image/jpeg", "image/webp"];
+    const imageFiles = files.filter((file) => allowed.includes(file.type));
+    if (imageFiles.length === 0) return;
+    const nextReferences = imageFiles.map((rawFile) => {
+      // 剪贴板里的图片常没有文件名,补一个,避免后端按扩展名处理时出错
+      const file = rawFile.name
+        ? rawFile
+        : new File([rawFile], `pasted-${Date.now()}.${rawFile.type.split("/")[1] || "png"}`, { type: rawFile.type });
       const objectUrl = URL.createObjectURL(file);
       referenceObjectUrlsRef.current.add(objectUrl);
       return {
@@ -1035,6 +1063,10 @@ export function Workspace({
       };
     });
     addSelectedReferences(nextReferences);
+  }
+
+  function handleReferenceFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    addUploadFiles(Array.from(event.currentTarget.files ?? []));
     if (referenceFileInputRef.current) {
       referenceFileInputRef.current.value = "";
     }
@@ -1238,7 +1270,7 @@ export function Workspace({
                       <ImagePlus size={20} />
                     </span>
                     <span>上传参考</span>
-                    <small>PNG / JPG / WebP，可多选</small>
+                    <small>PNG / JPG / WebP，可多选 · 支持 Ctrl+V 粘贴截图</small>
                   </label>
                   {recentReferenceImages.map((reference, index) => (
                     <button
