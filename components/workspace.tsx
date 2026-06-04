@@ -11,6 +11,7 @@ import { ImageTagsEditor } from "./image-tags-editor";
 import { JobControlButton } from "./job-control-button";
 import { dispatchJobNotification } from "./job-notification-center";
 import { REFERENCE_BASKET_APPLY_EVENT, readReferenceBasketItems, ReferenceBasketButton, type ReferenceBasketItem } from "./reference-basket";
+import { DangerConfirmDialog } from "./danger-confirm-dialog";
 import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGenerationStatus } from "@/lib/generation-status";
 import { normalizeImageSize } from "@/lib/image-size";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
@@ -269,6 +270,8 @@ export function Workspace({
   const [customWidth, setCustomWidth] = useState("2048");
   const [customHeight, setCustomHeight] = useState("2048");
   const [upscalingKey, setUpscalingKey] = useState("");
+  const [upscaleConfirmKey, setUpscaleConfirmKey] = useState("");
+  const [upscaleError, setUpscaleError] = useState("");
   const [count, setCount] = useState("1");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [selectedReferences, setSelectedReferences] = useState<SelectedReference[]>([]);
@@ -1083,7 +1086,7 @@ export function Workspace({
   // 结果作为新记录入队,完成后经队列同步出现在「最近记录 / 记录」。
   async function upscaleReference(reference: SelectedReference) {
     setUpscalingKey(reference.key);
-    setError("");
+    setUpscaleError("");
     try {
       let response: Response;
       if (reference.type === "generated" && reference.id) {
@@ -1101,16 +1104,18 @@ export function Workspace({
         body.append("referenceImageId", reference.id);
         response = await fetch("/api/images/upscale-upload", { method: "POST", body });
       } else {
+        setUpscaleConfirmKey("");
         return;
       }
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
-        setError(data.error ?? "高清化失败");
+        setUpscaleError(data.error ?? "高清化失败");
         return;
       }
+      setUpscaleConfirmKey("");
       void loadRecentJobs(true);
     } catch {
-      setError("网络错误,请重试");
+      setUpscaleError("网络错误,请重试");
     } finally {
       setUpscalingKey("");
     }
@@ -1376,7 +1381,10 @@ export function Workspace({
                               className="status action-button action-upscale"
                               type="button"
                               disabled={upscalingKey === reference.key}
-                              onClick={() => upscaleReference(reference)}
+                              onClick={() => {
+                                setUpscaleError("");
+                                setUpscaleConfirmKey(reference.key);
+                              }}
                             >
                               <Sparkles size={13} />
                               {upscalingKey === reference.key ? "处理中…" : "高清化"}
@@ -1399,6 +1407,27 @@ export function Workspace({
               </div>
             ) : null}
           </section>
+
+          <DangerConfirmDialog
+            open={Boolean(upscaleConfirmKey)}
+            title="确认高清化"
+            description="将对这张参考图做 AI 4K 高清重绘:会消耗一次生成额度,且可能轻微改变画面。"
+            confirmLabel="确认重绘"
+            loadingLabel="提交中"
+            loading={Boolean(upscalingKey)}
+            error={upscaleError}
+            icon={<Sparkles size={20} />}
+            confirmIcon={<Sparkles size={16} />}
+            onClose={() => {
+              if (upscalingKey) return;
+              setUpscaleConfirmKey("");
+              setUpscaleError("");
+            }}
+            onConfirm={() => {
+              const target = selectedReferences.find((item) => item.key === upscaleConfirmKey);
+              if (target) void upscaleReference(target);
+            }}
+          />
 
           <div className="generation-submit">
             {error ? <p className="small form-error">{error}</p> : null}
