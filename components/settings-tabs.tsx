@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { DatabaseZap, FileClock, FileText, ImageIcon, KeyRound, ShieldCheck, Users } from "lucide-react";
+import { Cloud, DatabaseZap, FileClock, FileText, ImageIcon, KeyRound, ShieldCheck, Users } from "lucide-react";
 
-type SettingsTabId = "system" | "keys" | "users" | "templates" | "references" | "maintenance" | "audit";
+type SettingsTabId = "system" | "keys" | "users" | "templates" | "references" | "maintenance" | "cache" | "audit";
 
 type SettingsTabsProps = Record<SettingsTabId, ReactNode>;
 
@@ -14,6 +14,7 @@ const tabMeta = [
   { id: "templates", label: "提示词模板", Icon: FileText },
   { id: "references", label: "参考图", Icon: ImageIcon },
   { id: "maintenance", label: "维护操作", Icon: DatabaseZap },
+  { id: "cache", label: "缓存", Icon: Cloud },
   { id: "audit", label: "审计日志", Icon: FileClock }
 ] as const;
 

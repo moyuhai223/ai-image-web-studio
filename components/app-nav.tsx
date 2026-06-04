@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Cloud, FileText, Heart, Image, LogOut, Settings, Table2 } from "lucide-react";
+import { FileText, Heart, Image, LogOut, Settings, Table2 } from "lucide-react";
 import { JobNotificationCenter } from "./job-notification-center";
 import { ReferenceBasketTray } from "./reference-basket";
 import { ThemeModeSelect } from "./theme-mode-select";
@@ -29,10 +29,6 @@ export function AppNav({ user, themeMode }: { user: User; themeMode: UiThemeMode
           <Link href="/favorites" prefetch={false} aria-label="收藏" title="收藏">
             <Heart size={16} />
             <span className="nav-label">收藏</span>
-          </Link>
-          <Link href="/cache-guide" prefetch={false} aria-label="缓存" title="缓存">
-            <Cloud size={16} />
-            <span className="nav-label">缓存</span>
           </Link>
           <Link href="/changelog" prefetch={false} aria-label="日志" title="日志">
             <FileText size={16} />

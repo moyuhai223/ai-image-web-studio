@@ -1,6 +1,7 @@
 import { AppNav } from "@/components/app-nav";
 import { AiKeysForm } from "@/components/ai-keys-form";
 import { AuditLogPanel } from "@/components/audit-log-panel";
+import { CacheGuidePanel } from "@/components/cache-guide-panel";
 import { CreateUserForm } from "@/components/create-user-form";
 import { DataBackupPanel } from "@/components/data-backup-panel";
 import { PresetsManager } from "@/components/presets-manager";
@@ -101,6 +102,7 @@ export default async function SettingsPage() {
               <DataBackupPanel />
             </div>
           }
+          cache={<CacheGuidePanel />}
           audit={
             <AuditLogPanel />
           }
