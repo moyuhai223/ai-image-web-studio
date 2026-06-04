@@ -146,12 +146,12 @@ GENERATION_TIMEOUT_MS=900000
 
 ## 生产部署
 
-### Docker Compose
+### 用 Docker Compose 从源码部署
 
-项目根目录提供了 `docker-compose.yml`，默认 Web 端口为 `3100`：
+适合不用 1Panel、直接用 Docker 的场景。**克隆仓库后在仓库根目录**执行即可——仓库根目录是扁平结构(`Dockerfile`、`app/`、`lib/` 等都在根,根 `docker-compose.yml` 用 `build.context: .`),默认 Web 端口 `3100`:
 
 ```bash
-cp .env.1panel.example .env
+cp .env.example .env       # 按需填写 DATABASE_URL / PROVIDER_* / AUTH_SECRET 等
 docker compose up -d --build
 ```
 
@@ -163,11 +163,13 @@ docker compose up -d --build
 
 ### 1Panel 部署
 
-推荐使用项目内生成好的本地应用包：
+推荐使用 GitHub Releases 里发布的本地应用包(文件名带版本号):
 
 ```text
-ai-image-web-studio-1panel-local-app.zip
+ai-image-web-studio-1panel-local-app-v版本号.zip
 ```
+
+> 目录结构说明:该包是 `应用根/版本号/` 下含 `docker-compose.yml`、`scripts/` 和 `source/`(完整源码),compose 用 `build.context: ./source` 在 1Panel 主机上构建。所以安装后的运行目录(如 `/opt/1panel/apps/ai-image-web-studio/`)里有 `source/` 子目录、源码不在最外层——这是**正常**的,由 1Panel 自动安装并构建,你**不需要**手动跑 `docker compose`。
 
 在 1Panel 中导入本地应用后填写：
 
@@ -494,7 +496,9 @@ lib/                  数据库、队列、provider、存储和备份逻辑
 public/               静态资源
 scripts/              初始化和启动脚本
 storage/              本地图片、缩略图、备份数据
-1panel-local-app/     1Panel 本地应用包结构
+Dockerfile            生产镜像构建(多阶段,output: standalone)
+docker-compose.yml    根 compose(从源码部署用,build.context: .)
+packaging/1panel/     1Panel 本地应用包模板(data.yml / 版本 compose:build.context ./source / scripts)
 ```
 
 ## 安全建议
