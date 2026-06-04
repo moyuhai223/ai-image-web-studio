@@ -14,6 +14,7 @@ import { generationStatusLabel } from "@/lib/generation-status";
 import { countFavoriteImages, listFavoriteImagesPage, type FavoriteImageFilters } from "@/lib/repository";
 import { formatDateTime } from "@/lib/time";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
+import { resolutionTier } from "@/lib/image-size";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import { modelOptions } from "@/lib/validation";
 import { Download, Filter, Heart, Info, RotateCcw, Search } from "lucide-react";
@@ -224,7 +225,9 @@ export default async function FavoritesPage({
                   </div>
                 ) : (
                   <div className="records-grid favorite-grid">
-                    {images.map((image, index) => (
+                    {images.map((image, index) => {
+                      const resTier = resolutionTier(image.width, image.height);
+                      return (
                       <article className="image-card favorite-card" key={image.id}>
                         <FavoriteSelectCheckbox imageId={image.id} />
                         <ImageLightbox
@@ -235,6 +238,7 @@ export default async function FavoritesPage({
                           initialIndex={index}
                         >
                           <ImageWithSkeleton src={imageThumbnailUrl(image.id)} alt={image.job_prompt} />
+                          {resTier ? <span className={`res-badge res-badge-${resTier === "4K" ? "4k" : "2k"}`}>{resTier}</span> : null}
                         </ImageLightbox>
                         <footer className="record-card-footer">
                           <div className="record-card-body">
@@ -270,7 +274,8 @@ export default async function FavoritesPage({
                           </div>
                         </footer>
                       </article>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
                 <nav className="pagination" aria-label="收藏分页">

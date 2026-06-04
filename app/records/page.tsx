@@ -16,6 +16,7 @@ import { requireUser } from "@/lib/auth";
 import { generationStatusLabel, isRetryableGenerationStatus } from "@/lib/generation-status";
 import { countJobs, listJobsPage, type JobListFilters } from "@/lib/repository";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
+import { resolutionTier } from "@/lib/image-size";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import type { GenerationJob, GenerationStatus } from "@/lib/types";
 import { modelOptions } from "@/lib/validation";
@@ -263,6 +264,7 @@ export default async function RecordsPage({
                 <div className="records-grid">
                   {jobs.map((job) => {
                     const galleryIndex = job.thumbnail_id ? imageJobs.findIndex((imageJob) => imageJob.id === job.id) : 0;
+                    const resTier = resolutionTier(job.thumbnail_width, job.thumbnail_height);
 
                     return (
                       <article className="image-card record-card" key={job.id}>
@@ -283,6 +285,7 @@ export default async function RecordsPage({
                             nextPageHref={nextLightboxPageHref}
                           >
                             <ImageWithSkeleton src={imageThumbnailUrl(job.thumbnail_id)} alt="" />
+                            {resTier ? <span className={`res-badge res-badge-${resTier === "4K" ? "4k" : "2k"}`}>{resTier}</span> : null}
                           </ImageLightbox>
                         ) : (
                           <div className="empty-state record-card-preview-empty">无图片</div>

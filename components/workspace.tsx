@@ -15,6 +15,7 @@ import { DangerConfirmDialog } from "./danger-confirm-dialog";
 import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGenerationStatus } from "@/lib/generation-status";
 import { normalizeImageSize } from "@/lib/image-size";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
+import { resolutionTier } from "@/lib/image-size";
 import type { GeneratedImage, GenerationJob, JobWithImages, PromptTemplate, ReferenceImage } from "@/lib/types";
 
 type ModelOption = {
@@ -24,6 +25,8 @@ type ModelOption = {
 
 type RecentJob = GenerationJob & {
   thumbnail_id: string | null;
+  thumbnail_width?: number | null;
+  thumbnail_height?: number | null;
   thumbnail_favorite?: boolean;
 };
 
@@ -159,6 +162,8 @@ function jobToRecent(nextJob: JobWithImages): RecentJob {
   return {
     ...nextJob,
     thumbnail_id: nextJob.images?.[0]?.id ?? null,
+    thumbnail_width: nextJob.images?.[0]?.width ?? null,
+    thumbnail_height: nextJob.images?.[0]?.height ?? null,
     thumbnail_favorite: nextJob.images?.[0]?.is_favorite ?? false
   };
 }
@@ -1588,20 +1593,26 @@ export function Workspace({
             {historyLoading ? <p className="muted small">正在加载最近记录...</p> : null}
             {!historyLoading && !historyLoaded && history.length === 0 ? <p className="muted small">还没有加载最近记录。</p> : null}
             {!historyLoading && historyLoaded && history.length === 0 ? <p className="muted small">还没有生成记录。</p> : null}
-            {history.map((recent) => (
+            {history.map((recent) => {
+              const resTier = resolutionTier(recent.thumbnail_width, recent.thumbnail_height);
+              const resBadge = resTier ? <span className={`res-badge res-badge-${resTier === "4K" ? "4k" : "2k"}`}>{resTier}</span> : null;
+              const recentThumb = recent.thumbnail_id ? (
+                <ImageWithSkeleton className="thumb" wrapperClassName="thumb-skeleton" src={imageThumbnailUrl(recent.thumbnail_id)} alt="" />
+              ) : (
+                <div className="thumb" />
+              );
+              return (
               <article className="history-item" key={recent.id}>
                 {!recent.localOnly ? (
                   <a className="thumb-link" href={`/records/${recent.id}`} aria-label="查看记录详情">
-                    {recent.thumbnail_id ? (
-                      <ImageWithSkeleton className="thumb" wrapperClassName="thumb-skeleton" src={imageThumbnailUrl(recent.thumbnail_id)} alt="" />
-                    ) : (
-                      <div className="thumb" />
-                    )}
+                    {recentThumb}
+                    {resBadge}
                   </a>
-                ) : recent.thumbnail_id ? (
-                  <ImageWithSkeleton className="thumb" wrapperClassName="thumb-skeleton" src={imageThumbnailUrl(recent.thumbnail_id)} alt="" />
                 ) : (
-                  <div className="thumb" />
+                  <div className="thumb-link">
+                    {recentThumb}
+                    {resBadge}
+                  </div>
                 )}
                 <div className="history-content">
                   <div className="history-status-row">
@@ -1638,7 +1649,8 @@ export function Workspace({
                   </div>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         </section>
       </aside>

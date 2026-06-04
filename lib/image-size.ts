@@ -58,3 +58,19 @@ export function computeUpscaleSize(width: number, height: number, longEdge: numb
   const scale = Math.min(Math.max(16, Math.trunc(longEdge)), IMAGE_MAX_LONG_EDGE) / Math.max(w0, h0);
   return normalizeImageSize(`${Math.round(w0 * scale)}x${Math.round(h0 * scale)}`, longEdge);
 }
+
+// 分辨率档位角标(缩略图右下角):按「实际像素长边」归档。
+// 2880 是本项目最小的 4K 档(1:1 4K = 2880×2880)长边;高清化结果长边 3840 也落 4K。
+// 1600 让常见大图(如 1824×1024)落 2K;≤1024 等不显示角标(返回 null)。
+// 注意:必须用图片真实 width/height,不能用 job.size —— AI 高清化的 job.size 仍是源尺寸。
+export type ResolutionTier = "4K" | "2K";
+const RESOLUTION_TIER_4K = 2880;
+const RESOLUTION_TIER_2K = 1600;
+
+export function resolutionTier(width?: number | null, height?: number | null): ResolutionTier | null {
+  if (!width || !height || width <= 0 || height <= 0) return null;
+  const longEdge = Math.max(width, height);
+  if (longEdge >= RESOLUTION_TIER_4K) return "4K";
+  if (longEdge >= RESOLUTION_TIER_2K) return "2K";
+  return null;
+}

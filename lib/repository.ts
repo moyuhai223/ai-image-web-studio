@@ -154,17 +154,19 @@ export async function listRecentJobs(user: User, limit = 24) {
   //     generated_images_job_idx (job_id, sort_order)
   //     generated_image_tags_image_idx (image_id)
   //     generated_image_favorites pk (user_id, image_id)
-  const result = await query<GenerationJob & { thumbnail_id: string | null; thumbnail_tags: string[]; thumbnail_favorite: boolean }>(
+  const result = await query<GenerationJob & { thumbnail_id: string | null; thumbnail_width: number | null; thumbnail_height: number | null; thumbnail_tags: string[]; thumbnail_favorite: boolean }>(
     `select ${jobListColumns},
             u.username,
             thumb.id::text as thumbnail_id,
+            thumb.width as thumbnail_width,
+            thumb.height as thumbnail_height,
             (fav.image_id is not null) as thumbnail_favorite,
             coalesce(thumb_tags.tags, '{}'::text[]) as thumbnail_tags,
             coalesce(job_tags.tags, '{}'::text[]) as tags
      from generation_jobs j
      join users u on u.id = j.user_id
      left join lateral (
-       select i.id
+       select i.id, i.width, i.height
        from generated_images i
        where i.job_id = j.id
        order by i.sort_order asc, i.created_at asc
@@ -234,6 +236,8 @@ export async function listActiveQueueJobs(user: User, limit = 8) {
 
 export type JobListItem = GenerationJob & {
   thumbnail_id: string | null;
+  thumbnail_width: number | null;
+  thumbnail_height: number | null;
   thumbnail_tags: string[];
   thumbnail_favorite: boolean;
 };
@@ -265,13 +269,15 @@ export async function listJobsPage(user: User, page: number, pageSize: number, f
     `select ${jobListColumns},
             u.username,
             thumb.id::text as thumbnail_id,
+            thumb.width as thumbnail_width,
+            thumb.height as thumbnail_height,
             (fav.image_id is not null) as thumbnail_favorite,
             coalesce(thumb_tags.tags, '{}'::text[]) as thumbnail_tags,
             coalesce(job_tags.tags, '{}'::text[]) as tags
      from generation_jobs j
      join users u on u.id = j.user_id
      left join lateral (
-       select i.id
+       select i.id, i.width, i.height
        from generated_images i
        where i.job_id = j.id
        order by i.sort_order asc, i.created_at asc
