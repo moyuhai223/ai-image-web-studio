@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FileText, Heart, Image, LogOut, Settings, Table2 } from "lucide-react";
 import { JobNotificationCenter } from "./job-notification-center";
+import { NotifyToggle } from "./notify-toggle";
 import { ReferenceBasketTray } from "./reference-basket";
 import { ThemeModeSelect } from "./theme-mode-select";
 import type { User } from "@/lib/types";
@@ -40,6 +41,7 @@ export function AppNav({ user, themeMode }: { user: User; themeMode: UiThemeMode
               <span className="nav-label">设置</span>
             </Link>
           ) : null}
+          <NotifyToggle />
           <ThemeModeSelect initialMode={themeMode} />
           <form action="/api/auth/logout" method="post">
             <button className="ghost-button" type="submit" aria-label={`退出登录：${user.username}`} title={`退出登录：${user.username}`}>

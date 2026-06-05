@@ -31,6 +31,42 @@ const NOTIFIED_KEY = "ai-image-studio-notified-jobs";
 const EVENT_NAME = "ai-image-job-notification";
 const POLL_MS = 4500;
 
+// 浏览器系统通知:用户在顶栏「完成提醒」开关里开启,偏好持久化在 localStorage。
+// 只有开启 + 浏览器已授权时才算启用。
+export const BROWSER_NOTIFY_KEY = "ai-image-studio-browser-notify";
+
+export function isBrowserNotifyEnabled() {
+  if (typeof window === "undefined" || !("Notification" in window)) return false;
+  if (Notification.permission !== "granted") return false;
+  try {
+    return window.localStorage.getItem(BROWSER_NOTIFY_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+// 在「页面不在前台」时弹系统通知 —— 用户在看着页面时应用内 toast 已足够,不重复打扰。
+function maybeShowBrowserNotification(job: RecentJob, copy: { title: string; message: string }) {
+  if (!isBrowserNotifyEnabled()) return;
+  if (typeof document !== "undefined" && document.visibilityState === "visible" && document.hasFocus()) return;
+  try {
+    const notification = new Notification(copy.title, {
+      body: job.prompt ? shortPrompt(job.prompt) : copy.message,
+      tag: `${job.id}:${job.status}`
+    });
+    notification.onclick = () => {
+      try {
+        window.focus();
+      } catch {
+        // ignore
+      }
+      notification.close();
+    };
+  } catch {
+    // 某些环境(如移动端 Chrome 需 ServiceWorker)直接 new Notification 会抛,忽略。
+  }
+}
+
 function isActiveStatus(status: GenerationStatus) {
   return status === "queued" || status === "running";
 }
@@ -150,10 +186,12 @@ export function JobNotificationCenter() {
 
     setToasts((current) => [toast, ...current].slice(0, 4));
     window.setTimeout(() => removeToast(toast.id), 8500);
+    maybeShowBrowserNotification(job, copy);
   }
 
   async function pollRecentJobs() {
-    if (document.hidden && initialized.current) return;
+    // 默认页面隐藏时停止轮询省资源;但开启了系统通知时要继续轮询,才能在用户离开时检测到完成并弹通知。
+    if (document.hidden && initialized.current && !isBrowserNotifyEnabled()) return;
     pollController.current?.abort();
     const controller = new AbortController();
     pollController.current = controller;

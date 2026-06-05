@@ -322,6 +322,13 @@ summary:focus-visible,
   border-color: transparent;
 }
 
+/* v0.7.16 完成提醒开关:开启态用品牌色点亮铃铛,与关闭态一眼区分 */
+.notify-toggle[data-on="true"] {
+  color: var(--brand);
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--border));
+  background: color-mix(in srgb, var(--brand) 12%, var(--panel));
+}
+
 .toast-stack {
   position: fixed;
   top: 70px;
