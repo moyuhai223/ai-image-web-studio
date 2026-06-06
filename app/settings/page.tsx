@@ -1,4 +1,5 @@
 import { AppNav } from "@/components/app-nav";
+import { AppFooter } from "@/components/app-footer";
 import { AiKeysForm } from "@/components/ai-keys-form";
 import { AuditLogPanel } from "@/components/audit-log-panel";
 import { CacheGuidePanel } from "@/components/cache-guide-panel";
@@ -108,6 +109,7 @@ export default async function SettingsPage() {
           }
         />
       </main>
+      <AppFooter />
     </div>
   );
 }

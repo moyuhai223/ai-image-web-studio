@@ -1,4 +1,5 @@
 import { AppNav } from "@/components/app-nav";
+import { AppFooter } from "@/components/app-footer";
 import { Workspace } from "@/components/workspace";
 import { requireUser } from "@/lib/auth";
 import { listPromptTemplates } from "@/lib/prompt-templates";
@@ -26,6 +27,7 @@ export default async function HomePage() {
       <main className="main">
         <Workspace models={modelOptions} promptTemplates={templates} recentReferenceImages={recentReferencePreview} />
       </main>
+      <AppFooter />
     </div>
   );
 }

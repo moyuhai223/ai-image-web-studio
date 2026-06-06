@@ -1,4 +1,5 @@
 import { AppNav } from "@/components/app-nav";
+import { AppFooter } from "@/components/app-footer";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { FavoriteImageButton } from "@/components/favorite-image-button";
 import { FavoriteSelectCheckbox, FavoritesBulkActions, FavoritesSelectionProvider, FavoritesToolTabsBridge } from "@/components/favorites-bulk-actions";
@@ -293,6 +294,7 @@ export default async function FavoritesPage({
           </FavoritesSelectionProvider>
         </section>
       </main>
+      <AppFooter />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { AppNav } from "@/components/app-nav";
+import { AppFooter } from "@/components/app-footer";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { DeleteRecordButton } from "@/components/delete-record-button";
 import { FavoriteImageButton } from "@/components/favorite-image-button";
@@ -346,6 +347,7 @@ export default async function RecordsPage({
           </RecordsSelectionProvider>
         </section>
       </main>
+      <AppFooter />
     </div>
   );
 }

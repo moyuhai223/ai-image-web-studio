@@ -132,6 +132,43 @@ summary:focus-visible,
   color: var(--text);
 }
 
+/* v0.7.19 全站页脚:项目名 · GitHub · 版本。在 .shell 内,随主题变色。 */
+.app-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--glass-border);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.app-footer-brand {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.app-footer-dot {
+  opacity: 0.5;
+}
+
+.app-footer-link {
+  color: var(--brand);
+  text-decoration: none;
+}
+
+.app-footer-link:hover {
+  text-decoration: underline;
+}
+
+.app-footer-version {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 .shell[data-theme="gallery"],
 .login-wrap[data-theme="gallery"] {
   --bg: #f7f8fb;

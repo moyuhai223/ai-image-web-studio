@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { AppNav } from "@/components/app-nav";
+import { AppFooter } from "@/components/app-footer";
 import { requireUser } from "@/lib/auth";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import type { ReactNode } from "react";
@@ -77,6 +78,7 @@ export default async function ChangelogPage() {
           </article>
         </section>
       </main>
+      <AppFooter />
     </div>
   );
 }
