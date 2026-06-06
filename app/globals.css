@@ -4152,6 +4152,12 @@ code {
   animation: scaleIn 280ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 
+/* 对比模式(主修改图 / 成品图)在大屏把舞台拉宽,两图能更大、不浪费空间;
+   单图模式保持窄舞台,避免把较小的图放大发虚。:has 现代浏览器支持。 */
+.lightbox-stage:has(.lightbox-compare-grid) {
+  width: min(2200px, 96vw);
+}
+
 .lightbox-toolbar {
   display: flex;
   align-items: center;
@@ -4255,7 +4261,7 @@ code {
 .lightbox-compare-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: center;
+  align-items: stretch;
   gap: 12px;
   width: 100%;
   height: 100%;
@@ -4266,7 +4272,7 @@ code {
 .lightbox-compare-pane {
   position: relative;
   display: grid;
-  grid-template-rows: auto minmax(0, auto);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 8px;
   min-width: 0;
   min-height: 0;
