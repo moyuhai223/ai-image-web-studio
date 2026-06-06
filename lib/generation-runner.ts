@@ -23,6 +23,8 @@ export type GenerationRunInput = {
   presetId?: string | null;
   /** 来自 request_metadata.upscale.targetLongEdge;非空时把模型输出存盘前 sharp 放大到该长边(AI 高清化收尾到 4K) */
   upscaleTargetLongEdge?: number;
+  /** 来自 request_metadata.autoRetry.attempts;已自动重试的次数,用于判断是否还能再重试。 */
+  autoRetryAttempts?: number;
 };
 
 type StoredJobInput = Pick<GenerationJob, "prompt" | "model" | "size" | "count" | "request_metadata">;
@@ -186,6 +188,9 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
   const upscaleTargetLongEdge =
     Number.isFinite(upscaleTargetRaw) && upscaleTargetRaw > 0 ? Math.trunc(upscaleTargetRaw) : undefined;
 
+  const autoRetryMeta = asRecord(job.request_metadata?.autoRetry);
+  const autoRetryAttempts = autoRetryMeta ? Math.max(0, Math.trunc(Number(autoRetryMeta.attempts) || 0)) : 0;
+
   return {
     prompt: job.prompt,
     model: job.model,
@@ -193,6 +198,7 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
     count: job.count,
     presetId,
     upscaleTargetLongEdge,
+    autoRetryAttempts,
     ...referenceInfo
   };
 }
@@ -304,6 +310,102 @@ function failureStatusForError(error: unknown): "failed" | "upstream_error" {
   const raw = errorMessage(error);
   const info = mapProviderError(raw);
   return info?.category === "upstream" ? "upstream_error" : "failed";
+}
+
+// 只有「瞬时」类错误才自动重试:上游 5xx/无图/auth_unavailable(upstream)、超时(timeout)、网络(network)。
+// auth(key 无效)/quota(额度)/validation(输入非法)重试也不会好,不重试。
+const RETRYABLE_ERROR_CATEGORIES = new Set(["upstream", "timeout", "network"]);
+function isRetryableError(error: unknown): boolean {
+  const info = mapProviderError(errorMessage(error));
+  return info ? RETRYABLE_ERROR_CATEGORIES.has(info.category) : false;
+}
+
+// 退避后把任务从「保持 running 等待」翻回 queued 并重新入队;队列 watchdog/drain 会再领取。
+async function requeueAfterAutoRetry(jobId: string, runId: string) {
+  try {
+    const queuedProgress = progress({
+      phase: "queued",
+      current: 0,
+      total: 1,
+      percent: 5,
+      message: "已重新排队(自动重试)"
+    });
+    const res = await query<{ id: string }>(
+      `update generation_jobs
+       set status = 'queued',
+           started_at = null,
+           request_metadata = jsonb_set(request_metadata, '{progress}', $3::jsonb, true),
+           updated_at = now()
+       where id = $1
+         and status = 'running'
+         and request_metadata #>> '{control,runId}' = $2
+       returning id`,
+      [jobId, runId, queuedProgress]
+    );
+    if (res.rowCount === 0) return; // 已被取消/重排/接管,放弃
+    // 动态 import 避免与 generation-queue 的静态循环依赖(queue 静态 import 本模块)。
+    const { enqueueGenerationJob } = await import("./generation-queue");
+    enqueueGenerationJob(jobId);
+  } catch (error) {
+    log.warn("Auto-retry requeue failed", { jobId, error });
+  }
+}
+
+/**
+ * 瞬时失败时安排自动重试:保持任务 running(不被领取)、attempt+1 写入 metadata,
+ * 退避 base*attempt 毫秒后翻回 queued 重新入队。返回 true 表示已安排(调用方不要再 markFailed)。
+ * 进程在退避中重启也安全:任务停在 running → 启动时 recoverInterruptedJobs 翻回 queued 重跑(attempt 已持久化)。
+ */
+async function maybeScheduleAutoRetry(
+  jobId: string,
+  runId: string,
+  input: GenerationRunInput,
+  error: unknown
+): Promise<boolean> {
+  const maxRetries = config.generationAutoRetryMax;
+  if (maxRetries <= 0 || !isRetryableError(error)) return false;
+
+  const attempt = (input.autoRetryAttempts ?? 0) + 1;
+  if (attempt > maxRetries) return false;
+
+  const backoffMs = Math.min(60000, Math.max(1000, config.generationAutoRetryBackoffMs * attempt));
+  const waitMessage = `上游失败,自动重试中(第 ${attempt}/${maxRetries} 次,约 ${Math.round(backoffMs / 1000)} 秒后)`;
+  const retryProgress = progress({
+    phase: "queued",
+    current: 0,
+    total: input.count,
+    percent: 20,
+    message: waitMessage
+  });
+
+  const res = await query<{ id: string }>(
+    `update generation_jobs
+     set request_metadata = jsonb_set(
+           jsonb_set(
+             request_metadata,
+             '{autoRetry}',
+             coalesce(request_metadata->'autoRetry', '{}'::jsonb) || jsonb_build_object('attempts', $3::int),
+             true
+           ),
+           '{progress}', $4::jsonb, true
+         ),
+         updated_at = now()
+     where id = $1
+       and status = 'running'
+       and request_metadata #>> '{control,runId}' = $2
+     returning id`,
+    [jobId, runId, attempt, retryProgress]
+  );
+  if (res.rowCount === 0) return false; // 任务已取消/被接管,交给调用方(markFailed 也会 no-op)
+
+  const timer = setTimeout(() => {
+    void requeueAfterAutoRetry(jobId, runId);
+  }, backoffMs);
+  if (typeof timer === "object" && "unref" in timer && typeof timer.unref === "function") {
+    timer.unref();
+  }
+  log.warn("Generation job scheduled for auto-retry", { jobId, attempt, maxRetries, backoffMs });
+  return true;
 }
 
 async function markFailed(
@@ -572,6 +674,11 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
     if (!input) {
       await markFailedBeforeInput(jobId, runId, error, failureStage);
       log.warn("Generation job failed before loading input", { jobId, stage: failureStage, error });
+      return;
+    }
+    // 瞬时失败先尝试自动重试(保持 running → 退避后重排队);安排成功就不落终态。
+    if (await maybeScheduleAutoRetry(jobId, runId, input, error)) {
+      log.warn("Generation job will auto-retry", { jobId, stage: failureStage });
       return;
     }
     await markFailed(jobId, runId, input, providerResults, error, failureStage, phaseTimings);

@@ -61,6 +61,10 @@ export const config = {
   generationTimeoutMs: numberEnv(process.env.GENERATION_TIMEOUT_MS, DEFAULT_GENERATION_TIMEOUT_MS),
   /** 4K 高清化的目标长边像素(快速放大与 AI 收尾共用)。默认 3840(4K UHD)。 */
   upscaleLongEdge: numberEnv(process.env.UPSCALE_LONG_EDGE, 3840),
+  /** v0.7.25: 生成失败自动重试上限——仅对瞬时错误(上游 5xx/无图/超时/网络/auth_unavailable)。0 = 关闭。默认 2。 */
+  generationAutoRetryMax: numberEnv(process.env.GENERATION_AUTO_RETRY_MAX, 2, 0),
+  /** 自动重试基准退避毫秒;第 N 次重试约等 base*N(默认 8000 → 8s、16s),上限 60s。 */
+  generationAutoRetryBackoffMs: numberEnv(process.env.GENERATION_AUTO_RETRY_BACKOFF_MS, 8000),
   /**
    * Stage 2 (v0.5.0): 进程重启时,默认把 running 任务改成 'interrupted' 终态,而非自动重排队。
    * 设为 true 可恢复旧行为(自动重排队)。

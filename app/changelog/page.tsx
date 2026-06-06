@@ -8,47 +8,90 @@ import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 
+// 轻量行内 markdown:`代码`、**加粗**、[文字](链接)。不引依赖,够 CHANGELOG 用。
 function renderInline(text: string) {
-  return text.split(/(`[^`]+`)/g).map((part, index) => {
-    if (part.startsWith("`") && part.endsWith("`")) {
-      return <code key={index}>{part.slice(1, -1)}</code>;
-    }
-    return part;
-  });
+  return text
+    .split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g)
+    .map((part, index) => {
+      if (!part) return null;
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return <code key={index}>{part.slice(1, -1)}</code>;
+      }
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={index}>{part.slice(2, -2)}</strong>;
+      }
+      const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(part);
+      if (link) {
+        return (
+          <a key={index} href={link[2]} target="_blank" rel="noreferrer">
+            {link[1]}
+          </a>
+        );
+      }
+      return part;
+    });
 }
+
+type ChangelogItem = { content: ReactNode; subs: ReactNode[] };
 
 function renderChangelog(content: string) {
   const nodes: ReactNode[] = [];
-  let listItems: ReactNode[] = [];
+  let list: ChangelogItem[] | null = null;
 
   function flushList() {
-    if (listItems.length === 0) return;
-    nodes.push(<ul key={`ul-${nodes.length}`}>{listItems}</ul>);
-    listItems = [];
+    if (!list || list.length === 0) {
+      list = null;
+      return;
+    }
+    nodes.push(
+      <ul key={`ul-${nodes.length}`}>
+        {list.map((item, i) => (
+          <li key={i}>
+            {item.content}
+            {item.subs.length > 0 ? (
+              <ul>
+                {item.subs.map((sub, j) => (
+                  <li key={j}>{sub}</li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    );
+    list = null;
   }
 
   content.split(/\r?\n/).forEach((line, index) => {
-    const text = line.trim();
-    if (!text) {
+    const trimmed = line.trim();
+    if (!trimmed) {
       flushList();
       return;
     }
 
-    if (text === "# 更新日志") return;
+    if (trimmed === "# 更新日志") return;
 
-    if (text.startsWith("- ")) {
-      listItems.push(<li key={`li-${index}`}>{renderInline(text.slice(2))}</li>);
+    if (trimmed.startsWith("- ")) {
+      // 缩进 ≥2 空格的视为上一条的二级子项,渲染成嵌套列表。
+      const indent = line.length - line.trimStart().length;
+      const item = renderInline(trimmed.slice(2));
+      if (!list) list = [];
+      if (indent >= 2 && list.length > 0) {
+        list[list.length - 1].subs.push(item);
+      } else {
+        list.push({ content: item, subs: [] });
+      }
       return;
     }
 
     flushList();
 
-    if (text.startsWith("## ")) {
-      nodes.push(<h2 key={index}>{renderInline(text.slice(3))}</h2>);
-    } else if (text.startsWith("### ")) {
-      nodes.push(<h3 key={index}>{renderInline(text.slice(4))}</h3>);
+    if (trimmed.startsWith("## ")) {
+      nodes.push(<h2 key={index}>{renderInline(trimmed.slice(3))}</h2>);
+    } else if (trimmed.startsWith("### ")) {
+      nodes.push(<h3 key={index}>{renderInline(trimmed.slice(4))}</h3>);
     } else {
-      nodes.push(<p key={index}>{renderInline(text)}</p>);
+      nodes.push(<p key={index}>{renderInline(trimmed)}</p>);
     }
   });
 

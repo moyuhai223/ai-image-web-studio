@@ -28,11 +28,13 @@ type Pattern = {
 const PATTERNS: Pattern[] = [
   // 认证 / Key 池耗尽 ----------------------------------------------------------
   {
+    // auth_unavailable / "no auth available" 是网关上游池临时没有可用认证(路由/池耗尽),
+    // 属于瞬时上游问题(可重试),归类 upstream —— 区别于下面真正的「key 无效」(auth,不可重试)。
     test: /no auth available|auth_unavailable/i,
     build: () => ({
-      friendly: "上游服务对该模型未配置认证(可能是服务商内部路由问题)",
-      suggestion: "请联系服务商确认该模型是否仍可用,或尝试切换其它模型",
-      category: "auth"
+      friendly: "上游服务对该模型暂无可用认证(服务商内部路由/池临时问题)",
+      suggestion: "通常稍后自动重试即可恢复;若持续出现请联系服务商或切换其它模型",
+      category: "upstream"
     })
   },
   {

@@ -2200,6 +2200,29 @@ button.action-button:hover:not(:disabled),
   padding-left: 22px;
 }
 
+.changelog-body ul ul {
+  padding-top: 4px;
+  padding-left: 18px;
+}
+
+.changelog-body li {
+  margin: 2px 0;
+}
+
+.changelog-body strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.changelog-body a {
+  color: var(--brand);
+  text-decoration: none;
+}
+
+.changelog-body a:hover {
+  text-decoration: underline;
+}
+
 .records-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -4144,7 +4167,9 @@ code {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 8px;
-  width: min(1200px, 100%);
+  /* v0.7.26: 单图预览大屏也放大(从 1200px → 2000px/94vw);图片仍受 max-height 约束,
+     竖图按高度填、横图按宽度填,小图不会被夸张拉大。 */
+  width: min(2000px, 94vw);
   max-height: calc(100vh - 48px);
   height: calc(100vh - 48px);
   min-height: 0;
@@ -4152,8 +4177,7 @@ code {
   animation: scaleIn 280ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 
-/* 对比模式(主修改图 / 成品图)在大屏把舞台拉宽,两图能更大、不浪费空间;
-   单图模式保持窄舞台,避免把较小的图放大发虚。:has 现代浏览器支持。 */
+/* 对比模式(主修改图 / 成品图)需要并排放两张,舞台再宽一点。:has 现代浏览器支持。 */
 .lightbox-stage:has(.lightbox-compare-grid) {
   width: min(2200px, 96vw);
 }
