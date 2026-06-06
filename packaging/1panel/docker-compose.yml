@@ -18,7 +18,9 @@ services:
     networks:
       - 1panel-network
     ports:
-      - "${PANEL_APP_PORT_HTTP:-3100}:3000"
+      # 默认只绑宿主机 127.0.0.1(不暴露公网)——反代/Cloudflare 走本地回环即可。
+      # 需要公网直连改 PANEL_APP_BIND_IP=0.0.0.0。注意:容器内的 HOSTNAME 必须保持 0.0.0.0,否则端口映射进不来。
+      - "${PANEL_APP_BIND_IP:-127.0.0.1}:${PANEL_APP_PORT_HTTP:-3100}:3000"
     environment:
       NODE_ENV: production
       PORT: 3000

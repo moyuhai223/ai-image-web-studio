@@ -427,12 +427,31 @@ export async function listFavoriteImagesPage(user: User, page: number, pageSize:
   return result.rows;
 }
 
+// 去掉 request_metadata 里 reference/references 的服务器文件路径 localPath。
+// 详情页/客户端只需要 reference 的 sourceImageId/referenceImageId(显示源图缩略图),localPath 不应外泄。
+function sanitizeRequestMetadataForClient(meta: GenerationJob["request_metadata"]): GenerationJob["request_metadata"] {
+  if (!meta || typeof meta !== "object") return meta;
+  const stripRef = (ref: unknown) => {
+    if (!ref || typeof ref !== "object") return ref;
+    const copy = { ...(ref as Record<string, unknown>) };
+    delete copy.localPath;
+    return copy;
+  };
+  const clone: Record<string, unknown> = { ...(meta as Record<string, unknown>) };
+  if ("reference" in clone) clone.reference = stripRef(clone.reference);
+  if (Array.isArray(clone.references)) clone.references = clone.references.map(stripRef);
+  return clone as GenerationJob["request_metadata"];
+}
+
 export async function getJobById(id: string, user: User): Promise<JobWithImages | null> {
+  // 注意:jobListColumns 把 request_metadata 置成 '{}'(列表查询省带宽);详情页需要完整 metadata(含 reference 源图)。
+  // 故末尾再选一次真实 j.request_metadata —— node-pg 对同名列「后者覆盖前者」,得到真实值;随后 sanitize 去掉 localPath。
   const result = await query<GenerationJob>(
     `select ${jobListColumns},
             u.username,
             j.response_metadata #>> '{requests,0,keyLabel}' as provider_key_label,
-            j.response_metadata #>> '{requests,0,keySource}' as provider_key_source
+            j.response_metadata #>> '{requests,0,keySource}' as provider_key_source,
+            j.request_metadata as request_metadata
      from generation_jobs j
      join users u on u.id = j.user_id
      where j.id = $1 and ($2::text = 'admin' or j.user_id = $3)`,
@@ -440,6 +459,7 @@ export async function getJobById(id: string, user: User): Promise<JobWithImages 
   );
   const job = result.rows[0];
   if (!job) return null;
+  job.request_metadata = sanitizeRequestMetadataForClient(job.request_metadata);
 
   const images = await query<GeneratedImage>(
     `select i.*,

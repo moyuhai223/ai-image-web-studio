@@ -12,6 +12,17 @@ additionalProperties:
       required: true
       rule: paramPort
       type: number
+    - default: 127.0.0.1
+      edit: true
+      envKey: PANEL_APP_BIND_IP
+      labelEn: Host Bind IP (127.0.0.1 = localhost only, 0.0.0.0 = public)
+      labelZh: 宿主机监听地址(127.0.0.1=仅本机,0.0.0.0=公网)
+      label:
+        en: Host Bind IP (127.0.0.1 = localhost only, 0.0.0.0 = public)
+        zh: 宿主机监听地址(127.0.0.1=仅本机,0.0.0.0=公网)
+        zh-Hant: 主機監聽位址(127.0.0.1=僅本機,0.0.0.0=公網)
+      required: true
+      type: text
     - default: https://registry.npmmirror.com
       edit: true
       envKey: NPM_REGISTRY
