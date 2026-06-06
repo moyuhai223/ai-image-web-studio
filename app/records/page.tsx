@@ -16,7 +16,7 @@ import { RerunButton } from "@/components/rerun-button";
 import { requireUser } from "@/lib/auth";
 import { generationStatusLabel, isRetryableGenerationStatus } from "@/lib/generation-status";
 import { countJobs, listJobsPage, type JobListFilters } from "@/lib/repository";
-import { imageThumbnailUrl } from "@/lib/thumbnails";
+import { imageThumbnailUrl, THUMBNAIL_QUERY } from "@/lib/thumbnails";
 import { resolutionTier } from "@/lib/image-size";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import type { GenerationJob, GenerationStatus } from "@/lib/types";
@@ -266,6 +266,14 @@ export default async function RecordsPage({
                   {jobs.map((job) => {
                     const galleryIndex = job.thumbnail_id ? imageJobs.findIndex((imageJob) => imageJob.id === job.id) : 0;
                     const resTier = resolutionTier(job.thumbnail_width, job.thumbnail_height);
+                    // 无输出图(失败/排队中)但这是编辑/参考任务时,用"源图"缩略图代替,方便看出编辑的是哪张。
+                    const refThumb = job.thumbnail_id
+                      ? null
+                      : job.ref_source_image_id
+                        ? imageThumbnailUrl(job.ref_source_image_id)
+                        : job.ref_library_image_id
+                          ? `/api/reference-images/${job.ref_library_image_id}?${THUMBNAIL_QUERY}`
+                          : null;
 
                     return (
                       <article className="image-card record-card" key={job.id}>
@@ -288,6 +296,11 @@ export default async function RecordsPage({
                             <ImageWithSkeleton src={imageThumbnailUrl(job.thumbnail_id)} alt="" />
                             {resTier ? <span className={`res-badge res-badge-${resTier === "4K" ? "4k" : "2k"}`}>{resTier}</span> : null}
                           </ImageLightbox>
+                        ) : refThumb ? (
+                          <div className="image-open-button record-card-thumb-ref">
+                            <ImageWithSkeleton src={refThumb} alt="编辑源图" />
+                            <span className="ref-badge">编辑源</span>
+                          </div>
                         ) : (
                           <div className="empty-state record-card-preview-empty">无图片</div>
                         )}

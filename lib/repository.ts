@@ -154,13 +154,15 @@ export async function listRecentJobs(user: User, limit = 24) {
   //     generated_images_job_idx (job_id, sort_order)
   //     generated_image_tags_image_idx (image_id)
   //     generated_image_favorites pk (user_id, image_id)
-  const result = await query<GenerationJob & { thumbnail_id: string | null; thumbnail_width: number | null; thumbnail_height: number | null; thumbnail_tags: string[]; thumbnail_favorite: boolean }>(
+  const result = await query<GenerationJob & { thumbnail_id: string | null; thumbnail_width: number | null; thumbnail_height: number | null; thumbnail_tags: string[]; thumbnail_favorite: boolean; ref_source_image_id: string | null; ref_library_image_id: string | null }>(
     `select ${jobListColumns},
             u.username,
             thumb.id::text as thumbnail_id,
             thumb.width as thumbnail_width,
             thumb.height as thumbnail_height,
             (fav.image_id is not null) as thumbnail_favorite,
+            coalesce(j.request_metadata->'reference'->>'sourceImageId', j.request_metadata->'references'->0->>'sourceImageId') as ref_source_image_id,
+            coalesce(j.request_metadata->'reference'->>'referenceImageId', j.request_metadata->'references'->0->>'referenceImageId') as ref_library_image_id,
             coalesce(thumb_tags.tags, '{}'::text[]) as thumbnail_tags,
             coalesce(job_tags.tags, '{}'::text[]) as tags
      from generation_jobs j
@@ -240,6 +242,10 @@ export type JobListItem = GenerationJob & {
   thumbnail_height: number | null;
   thumbnail_tags: string[];
   thumbnail_favorite: boolean;
+  // 编辑/参考任务的"源图":失败/无输出时用来在卡片上显示被编辑的是哪张。
+  // 二选一:ref_source_image_id = 生成图(/api/images),ref_library_image_id = 参考图库(/api/reference-images)。
+  ref_source_image_id: string | null;
+  ref_library_image_id: string | null;
 };
 
 export type FavoriteImageListItem = GeneratedImage & {
@@ -272,6 +278,8 @@ export async function listJobsPage(user: User, page: number, pageSize: number, f
             thumb.width as thumbnail_width,
             thumb.height as thumbnail_height,
             (fav.image_id is not null) as thumbnail_favorite,
+            coalesce(j.request_metadata->'reference'->>'sourceImageId', j.request_metadata->'references'->0->>'sourceImageId') as ref_source_image_id,
+            coalesce(j.request_metadata->'reference'->>'referenceImageId', j.request_metadata->'references'->0->>'referenceImageId') as ref_library_image_id,
             coalesce(thumb_tags.tags, '{}'::text[]) as thumbnail_tags,
             coalesce(job_tags.tags, '{}'::text[]) as tags
      from generation_jobs j

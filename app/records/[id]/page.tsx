@@ -16,7 +16,7 @@ import { requireUser } from "@/lib/auth";
 import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGenerationStatus } from "@/lib/generation-status";
 import { getJobById, listImageVersionChainForJob } from "@/lib/repository";
 import { formatDateTime } from "@/lib/time";
-import { imageThumbnailUrl } from "@/lib/thumbnails";
+import { imageThumbnailUrl, THUMBNAIL_QUERY } from "@/lib/thumbnails";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import type { GeneratedImage, ImageVersionNode, JobWithImages } from "@/lib/types";
 import { Download, Pencil } from "lucide-react";
@@ -341,6 +341,38 @@ function VersionChain({ nodes }: { nodes: ImageVersionNode[] }) {
   );
 }
 
+type SourceRef = { key: string; thumbUrl: string; fullUrl: string };
+
+// 任务的「编辑源图」:从 request_metadata.references/reference 取被编辑的原图。
+// 二选一:sourceImageId(生成图 /api/images)或 referenceImageId(参考图库 /api/reference-images)。
+function sourceReferencesForJob(job: JobWithImages): SourceRef[] {
+  const meta = job.request_metadata as
+    | { reference?: Record<string, unknown> | null; references?: Array<Record<string, unknown>> }
+    | null
+    | undefined;
+  const list =
+    Array.isArray(meta?.references) && meta.references.length > 0
+      ? meta.references
+      : meta?.reference
+        ? [meta.reference]
+        : [];
+  const out: SourceRef[] = [];
+  list.forEach((ref, index) => {
+    const sourceImageId = typeof ref?.sourceImageId === "string" ? ref.sourceImageId : null;
+    const referenceImageId = typeof ref?.referenceImageId === "string" ? ref.referenceImageId : null;
+    if (sourceImageId) {
+      out.push({ key: `s-${index}-${sourceImageId}`, thumbUrl: imageThumbnailUrl(sourceImageId), fullUrl: `/api/images/${sourceImageId}` });
+    } else if (referenceImageId) {
+      out.push({
+        key: `r-${index}-${referenceImageId}`,
+        thumbUrl: `/api/reference-images/${referenceImageId}?${THUMBNAIL_QUERY}`,
+        fullUrl: `/api/reference-images/${referenceImageId}`
+      });
+    }
+  });
+  return out;
+}
+
 export default async function RecordDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
@@ -364,6 +396,7 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
         }
       : undefined
   }));
+  const sourceRefs = sourceReferencesForJob(job);
 
   return (
     <div className="shell" data-theme={themePreference.theme}>
@@ -420,6 +453,18 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
             <FlowProgress job={job} />
             {showVersionChain ? <VersionChain nodes={versionChain} /> : null}
             {job.error_message ? <p style={{ color: "var(--danger)" }}>{job.error_message}</p> : null}
+            {sourceRefs.length > 0 ? (
+              <div className="source-refs">
+                <p className="small muted">编辑源图（{sourceRefs.length} 张）</p>
+                <div className="source-refs-grid">
+                  {sourceRefs.map((ref) => (
+                    <a key={ref.key} className="source-ref-thumb" href={ref.fullUrl} target="_blank" rel="noreferrer" title="查看原图">
+                      <ImageWithSkeleton src={ref.thumbUrl} alt="编辑源图" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="preview-grid">
               {job.images.map((image, index) => (
                 <article className="image-card" key={image.id}>

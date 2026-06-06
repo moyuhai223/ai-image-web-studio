@@ -14,7 +14,7 @@ import { REFERENCE_BASKET_APPLY_EVENT, readReferenceBasketItems, ReferenceBasket
 import { DangerConfirmDialog } from "./danger-confirm-dialog";
 import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGenerationStatus } from "@/lib/generation-status";
 import { normalizeImageSize } from "@/lib/image-size";
-import { imageThumbnailUrl } from "@/lib/thumbnails";
+import { imageThumbnailUrl, THUMBNAIL_QUERY } from "@/lib/thumbnails";
 import { resolutionTier } from "@/lib/image-size";
 import { ROTATE_PRESET_ID } from "@/lib/provider-rotation";
 import type { GeneratedImage, GenerationJob, JobWithImages, PromptTemplate, ReferenceImage } from "@/lib/types";
@@ -29,6 +29,8 @@ type RecentJob = GenerationJob & {
   thumbnail_width?: number | null;
   thumbnail_height?: number | null;
   thumbnail_favorite?: boolean;
+  ref_source_image_id?: string | null;
+  ref_library_image_id?: string | null;
 };
 
 type HistoryJob = RecentJob & {
@@ -160,12 +162,19 @@ function queueHasWork(snapshot: QueueSnapshot) {
 }
 
 function jobToRecent(nextJob: JobWithImages): RecentJob {
+  const meta = nextJob.request_metadata as
+    | { reference?: { sourceImageId?: string; referenceImageId?: string }; references?: Array<{ sourceImageId?: string; referenceImageId?: string }> }
+    | null
+    | undefined;
+  const ref0 = meta?.reference ?? meta?.references?.[0] ?? null;
   return {
     ...nextJob,
     thumbnail_id: nextJob.images?.[0]?.id ?? null,
     thumbnail_width: nextJob.images?.[0]?.width ?? null,
     thumbnail_height: nextJob.images?.[0]?.height ?? null,
-    thumbnail_favorite: nextJob.images?.[0]?.is_favorite ?? false
+    thumbnail_favorite: nextJob.images?.[0]?.is_favorite ?? false,
+    ref_source_image_id: ref0?.sourceImageId ?? null,
+    ref_library_image_id: ref0?.referenceImageId ?? null
   };
 }
 
@@ -1599,8 +1608,19 @@ export function Workspace({
             {history.map((recent) => {
               const resTier = resolutionTier(recent.thumbnail_width, recent.thumbnail_height);
               const resBadge = resTier ? <span className={`res-badge res-badge-${resTier === "4K" ? "4k" : "2k"}`}>{resTier}</span> : null;
+              // 无输出图(失败/排队中)但是编辑/参考任务时,用「源图」缩略图 + 「编辑源」角标,方便看出编辑的是哪张。
+              const refThumbUrl = recent.thumbnail_id
+                ? null
+                : recent.ref_source_image_id
+                  ? imageThumbnailUrl(recent.ref_source_image_id)
+                  : recent.ref_library_image_id
+                    ? `/api/reference-images/${recent.ref_library_image_id}?${THUMBNAIL_QUERY}`
+                    : null;
+              const refBadge = refThumbUrl ? <span className="ref-badge">编辑源</span> : null;
               const recentThumb = recent.thumbnail_id ? (
                 <ImageWithSkeleton className="thumb" wrapperClassName="thumb-skeleton" src={imageThumbnailUrl(recent.thumbnail_id)} alt="" />
+              ) : refThumbUrl ? (
+                <ImageWithSkeleton className="thumb" wrapperClassName="thumb-skeleton" src={refThumbUrl} alt="编辑源图" />
               ) : (
                 <div className="thumb" />
               );
@@ -1610,11 +1630,13 @@ export function Workspace({
                   <a className="thumb-link" href={`/records/${recent.id}`} aria-label="查看记录详情">
                     {recentThumb}
                     {resBadge}
+                    {refBadge}
                   </a>
                 ) : (
                   <div className="thumb-link">
                     {recentThumb}
                     {resBadge}
+                    {refBadge}
                   </div>
                 )}
                 <div className="history-content">
