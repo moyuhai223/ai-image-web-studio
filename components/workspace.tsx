@@ -16,6 +16,7 @@ import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGeneratio
 import { normalizeImageSize } from "@/lib/image-size";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
 import { resolutionTier } from "@/lib/image-size";
+import { ROTATE_PRESET_ID } from "@/lib/provider-rotation";
 import type { GeneratedImage, GenerationJob, JobWithImages, PromptTemplate, ReferenceImage } from "@/lib/types";
 
 type ModelOption = {
@@ -450,18 +451,19 @@ export function Workspace({
         const fetchedPresets = Array.isArray(data.presets) ? data.presets : [];
         setPresets(fetchedPresets);
 
-        // 优先使用 localStorage 记忆的选择,但需校验它仍存在;否则回退到 default。
+        // 优先使用 localStorage 记忆的选择(允许「自动轮换」这个特殊值,或仍存在的 preset id)。
         let initial = "";
         try {
           const stored = window.localStorage.getItem(PRESET_STORAGE_KEY);
-          if (stored && fetchedPresets.some((preset) => preset.id === stored)) {
+          if (stored && (stored === ROTATE_PRESET_ID || fetchedPresets.some((preset) => preset.id === stored))) {
             initial = stored;
           }
         } catch {
           // localStorage 不可用(隐私模式 / 配额满),忽略。
         }
-        if (!initial && data.defaultPresetId) {
-          initial = data.defaultPresetId;
+        // 没有记忆值时:≥2 个 Provider 默认走「自动轮换」;否则用后端 default preset。
+        if (!initial) {
+          initial = fetchedPresets.length >= 2 ? ROTATE_PRESET_ID : (data.defaultPresetId ?? "");
         }
         setPresetId(initial);
       } catch {
@@ -1228,6 +1230,7 @@ export function Workspace({
                     value={presetId}
                     onChange={(event) => setPresetId(event.target.value)}
                   >
+                    <option value={ROTATE_PRESET_ID}>🔄 自动轮换(全部 Provider)</option>
                     {presets.map((preset) => (
                       <option key={preset.id} value={preset.id}>
                         {preset.name}

@@ -54,6 +54,20 @@ export function NotifyToggle() {
       // ignore
     }
     setEnabled(true);
+    // 立即弹一条确认:既给即时反馈,也验证浏览器授权确实生效
+    try {
+      const probe = new Notification("完成提醒已开启 🔔", { body: "生成完成时会这样提醒你" });
+      probe.onclick = () => {
+        try {
+          window.focus();
+        } catch {
+          // ignore
+        }
+        probe.close();
+      };
+    } catch {
+      // ignore
+    }
   }
 
   const denied = permission === "denied";

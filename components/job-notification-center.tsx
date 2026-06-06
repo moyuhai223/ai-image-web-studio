@@ -45,10 +45,9 @@ export function isBrowserNotifyEnabled() {
   }
 }
 
-// 在「页面不在前台」时弹系统通知 —— 用户在看着页面时应用内 toast 已足够,不重复打扰。
+// 开启「完成提醒」后,任务完成即弹系统通知 —— 无论页面是否在前台都推送(用户明确要系统推送)。
 function maybeShowBrowserNotification(job: RecentJob, copy: { title: string; message: string }) {
   if (!isBrowserNotifyEnabled()) return;
-  if (typeof document !== "undefined" && document.visibilityState === "visible" && document.hasFocus()) return;
   try {
     const notification = new Notification(copy.title, {
       body: job.prompt ? shortPrompt(job.prompt) : copy.message,

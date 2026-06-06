@@ -2,9 +2,13 @@ import sharp from "sharp";
 import { getNextAiApiKey, reportAiKeyFailure, reportAiKeySuccess } from "./api-keys";
 import { config } from "./config";
 import { createLogger } from "./logger";
-import { resolveProvider } from "./provider-settings";
+import { getProviderSettings, resolveProvider } from "./provider-settings";
+import { isRotatePreset } from "./provider-rotation";
 
 const log = createLogger("provider");
+
+// Provider 自动轮换:进程级轮询游标(单实例部署足够;重启归零无妨)。
+let rotationCursor = 0;
 
 export type ProviderImage = {
   b64?: string;
@@ -589,17 +593,15 @@ async function generateWithSelectedKey(input: GenerateInput, apiKey: string, dea
   return generateChatImage(input, apiKey, deadline, baseUrl);
 }
 
-export async function generateWithProvider(
-  input: GenerateInput,
-  options: ProviderRequestOptions = {}
-): Promise<ProviderResult> {
+type PresetContext = { baseUrl: string; presetId: string | null; presetName: string | null };
+
+// 单个 Provider(preset)内的尝试:在该 preset 的多个 key 之间轮换(带失败自动停用)。
+// 成功返回 ProviderResult;该 preset 内全部不可用时抛错(由上层决定是否 failover 到下一个 preset)。
+async function runWithPreset(input: GenerateInput, ctx: PresetContext): Promise<ProviderResult> {
+  const { baseUrl, presetId, presetName } = ctx;
   const triedKeyIds: string[] = [];
   let triedEnvKey = false;
   let lastError: unknown;
-  const resolved = await resolveProvider(options.presetId);
-  const baseUrl = resolved.baseUrl;
-  const presetId = resolved.preset?.id ?? null;
-  const presetName = resolved.preset?.name ?? null;
 
   for (let attempt = 1; attempt <= MAX_KEY_ATTEMPTS; attempt += 1) {
     let selection: Awaited<ReturnType<typeof getNextAiApiKey>>;
@@ -648,4 +650,41 @@ export async function generateWithProvider(
       ? `Preset「${presetName}」下没有可用的 AI Key`
       : "没有可用的 AI Key"
   );
+}
+
+export async function generateWithProvider(
+  input: GenerateInput,
+  options: ProviderRequestOptions = {}
+): Promise<ProviderResult> {
+  // 自动轮换:按轮询在所有 Provider(preset)间取一个,选中的失败/无可用 key 时顺延下一个(failover)。
+  if (isRotatePreset(options.presetId)) {
+    const presets = (await getProviderSettings()).presets;
+    if (presets.length > 0) {
+      const start = rotationCursor % presets.length;
+      rotationCursor = (rotationCursor + 1) % 1_000_000;
+      let lastError: unknown;
+      for (let i = 0; i < presets.length; i += 1) {
+        const preset = presets[(start + i) % presets.length];
+        try {
+          return await runWithPreset(input, { baseUrl: preset.baseUrl, presetId: preset.id, presetName: preset.name });
+        } catch (error) {
+          lastError = error;
+          log.warn("Provider 轮换:当前 Provider 失败,顺延下一个", {
+            presetId: preset.id,
+            presetName: preset.name,
+            error
+          });
+        }
+      }
+      throw lastError ?? new Error("所有 Provider 都不可用");
+    }
+    // 没有任何 preset → 退回默认/env 解析(下面统一处理)。
+  }
+
+  const resolved = await resolveProvider(isRotatePreset(options.presetId) ? null : options.presetId);
+  return runWithPreset(input, {
+    baseUrl: resolved.baseUrl,
+    presetId: resolved.preset?.id ?? null,
+    presetName: resolved.preset?.name ?? null
+  });
 }
