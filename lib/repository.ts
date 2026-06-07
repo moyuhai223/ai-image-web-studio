@@ -501,6 +501,30 @@ export async function getImageForUser(imageId: string, user: User) {
   return result.rows[0] ?? null;
 }
 
+// 批量下载用:按图片 id 和/或任务 id 取「当前用户拥有」的图片文件信息(id/路径/类型)。
+// imageIds 对应单图(收藏页),jobIds 对应整条记录的所有图片(记录页)。
+export async function listImagesForDownload(
+  input: { imageIds?: string[]; jobIds?: string[] },
+  user: User,
+  limit = 200
+): Promise<Array<{ id: string; local_path: string; mime_type: string }>> {
+  const imageIds = input.imageIds ?? [];
+  const jobIds = input.jobIds ?? [];
+  if (imageIds.length === 0 && jobIds.length === 0) return [];
+
+  const result = await query<{ id: string; local_path: string; mime_type: string }>(
+    `select i.id::text as id, i.local_path, i.mime_type
+     from generated_images i
+     join generation_jobs j on j.id = i.job_id
+     where (i.id = any($1::uuid[]) or i.job_id = any($2::uuid[]))
+       and ($3::text = 'admin' or j.user_id = $4)
+     order by i.created_at asc, i.sort_order asc
+     limit $5`,
+    [imageIds, jobIds, user.role, user.id, limit]
+  );
+  return result.rows;
+}
+
 export async function setImageFavoriteForUser(imageId: string, user: User, favorite: boolean) {
   return transaction(async (client) => {
     const imageResult = await client.query<{ id: string }>(

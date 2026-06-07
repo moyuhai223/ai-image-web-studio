@@ -12,8 +12,9 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { HeartOff, Tags } from "lucide-react";
+import { Download, HeartOff, Tags } from "lucide-react";
 import { DangerConfirmDialog } from "./danger-confirm-dialog";
+import { downloadImagesZip } from "./download-zip";
 import { RecordsToolTabs } from "./records-tool-panels";
 
 export const FAVORITES_BULK_FORM_ID = "favorites-bulk-form";
@@ -164,6 +165,24 @@ export function FavoritesBulkActions() {
     router.refresh();
   }
 
+  async function runDownload() {
+    const ids = selectedIdList();
+    setError("");
+    setMessage("");
+    if (ids.length === 0) {
+      setError("请先选择图片");
+      return;
+    }
+    setLoading(true);
+    const result = await downloadImagesZip({ imageIds: ids });
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error ?? "下载失败");
+      return;
+    }
+    setMessage(`已开始下载所选 ${ids.length} 张图片 ZIP。`);
+  }
+
   function closeUnfavoriteConfirm() {
     if (loading) return;
     setConfirmUnfavoriteOpen(false);
@@ -205,6 +224,17 @@ export function FavoritesBulkActions() {
           <p className="small muted records-selected-empty">勾选图片卡片左上角选择框,或点击本页全选后再取消不需要的图片。</p>
         )}
         <div className="records-bulk-actions">
+          <button
+            className="status action-button action-download"
+            type="button"
+            disabled={loading || selectedCount === 0}
+            onClick={() => {
+              void runDownload();
+            }}
+          >
+            <Download size={13} aria-hidden />
+            下载 ZIP
+          </button>
           <input
             className="input"
             value={tags}

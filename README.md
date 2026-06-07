@@ -171,7 +171,24 @@ ai-image-web-studio-1panel-local-app-v版本号.zip
 
 > 目录结构说明:该包是 `应用根/版本号/` 下含 `docker-compose.yml`、`scripts/` 和 `source/`(完整源码),compose 用 `build.context: ./source` 在 1Panel 主机上构建。所以安装后的运行目录(如 `/opt/1panel/apps/ai-image-web-studio/`)里有 `source/` 子目录、源码不在最外层——这是**正常**的,由 1Panel 自动安装并构建,你**不需要**手动跑 `docker compose`。
 
-在 1Panel 中导入本地应用后填写：
+**导入步骤(放包 → 同步 → 安装)**:
+
+1. 从 [GitHub Releases](https://github.com/moyuhai223/ai-image-web-studio/releases) 下载 `ai-image-web-studio-1panel-local-app-v版本号.zip` 并上传到服务器。
+2. 解压到 1Panel 的**本地应用目录**(默认数据目录 `/opt/1panel`),让应用 key 目录 `ai-image-web-studio/` 直接落在其下:
+
+   ```bash
+   cd /opt/1panel/resource/apps/local/
+   unzip -o ~/ai-image-web-studio-1panel-local-app-v版本号.zip
+   # → /opt/1panel/resource/apps/local/ai-image-web-studio/{data.yml, logo.png, 版本号/...}
+   ```
+
+   > 若 1Panel 不装在 `/opt`:本地应用目录始终是 `<1Panel 数据目录>/resource/apps/local/`;`ls /opt/1panel/resource/apps/` 能看到 `local` 与 `remote` 即确认位置。
+
+3. 1Panel 面板 → **应用商店 → 本地应用**(若未显示,先在应用商店设置里开启「本地应用」)→ **同步/刷新** → 列表出现该应用 → **安装**。
+
+> 两个目录别搞混:`…/resource/apps/local/ai-image-web-studio/` 是**应用定义**(放包处);安装后**运行目录**在 `/opt/1panel/apps/ai-image-web-studio/`(含 `.env`、`storage/`、跑起来的 compose)。
+
+安装表单里需要填写：
 
 - Web 访问端口，默认 `3100`
 - PostgreSQL 连接串
@@ -261,11 +278,13 @@ curl -fsSL https://raw.githubusercontent.com/moyuhai223/ai-image-web-studio/main
 chmod +x /usr/local/bin/aiws-update
 
 aiws-update              # 更新到最新版本
-aiws-update v0.7.4       # 更新到指定版本
+aiws-update v0.7.26      # 更新到指定版本
 FORCE=1 aiws-update      # 版本相同也强制重建
 ```
 
 默认安装目录为 `/opt/1panel/apps/ai-image-web-studio`，可用 `APP_DIR=/你的路径 aiws-update` 覆盖。脚本只更新 `source/`、`docker-compose.yml`、`scripts/`，不会动 `.env`（连接串/密钥）和 `storage/`（图片数据）。
+
+> 说明:脚本是直接重建容器,**1Panel 应用列表里显示的版本号可能仍是旧的**(没走 1Panel 自己的升级流程),但实际运行的就是新版——以 app 内页脚 / 设置 → 系统状态 里的版本号为准。若想让 1Panel 原生显示「升级」按钮,得把新版本目录也解压进 `resource/apps/local/ai-image-web-studio/` 再同步;用脚本则免去这步。
 
 ## 上传文件说明
 
