@@ -1,11 +1,11 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Tags, Trash2 } from "lucide-react";
 import { DangerConfirmDialog } from "./danger-confirm-dialog";
 import { downloadImagesZip } from "./download-zip";
-import { RecordsToolTabs } from "./records-tool-panels";
+import { RecordsToolTabs, useRecordsToolPanel } from "./records-tool-panels";
 
 export const RECORDS_BULK_FORM_ID = "records-bulk-form";
 
@@ -286,5 +286,12 @@ export function RecordsBulkActions() {
  */
 export function RecordsToolTabsBridge() {
   const { selectedCount } = useRecordsSelection();
+  const { open } = useRecordsToolPanel();
+  const prevCount = useRef(0);
+  useEffect(() => {
+    // 0 → >0:刚开始勾选时自动展开批量栏(下载/加标签/删除);已展开或手动关过则不再打扰。
+    if (selectedCount > 0 && prevCount.current === 0) open("tags");
+    prevCount.current = selectedCount;
+  }, [selectedCount, open]);
   return <RecordsToolTabs selectedCount={selectedCount} />;
 }

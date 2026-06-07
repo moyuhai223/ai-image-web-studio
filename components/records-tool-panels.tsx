@@ -19,13 +19,14 @@
 
 import { Search, Tags } from "lucide-react";
 import type { ReactNode } from "react";
-import { createContext, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useState } from "react";
 
 type ActivePanel = "search" | "tags" | null;
 
 type RecordsToolContextValue = {
   active: ActivePanel;
   toggle: (next: Exclude<ActivePanel, null>) => void;
+  open: (next: Exclude<ActivePanel, null>) => void;
   searchSummary: string;
 };
 
@@ -39,6 +40,11 @@ function useRecordsToolContext() {
   return ctx;
 }
 
+// 公开钩子:供 records/favorites 的 Bridge 读 active / 主动展开某个面板(勾选时自动展开批量栏)。
+export function useRecordsToolPanel() {
+  return useRecordsToolContext();
+}
+
 export function RecordsToolPanelsProvider({
   searchSummary,
   initialActive = null,
@@ -49,14 +55,14 @@ export function RecordsToolPanelsProvider({
   children: ReactNode;
 }) {
   const [active, setActive] = useState<ActivePanel>(initialActive);
+  const toggle = useCallback((next: Exclude<ActivePanel, null>) => {
+    setActive((current) => (current === next ? null : next));
+  }, []);
+  const open = useCallback((next: Exclude<ActivePanel, null>) => {
+    setActive(next);
+  }, []);
   return (
-    <RecordsToolContext.Provider
-      value={{
-        active,
-        searchSummary,
-        toggle: (next) => setActive((current) => (current === next ? null : next))
-      }}
-    >
+    <RecordsToolContext.Provider value={{ active, searchSummary, toggle, open }}>
       {children}
     </RecordsToolContext.Provider>
   );

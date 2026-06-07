@@ -10,12 +10,12 @@
  * 注入到通用的 `<RecordsToolTabs />`(/records 用 RecordsToolTabsBridge 同理).
  */
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Download, HeartOff, Tags } from "lucide-react";
 import { DangerConfirmDialog } from "./danger-confirm-dialog";
 import { downloadImagesZip } from "./download-zip";
-import { RecordsToolTabs } from "./records-tool-panels";
+import { RecordsToolTabs, useRecordsToolPanel } from "./records-tool-panels";
 
 export const FAVORITES_BULK_FORM_ID = "favorites-bulk-form";
 
@@ -287,5 +287,11 @@ export function FavoritesBulkActions() {
  */
 export function FavoritesToolTabsBridge() {
   const { selectedCount } = useFavoritesSelection();
+  const { open } = useRecordsToolPanel();
+  const prevCount = useRef(0);
+  useEffect(() => {
+    if (selectedCount > 0 && prevCount.current === 0) open("tags");
+    prevCount.current = selectedCount;
+  }, [selectedCount, open]);
   return <RecordsToolTabs selectedCount={selectedCount} />;
 }
