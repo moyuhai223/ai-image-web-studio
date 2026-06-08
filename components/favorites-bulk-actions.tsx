@@ -12,9 +12,9 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Download, HeartOff, Tags } from "lucide-react";
+import { Download, HeartOff, Images, Tags } from "lucide-react";
 import { DangerConfirmDialog } from "./danger-confirm-dialog";
-import { downloadImagesZip } from "./download-zip";
+import { downloadImagesZip, downloadOriginalImages } from "./download-zip";
 import { RecordsToolTabs, useRecordsToolPanel } from "./records-tool-panels";
 
 export const FAVORITES_BULK_FORM_ID = "favorites-bulk-form";
@@ -183,6 +183,24 @@ export function FavoritesBulkActions() {
     setMessage(`已开始下载所选 ${ids.length} 张图片 ZIP。`);
   }
 
+  async function runDownloadOriginals() {
+    const ids = selectedIdList();
+    setError("");
+    setMessage("");
+    if (ids.length === 0) {
+      setError("请先选择图片");
+      return;
+    }
+    setLoading(true);
+    const result = await downloadOriginalImages({ imageIds: ids });
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error ?? "下载失败");
+      return;
+    }
+    setMessage(`已开始逐张下载 ${result.count ?? 0} 张原图(浏览器若提示允许多文件下载,请允许)。`);
+  }
+
   function closeUnfavoriteConfirm() {
     if (loading) return;
     setConfirmUnfavoriteOpen(false);
@@ -234,6 +252,18 @@ export function FavoritesBulkActions() {
           >
             <Download size={13} aria-hidden />
             下载 ZIP
+          </button>
+          <button
+            className="status action-button action-download"
+            type="button"
+            disabled={loading || selectedCount === 0}
+            title="逐张下载所选原图(不打包成 ZIP)"
+            onClick={() => {
+              void runDownloadOriginals();
+            }}
+          >
+            <Images size={13} aria-hidden />
+            逐张原图
           </button>
           <input
             className="input"

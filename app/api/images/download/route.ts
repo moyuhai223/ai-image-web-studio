@@ -40,6 +40,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "没有可下载的图片(可能无权限或已被删除)" }, { status: 404 });
     }
 
+    // mode=list:不打包,只返回 owned 图片 id 列表,客户端逐张走 /api/images/{id}/download 下载原图。
+    if (body.mode === "list") {
+      return NextResponse.json({ ids: rows.map((row) => row.id) }, { headers: { "cache-control": "no-store" } });
+    }
+
     const entries = rows.map((row, index) => ({
       name: `${String(index + 1).padStart(3, "0")}-${row.id.slice(0, 8)}.${extFromMime(row.mime_type)}`,
       getData: async () => (await readStoredFile(row.local_path)).buffer

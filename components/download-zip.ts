@@ -33,3 +33,42 @@ export async function downloadImagesZip(body: { imageIds?: string[]; jobIds?: st
   URL.revokeObjectURL(url);
   return { ok: true };
 }
+
+// 逐张下载原图(不打包):先取 owned 图片 id 列表,再逐个走 /api/images/{id}/download 触发下载。
+// 浏览器对程序化多文件下载会限速/弹"允许多文件下载",故每次间隔一点。
+export async function downloadOriginalImages(body: { imageIds?: string[]; jobIds?: string[] }): Promise<{ ok: boolean; count?: number; error?: string }> {
+  let response: Response;
+  try {
+    response = await fetch("/api/images/download", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...body, mode: "list" })
+    });
+  } catch {
+    return { ok: false, error: "请求失败,请重试" };
+  }
+
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    return { ok: false, error: data.error ?? "下载失败" };
+  }
+
+  const data = (await response.json().catch(() => ({}))) as { ids?: string[] };
+  const ids = Array.isArray(data.ids) ? data.ids.filter((id): id is string => typeof id === "string") : [];
+  if (ids.length === 0) {
+    return { ok: false, error: "没有可下载的图片" };
+  }
+
+  for (let i = 0; i < ids.length; i += 1) {
+    const anchor = document.createElement("a");
+    anchor.href = `/api/images/${ids[i]}/download`;
+    anchor.download = "";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    if (i < ids.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    }
+  }
+  return { ok: true, count: ids.length };
+}
