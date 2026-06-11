@@ -94,7 +94,9 @@ const PRESET_STORAGE_KEY = "ai-image-web-studio:preset-id";
 
 type PromptTemplateOption = Pick<PromptTemplate, "id" | "title" | "category" | "content">;
 
-const sizeValues = new Set(["auto", "1024x1024", "1024x1824", "1824x1024", "1360x1024", "1024x1360", "2880x2880", "3840x2160", "2160x3840", "3264x2448", "2448x3264"]);
+// A4 比例 = 1:√2(1.414)。2K 档 1472x2080(偏差 0.08%);4K 档 2416x3424(8.27MP,贴像素预算上限,
+// A4 比例下长边到不了 3840 是 gpt-image-2 的 8.3MP 硬约束,偏差 0.21%)。
+const sizeValues = new Set(["auto", "1024x1024", "1024x1824", "1824x1024", "1360x1024", "1024x1360", "2080x1472", "1472x2080", "2880x2880", "3840x2160", "2160x3840", "3264x2448", "2448x3264", "3424x2416", "2416x3424"]);
 const countValues = new Set(["1", "2", "3", "4"]);
 const ACTIVE_QUEUE_POLL_MS = 3500;
 const IDLE_QUEUE_POLL_MS = 25000;
@@ -1260,11 +1262,15 @@ export function Workspace({
                   <option value="1824x1024">16:9 - 1824x1024</option>
                   <option value="1360x1024">4:3 - 1360x1024</option>
                   <option value="1024x1360">3:4 - 1024x1360</option>
+                  <option value="2080x1472">A4 横向 2K - 2080x1472</option>
+                  <option value="1472x2080">A4 纵向 2K - 1472x2080</option>
                   <option value="2880x2880">1:1 4K - 2880x2880</option>
                   <option value="3840x2160">16:9 4K - 3840x2160</option>
                   <option value="2160x3840">9:16 4K - 2160x3840</option>
                   <option value="3264x2448">4:3 4K - 3264x2448</option>
                   <option value="2448x3264">3:4 4K - 2448x3264</option>
+                  <option value="3424x2416">A4 横向 4K - 3424x2416</option>
+                  <option value="2416x3424">A4 纵向 4K - 2416x3424</option>
                   <option value="custom">自定义…</option>
                 </select>
                 {size === "custom" ? (

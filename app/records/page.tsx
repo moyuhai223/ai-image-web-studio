@@ -37,7 +37,7 @@ const statusOptions: { label: string; value: GenerationStatus }[] = [
   { label: generationStatusLabel("canceled"), value: "canceled" }
 ];
 
-const sizeOptions = ["auto", "1024x1024", "1024x1824", "1824x1024", "1360x1024", "1024x1360", "2880x2880", "3840x2160", "2160x3840", "3264x2448", "2448x3264"];
+const sizeOptions = ["auto", "1024x1024", "1024x1824", "1824x1024", "1360x1024", "1024x1360", "2080x1472", "1472x2080", "2880x2880", "3840x2160", "2160x3840", "3264x2448", "2448x3264", "3424x2416", "2416x3424"];
 
 const periodOptions: { label: string; value: NonNullable<JobListFilters["period"]> }[] = [
   { label: "今天", value: "today" },
