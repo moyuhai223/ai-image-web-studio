@@ -17,6 +17,7 @@ import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGeneratio
 import { getJobById, listImageVersionChainForJob } from "@/lib/repository";
 import { formatDateTime } from "@/lib/time";
 import { imageThumbnailUrl, THUMBNAIL_QUERY } from "@/lib/thumbnails";
+import { resolutionTier } from "@/lib/image-size";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import type { GeneratedImage, ImageVersionNode, JobWithImages } from "@/lib/types";
 import { Download, Pencil } from "lucide-react";
@@ -476,6 +477,10 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ i
                     initialIndex={index}
                   >
                     <ImageWithSkeleton src={imageThumbnailUrl(image.id)} alt="生成图片" />
+                    {(() => {
+                      const tier = resolutionTier(image.width, image.height);
+                      return tier ? <span className={`res-badge res-badge-${tier === "4K" ? "4k" : "2k"}`}>{tier}</span> : null;
+                    })()}
                   </ImageLightbox>
                   <footer>
                     <div className="asset-card-head">

@@ -1351,6 +1351,8 @@ button.action-button:hover:not(:disabled),
 }
 
 .image-open-button {
+  /* v0.7.32: 统一作为 .res-badge 等角标的定位锚(详情页等裸 .image-card 也能正确挂角标) */
+  position: relative;
   display: block;
   width: 100%;
   padding: 0;
