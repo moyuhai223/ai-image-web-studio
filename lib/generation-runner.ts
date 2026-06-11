@@ -362,8 +362,14 @@ async function maybeScheduleAutoRetry(
   input: GenerationRunInput,
   error: unknown
 ): Promise<boolean> {
-  const maxRetries = config.generationAutoRetryMax;
-  if (maxRetries <= 0 || !isRetryableError(error)) return false;
+  const configuredMax = config.generationAutoRetryMax;
+  if (configuredMax <= 0 || !isRetryableError(error)) return false;
+
+  // 「无图」类(模型有响应但没图)常是内容策略拒绝等确定性失败——请求级已经把
+  // 默认/b64/url 三种姿势都试过了,任务级再全额重试多半白烧额度。但实测上游断流
+  // 也会以 200+错误体表现为"无图",所以保留 1 次机会而不是完全不重试。
+  const NO_IMAGE_ERROR_RE = /provider returned no|did not contain an image/i;
+  const maxRetries = NO_IMAGE_ERROR_RE.test(errorMessage(error)) ? Math.min(1, configuredMax) : configuredMax;
 
   const attempt = (input.autoRetryAttempts ?? 0) + 1;
   if (attempt > maxRetries) return false;
@@ -378,13 +384,23 @@ async function maybeScheduleAutoRetry(
     message: waitMessage
   });
 
+  // firstRequestStartedAt 只在第一次安排重试时记录:作为超时 watchdog 的「总耗时」基准,
+  // 让所有重试轮共享同一个 GENERATION_TIMEOUT_MS 预算,而不是每轮重置(避免最坏 N×15min)。
   const res = await query<{ id: string }>(
     `update generation_jobs
      set request_metadata = jsonb_set(
            jsonb_set(
              request_metadata,
              '{autoRetry}',
-             coalesce(request_metadata->'autoRetry', '{}'::jsonb) || jsonb_build_object('attempts', $3::int),
+             coalesce(request_metadata->'autoRetry', '{}'::jsonb)
+               || jsonb_build_object('attempts', $3::int)
+               || case when request_metadata #>> '{autoRetry,firstRequestStartedAt}' is not null
+                    then '{}'::jsonb
+                    else jsonb_build_object(
+                      'firstRequestStartedAt',
+                      coalesce(nullif(request_metadata #>> '{progress,requestStartedAt}', ''), started_at::text, now()::text)
+                    )
+                  end,
              true
            ),
            '{progress}', $4::jsonb, true

@@ -35,14 +35,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "请先选择要下载的图片" }, { status: 400 });
     }
 
-    const rows = await listImagesForDownload({ imageIds, jobIds }, user);
+    const MAX_FILES = 200;
+    // 多取 1 张用于探测是否超限(listImagesForDownload 默认 limit 200,这里显式 +1)
+    const rows = await listImagesForDownload({ imageIds, jobIds }, user, MAX_FILES + 1);
     if (rows.length === 0) {
       return NextResponse.json({ error: "没有可下载的图片(可能无权限或已被删除)" }, { status: 404 });
     }
+    const truncated = rows.length > MAX_FILES;
+    if (truncated) rows.length = MAX_FILES;
 
     // mode=list:不打包,只返回 owned 图片 id 列表,客户端逐张走 /api/images/{id}/download 下载原图。
     if (body.mode === "list") {
-      return NextResponse.json({ ids: rows.map((row) => row.id) }, { headers: { "cache-control": "no-store" } });
+      return NextResponse.json({ ids: rows.map((row) => row.id), truncated }, { headers: { "cache-control": "no-store" } });
     }
 
     const entries = rows.map((row, index) => ({
@@ -57,7 +61,9 @@ export async function POST(request: Request) {
       headers: {
         "content-type": "application/zip",
         "content-disposition": `attachment; filename="${filename}"`,
-        "cache-control": "no-store"
+        "cache-control": "no-store",
+        // 超 200 张被截断时带标记,前端据此提示(避免静默少图)
+        ...(truncated ? { "x-truncated": "true", "x-file-count": String(rows.length) } : {})
       }
     });
   } catch (error) {

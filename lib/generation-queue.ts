@@ -112,7 +112,10 @@ async function failTimedOutRunningJobs() {
        -- 改为统一以 progress.requestStartedAt(模型请求真正开始时间)为基准,
        -- 走绝对耗时判断;它在 'requesting' 阶段一次性写入,之后不再变化。
        -- 没有 requestStartedAt(老数据或还没进 requesting)时回退到 started_at → created_at。
+       -- v0.7.30: 自动重试的任务以第一轮的 firstRequestStartedAt 为基准——所有重试轮共享
+       -- 同一个超时预算,避免每轮重置导致最坏 N×timeout 才死透。
        and coalesce(
+         (nullif(request_metadata #>> '{autoRetry,firstRequestStartedAt}', ''))::timestamptz,
          (nullif(request_metadata #>> '{progress,requestStartedAt}', ''))::timestamptz,
          started_at,
          created_at
@@ -166,6 +169,40 @@ async function recoverInterruptedJobs() {
       log.warn("Auto-requeued interrupted generation jobs after process start", { count: result.rowCount });
     }
     return;
+  }
+
+  // v0.7.30: 自动重试退避中的任务(autoRetry.attempts 在 1..max)不落 interrupted 终态——
+  // 它们本来就会被重新排队,重启只是打断了退避计时,直接翻回 queued 继续重试(次数已持久化)。
+  const retried = await query<{ id: string }>(
+    `update generation_jobs
+     set status = 'queued',
+         started_at = null,
+         request_metadata = jsonb_set(
+           jsonb_set(
+             request_metadata,
+             '{control}',
+             (coalesce(request_metadata->'control', '{}'::jsonb) - 'runId') || jsonb_build_object('recoveredAt', now()::text),
+             true
+           ),
+           '{progress}',
+           jsonb_build_object(
+             'phase', 'queued',
+             'current', 0,
+             'total', count,
+             'percent', 5,
+             'message', '服务重启时任务在自动重试等待中,已恢复排队继续重试',
+             'updatedAt', now()::text
+           ),
+           true
+         ),
+         updated_at = now()
+     where status = 'running'
+       and coalesce((request_metadata #>> '{autoRetry,attempts}')::integer, 0) between 1 and $1
+     returning id`,
+    [config.generationAutoRetryMax]
+  );
+  if (retried.rowCount) {
+    log.warn("Re-queued auto-retrying jobs after process start", { count: retried.rowCount });
   }
 
   const result = await query<{ id: string }>(

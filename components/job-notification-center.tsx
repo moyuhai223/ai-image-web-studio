@@ -29,7 +29,10 @@ type Toast = {
 const TRACKED_KEY = "ai-image-studio-tracked-jobs";
 const NOTIFIED_KEY = "ai-image-studio-notified-jobs";
 const EVENT_NAME = "ai-image-job-notification";
-const POLL_MS = 4500;
+// v0.7.30: 4500→9000。该轮询挂在 AppNav(全站每个页面都在跑),工作台另有 SSE 双通道;
+// 9s 对「完成提醒」的及时性足够,DB 压力减半。配合去掉 no-store,/api/recent-jobs 的
+// max-age=15 浏览器缓存也能吃上(SSE 已覆盖工作台的实时性)。
+const POLL_MS = 9000;
 
 // 浏览器系统通知:用户在顶栏「完成提醒」开关里开启,偏好持久化在 localStorage。
 // 只有开启 + 浏览器已授权时才算启用。
@@ -197,7 +200,7 @@ export function JobNotificationCenter() {
 
     let data: { jobs?: RecentJob[] };
     try {
-      const response = await fetch("/api/recent-jobs", { cache: "no-store", signal: controller.signal });
+      const response = await fetch("/api/recent-jobs", { signal: controller.signal });
       data = (await response.json().catch(() => ({}))) as { jobs?: RecentJob[] };
       if (!response.ok || !Array.isArray(data.jobs) || controller.signal.aborted) return;
     } catch (error) {

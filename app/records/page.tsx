@@ -135,10 +135,16 @@ export default async function RecordsPage({
   const filterQuery = filterQueryString(filtersForQuery);
   const requestedPage = Number(firstParam(params.page) ?? 1);
   const lightboxTarget = normalizeLightboxTarget(params.lightbox);
-  const [total, themePreference] = await Promise.all([countJobs(user, filtersForQuery), getUiThemePreference()]);
+  // v0.7.30: 列表查询与 count/主题并行(乐观按请求页取);只有请求页越界被夹取时才补一次查询。
+  const optimisticPage = Number.isFinite(requestedPage) ? Math.max(1, requestedPage) : 1;
+  const [total, themePreference, optimisticJobs] = await Promise.all([
+    countJobs(user, filtersForQuery),
+    getUiThemePreference(),
+    listJobsPage(user, optimisticPage, PAGE_SIZE, filtersForQuery)
+  ]);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const page = Number.isFinite(requestedPage) ? Math.min(Math.max(1, requestedPage), totalPages) : 1;
-  const jobs = await listJobsPage(user, page, PAGE_SIZE, filtersForQuery);
+  const page = Math.min(optimisticPage, totalPages);
+  const jobs = page === optimisticPage ? optimisticJobs : await listJobsPage(user, page, PAGE_SIZE, filtersForQuery);
   const imageJobs = jobs.filter((job) => job.thumbnail_id);
   const filterCount = activeFilterCount(filtersForQuery);
   // Badge 文案保持紧凑:有 tag 显示 #tag,有其他筛选显示数字,无筛选返回空字符串(组件会跳过 badge 渲染)

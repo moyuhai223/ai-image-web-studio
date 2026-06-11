@@ -178,7 +178,11 @@ export function RecordsBulkActions() {
       setError(result.error ?? "下载失败");
       return;
     }
-    setMessage(`已开始下载所选 ${list.length} 条记录的图片 ZIP。`);
+    setMessage(
+      result.truncated
+        ? `所选图片超过 200 张,已打包前 200 张(其余请分批下载)。`
+        : `已开始下载所选 ${list.length} 条记录的图片 ZIP。`
+    );
   }
 
   async function runDownloadOriginals() {
@@ -196,7 +200,9 @@ export function RecordsBulkActions() {
       setError(result.error ?? "下载失败");
       return;
     }
-    setMessage(`已开始逐张下载 ${result.count ?? 0} 张原图(浏览器若提示允许多文件下载,请允许)。`);
+    setMessage(
+      `已开始逐张下载 ${result.count ?? 0} 张原图(浏览器若提示允许多文件下载,请允许)。${result.truncated ? "所选超过 200 张,本次只下载前 200 张。" : ""}`
+    );
   }
 
   function closeDeleteConfirm() {
