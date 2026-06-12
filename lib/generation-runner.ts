@@ -23,6 +23,8 @@ export type GenerationRunInput = {
   presetId?: string | null;
   /** 来自 request_metadata.upscale.targetLongEdge;非空时把模型输出存盘前 sharp 放大到该长边(AI 高清化收尾到 4K) */
   upscaleTargetLongEdge?: number;
+  /** AI 高清化(重绘)任务置 "high",透传给 provider 的 quality 档位;普通生成/编辑不设。 */
+  quality?: "auto" | "high" | "medium" | "low";
   /** 来自 request_metadata.autoRetry.attempts;已自动重试的次数,用于判断是否还能再重试。 */
   autoRetryAttempts?: number;
 };
@@ -187,6 +189,8 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
   const upscaleTargetRaw = upscaleMeta ? Number(upscaleMeta.targetLongEdge) : NaN;
   const upscaleTargetLongEdge =
     Number.isFinite(upscaleTargetRaw) && upscaleTargetRaw > 0 ? Math.trunc(upscaleTargetRaw) : undefined;
+  // 高清化(AI 重绘)向 provider 请求最高质量;忠实透传的 provider 会据此提质,ai.zh.ci 实测忽略但无害。
+  const quality = upscaleMeta?.mode === "ai" ? ("high" as const) : undefined;
 
   const autoRetryMeta = asRecord(job.request_metadata?.autoRetry);
   const autoRetryAttempts = autoRetryMeta ? Math.max(0, Math.trunc(Number(autoRetryMeta.attempts) || 0)) : 0;
@@ -198,6 +202,7 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
     count: job.count,
     presetId,
     upscaleTargetLongEdge,
+    quality,
     autoRetryAttempts,
     ...referenceInfo
   };

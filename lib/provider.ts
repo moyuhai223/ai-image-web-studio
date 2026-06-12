@@ -45,6 +45,8 @@ class ProviderTimeoutError extends Error {
   }
 }
 
+export type ImageQuality = "auto" | "high" | "medium" | "low";
+
 type GenerateInput = {
   prompt: string;
   model: string;
@@ -52,6 +54,8 @@ type GenerateInput = {
   count: number;
   referenceDataUrl?: string;
   referenceDataUrls?: string[];
+  /** OpenAI gpt-image quality 档位;仅高清化(AI 重绘)显式置 "high"。忠实透传的 provider 会据此提质,ai.zh.ci 实测忽略但无害。 */
+  quality?: ImageQuality;
 };
 
 const MAX_KEY_ATTEMPTS = 3;
@@ -410,6 +414,7 @@ function buildImageEditForm(input: GenerateInput, references: PreparedReference[
   form.set("prompt", input.prompt);
   form.set("size", input.size);
   form.set("n", String(input.count));
+  if (input.quality) form.set("quality", input.quality);
   if (responseFormat) form.set("response_format", responseFormat);
   for (const reference of references) {
     form.append("image", new Blob([blobPartFromBuffer(reference.buffer)], { type: reference.mimeType }), reference.filename);
@@ -502,7 +507,8 @@ async function generateImageGeneration(input: GenerateInput, apiKey: string, dea
     model: input.model,
     prompt: input.prompt,
     size: input.size,
-    n: input.count
+    n: input.count,
+    ...(input.quality ? { quality: input.quality } : {})
   };
 
   try {
