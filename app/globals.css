@@ -800,6 +800,78 @@ summary:focus-visible,
   color: var(--danger, #d9534f);
 }
 
+.optimize-compare {
+  margin-top: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent, #6d5efc) 30%, var(--border, #e2e6ee));
+  border-radius: var(--radius-md, 14px);
+  background: color-mix(in srgb, var(--accent, #6d5efc) 4%, var(--panel, #fff));
+  padding: 12px;
+}
+
+.optimize-compare-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent, #6d5efc);
+  margin-bottom: 10px;
+}
+
+.optimize-compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.optimize-compare-col {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.optimize-compare-label {
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+}
+
+.optimize-compare-col--new .optimize-compare-label {
+  color: var(--accent, #6d5efc);
+  font-weight: 600;
+}
+
+.optimize-compare-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.5;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--input-bg, #fff);
+  border: 1px solid var(--border, #e2e6ee);
+}
+
+.optimize-compare-col--new .optimize-compare-text {
+  border-color: color-mix(in srgb, var(--accent, #6d5efc) 45%, transparent);
+  background: color-mix(in srgb, var(--accent, #6d5efc) 6%, var(--input-bg, #fff));
+}
+
+.optimize-compare-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+@media (max-width: 720px) {
+  .optimize-compare-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .optimize-toggle {
   display: inline-flex;
   align-items: center;

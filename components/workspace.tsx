@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, Download, ImagePlus, Pencil, Play, RefreshCcw, Sparkles, Undo2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, Download, ImagePlus, Pencil, Play, RefreshCcw, Sparkles, Undo2, X } from "lucide-react";
 import { CopyPromptButton } from "./copy-prompt-button";
 import { DeleteRecordButton } from "./delete-record-button";
 import { FavoriteImageButton } from "./favorite-image-button";
@@ -293,9 +293,11 @@ export function Workspace({
   const [upscaleError, setUpscaleError] = useState("");
   const [count, setCount] = useState("1");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [selectedRecentIndex, setSelectedRecentIndex] = useState("");
   const [optimizing, setOptimizing] = useState(false);
   const [optimizeError, setOptimizeError] = useState("");
   const [optimizeUndo, setOptimizeUndo] = useState<string | null>(null);
+  const [optimizeResult, setOptimizeResult] = useState<{ original: string; optimized: string } | null>(null);
   const [selectedReferences, setSelectedReferences] = useState<SelectedReference[]>([]);
   const [referencesOpen, setReferencesOpen] = useState(false);
   const [limits, setLimits] = useState<LimitsConfig>(DEFAULT_LIMITS);
@@ -320,6 +322,20 @@ export function Workspace({
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
   const referenceFileInputRef = useRef<HTMLInputElement>(null);
   const referenceObjectUrlsRef = useRef<Set<string>>(new Set());
+
+  // 最近用过的提示词:从已加载的最近记录按文本去重,取最近 12 条,供输入框快速召回。
+  const recentPrompts = useMemo(() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const item of history) {
+      const text = item.prompt?.trim();
+      if (!text || seen.has(text)) continue;
+      seen.add(text);
+      result.push(text);
+      if (result.length >= 12) break;
+    }
+    return result;
+  }, [history]);
 
   const activeJobs = useMemo(() => (batchJobs.length > 0 ? batchJobs : job ? [job] : []), [batchJobs, job]);
   const activeImages = useMemo(() => activeJobs.flatMap((currentJob) => currentJob.images), [activeJobs]);
@@ -975,9 +991,17 @@ export function Workspace({
     selectTemplatePlaceholder(nextPrompt, prefix.length);
   }
 
+  function applyRecentPrompt(mode: "replace" | "append") {
+    const text = recentPrompts[Number(selectedRecentIndex)];
+    if (!text) return;
+    const current = prompt.trim();
+    const prefix = mode === "append" && current ? `${current}\n\n` : "";
+    setPrompt(`${prefix}${text}`);
+  }
+
   async function optimizePrompt() {
     const current = prompt.trim();
-    if (!current || optimizing) return;
+    if (!current || optimizing || optimizeResult) return;
     setOptimizing(true);
     setOptimizeError("");
 
@@ -998,13 +1022,24 @@ export function Workspace({
         setOptimizeError(data.error ?? "优化失败,请稍后再试");
         return;
       }
-      setOptimizeUndo(prompt);
-      setPrompt(data.optimized);
+      // 不直接覆盖:先给出原文↔优化后的对比,由用户决定采用或放弃。
+      setOptimizeResult({ original: current, optimized: data.optimized });
     } catch {
       setOptimizeError("优化请求失败,请检查网络后重试");
     } finally {
       setOptimizing(false);
     }
+  }
+
+  function applyOptimizeResult() {
+    if (!optimizeResult) return;
+    setOptimizeUndo(optimizeResult.original);
+    setPrompt(optimizeResult.optimized);
+    setOptimizeResult(null);
+  }
+
+  function discardOptimizeResult() {
+    setOptimizeResult(null);
   }
 
   function undoOptimize() {
@@ -1243,6 +1278,32 @@ export function Workspace({
                 </div>
               </div>
             ) : null}
+            {recentPrompts.length > 0 ? (
+              <div className="field generation-template">
+                <label htmlFor="recent-prompt">最近提示词</label>
+                <div className="template-picker">
+                  <select
+                    className="select"
+                    id="recent-prompt"
+                    value={selectedRecentIndex}
+                    onChange={(event) => setSelectedRecentIndex(event.target.value)}
+                  >
+                    <option value="">选择最近用过的提示词</option>
+                    {recentPrompts.map((text, index) => (
+                      <option key={index} value={String(index)}>
+                        {text.length > 48 ? `${text.slice(0, 48)}…` : text}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="status" type="button" onClick={() => applyRecentPrompt("replace")} disabled={!selectedRecentIndex}>
+                    填入
+                  </button>
+                  <button className="status" type="button" onClick={() => applyRecentPrompt("append")} disabled={!selectedRecentIndex}>
+                    追加
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div className="field prompt-field">
               <label htmlFor="prompt">画面描述</label>
               <textarea
@@ -1262,19 +1323,47 @@ export function Workspace({
                     className="status prompt-optimize-button"
                     type="button"
                     onClick={() => void optimizePrompt()}
-                    disabled={optimizing || !prompt.trim()}
+                    disabled={optimizing || !prompt.trim() || optimizeResult !== null}
                     title="用 AI 把当前描述改写成更利于出图的高质量提示词"
                   >
                     <Sparkles size={13} />
                     {optimizing ? "优化中…" : "优化提示词"}
                   </button>
-                  {optimizeUndo !== null ? (
+                  {optimizeUndo !== null && !optimizeResult ? (
                     <button className="status" type="button" onClick={undoOptimize} disabled={optimizing}>
                       <Undo2 size={13} />
                       撤销
                     </button>
                   ) : null}
                   {optimizeError ? <span className="small prompt-optimize-error">{optimizeError}</span> : null}
+                </div>
+              ) : null}
+              {optimizeResult ? (
+                <div className="optimize-compare">
+                  <div className="optimize-compare-head">
+                    <Sparkles size={13} />
+                    <span>优化建议 — 对比后再决定</span>
+                  </div>
+                  <div className="optimize-compare-grid">
+                    <div className="optimize-compare-col">
+                      <div className="optimize-compare-label">原文 · {optimizeResult.original.length} 字</div>
+                      <div className="optimize-compare-text">{optimizeResult.original}</div>
+                    </div>
+                    <div className="optimize-compare-col optimize-compare-col--new">
+                      <div className="optimize-compare-label">优化后 · {optimizeResult.optimized.length} 字</div>
+                      <div className="optimize-compare-text">{optimizeResult.optimized}</div>
+                    </div>
+                  </div>
+                  <div className="optimize-compare-actions">
+                    <button className="button action-button action-save" type="button" onClick={applyOptimizeResult}>
+                      <Check size={15} />
+                      采用优化版
+                    </button>
+                    <button className="status action-button action-neutral" type="button" onClick={discardOptimizeResult}>
+                      <X size={14} />
+                      放弃
+                    </button>
+                  </div>
                 </div>
               ) : null}
             </div>
