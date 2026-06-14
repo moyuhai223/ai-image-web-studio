@@ -1,18 +1,23 @@
-import { getNextAiApiKey, reportAiKeyFailure, reportAiKeySuccess } from "./api-keys";
 import { createLogger } from "./logger";
-import { getPromptOptimizeSettings } from "./prompt-optimize-settings";
+import { getPromptOptimizeRuntime } from "./prompt-optimize-settings";
 import { resolveProvider } from "./provider-settings";
 
 const log = createLogger("prompt-optimize");
 
 const OPTIMIZE_TIMEOUT_MS = 45_000;
-const MAX_KEY_ATTEMPTS = 3;
 export const OPTIMIZE_INPUT_MAX_LENGTH = 2000;
 
 export class PromptOptimizeDisabledError extends Error {
   constructor() {
     super("提示词优化未启用");
     this.name = "PromptOptimizeDisabledError";
+  }
+}
+
+export class PromptOptimizeNotConfiguredError extends Error {
+  constructor() {
+    super("提示词优化未配置独立 API Key,请在后台填写");
+    this.name = "PromptOptimizeNotConfiguredError";
   }
 }
 
@@ -61,11 +66,7 @@ function buildMessages(rawPrompt: string, systemPrompt: string, ctx: OptimizeCon
   return messages;
 }
 
-function isRetryableStatus(status: number): boolean {
-  return status === 401 || status === 403 || status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
-}
-
-/** 只在网络层/超时抛错;HTTP 非 2xx 以 {ok:false} 返回,便于上层分类换 key。 */
+/** 只在网络层/超时抛错;HTTP 非 2xx 以 {ok:false} 返回。 */
 async function postChat(
   baseUrl: string,
   apiKey: string,
@@ -115,13 +116,16 @@ function extractContent(json: Record<string, unknown>): string {
 }
 
 /**
- * 调用配置的文本模型把粗糙提示词优化成高质量出图提示词。
- * 复用 provider 的 preset/key 轮换与失败上报;成功返回优化后的纯文本。
+ * 用「提示词优化」独立配置(baseUrl + 独立 apiKey + model)把粗糙提示词改写成高质量出图提示词。
+ * 凭据与画图 Key 池隔离:apiKey 必填(无则报未配置);baseUrl 留空时回退画图默认 preset 的地址。
  */
 export async function optimizePrompt(rawPrompt: string, ctx: OptimizeContext = {}): Promise<{ optimized: string; model: string }> {
-  const settings = await getPromptOptimizeSettings();
-  if (!settings.enabled) {
+  const runtime = await getPromptOptimizeRuntime();
+  if (!runtime.enabled) {
     throw new PromptOptimizeDisabledError();
+  }
+  if (!runtime.apiKey) {
+    throw new PromptOptimizeNotConfiguredError();
   }
 
   const trimmedInput = rawPrompt.trim().slice(0, OPTIMIZE_INPUT_MAX_LENGTH);
@@ -129,56 +133,33 @@ export async function optimizePrompt(rawPrompt: string, ctx: OptimizeContext = {
     throw new Error("请输入要优化的提示词");
   }
 
-  const { preset, baseUrl } = await resolveProvider(null);
-  const messages = buildMessages(trimmedInput, settings.systemPrompt, ctx);
-  const body = { model: settings.model, messages, temperature: 0.7 };
-
-  const triedKeyIds: string[] = [];
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= MAX_KEY_ATTEMPTS; attempt += 1) {
-    const selection = await getNextAiApiKey(triedKeyIds, preset?.id ?? null);
-    if (selection.keyId) triedKeyIds.push(selection.keyId);
-
-    let result: { ok: boolean; status: number; json: Record<string, unknown> };
-    try {
-      result = await postChat(baseUrl, selection.apiKey, body);
-    } catch (error) {
-      // 网络层异常或超时(AbortError)
-      if (error instanceof Error && error.name === "AbortError") {
-        const timeoutError = new Error(`优化请求超过 ${Math.round(OPTIMIZE_TIMEOUT_MS / 1000)} 秒未返回`);
-        await reportAiKeyFailure(selection.keyId, timeoutError);
-        throw timeoutError;
-      }
-      await reportAiKeyFailure(selection.keyId, error);
-      lastError = error instanceof Error ? error : new Error("优化请求失败");
-      if (attempt === MAX_KEY_ATTEMPTS) throw lastError;
-      log.warn("optimize network error, trying another key", { attempt, presetId: preset?.id ?? null });
-      continue;
-    }
-
-    if (!result.ok) {
-      const error = errorFromBody(result.status, result.json);
-      await reportAiKeyFailure(selection.keyId, error);
-      if (isRetryableStatus(result.status) && attempt < MAX_KEY_ATTEMPTS) {
-        lastError = error;
-        log.warn("optimize key attempt failed, trying another", { attempt, status: result.status, presetId: preset?.id ?? null });
-        continue;
-      }
-      throw error;
-    }
-
-    const optimized = cleanOptimizedText(extractContent(result.json));
-    if (!optimized) {
-      // 空结果通常是模型/提示词问题而非 key 问题,不再换 key 重试。
-      const error = new Error("优化结果为空,请重试或在后台换用其它文本模型");
-      await reportAiKeyFailure(selection.keyId, error);
-      throw error;
-    }
-
-    await reportAiKeySuccess(selection.keyId);
-    return { optimized, model: settings.model };
+  // baseUrl 留空 → 回退画图默认 preset 的地址(同厂商);key 不回退,始终用独立 key。
+  let baseUrl = runtime.baseUrl;
+  if (!baseUrl) {
+    baseUrl = (await resolveProvider(null)).baseUrl;
   }
 
-  throw lastError ?? new Error("优化请求失败");
+  const messages = buildMessages(trimmedInput, runtime.systemPrompt, ctx);
+  const body = { model: runtime.model, messages, temperature: 0.7 };
+
+  let result: { ok: boolean; status: number; json: Record<string, unknown> };
+  try {
+    result = await postChat(baseUrl, runtime.apiKey, body);
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`优化请求超过 ${Math.round(OPTIMIZE_TIMEOUT_MS / 1000)} 秒未返回`);
+    }
+    log.warn("optimize request network error", { error });
+    throw error instanceof Error ? error : new Error("优化请求失败");
+  }
+
+  if (!result.ok) {
+    throw errorFromBody(result.status, result.json);
+  }
+
+  const optimized = cleanOptimizedText(extractContent(result.json));
+  if (!optimized) {
+    throw new Error("优化结果为空,请重试或在后台换用其它文本模型");
+  }
+  return { optimized, model: runtime.model };
 }

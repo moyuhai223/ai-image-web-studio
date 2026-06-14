@@ -23,7 +23,7 @@ import { getOperationalMetrics } from "@/lib/metrics";
 import { getProviderSettings } from "@/lib/provider-settings";
 import { listPromptTemplates } from "@/lib/prompt-templates";
 import {
-  getPromptOptimizeSettings,
+  getPromptOptimizeSummary,
   DEFAULT_OPTIMIZE_SYSTEM_PROMPT,
   DEFAULT_OPTIMIZE_MODEL
 } from "@/lib/prompt-optimize-settings";
@@ -42,7 +42,7 @@ export default async function SettingsPage() {
       getSystemHealth(),
       getProviderSettings(),
       listPromptTemplates(),
-      getPromptOptimizeSettings(),
+      getPromptOptimizeSummary(),
       getUiThemePreference(),
       getOperationalMetrics()
     ]);

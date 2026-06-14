@@ -3,7 +3,7 @@ import { AppFooter } from "@/components/app-footer";
 import { Workspace } from "@/components/workspace";
 import { requireUser } from "@/lib/auth";
 import { listPromptTemplates } from "@/lib/prompt-templates";
-import { getPromptOptimizeSettings } from "@/lib/prompt-optimize-settings";
+import { getPromptOptimizeSummary } from "@/lib/prompt-optimize-settings";
 import { listRecentReferenceImagesForUser } from "@/lib/repository";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import { modelOptions } from "@/lib/validation";
@@ -16,7 +16,7 @@ export default async function HomePage() {
     listPromptTemplates(),
     getUiThemePreference(),
     listRecentReferenceImagesForUser(user, 5),
-    getPromptOptimizeSettings()
+    getPromptOptimizeSummary()
   ]);
   const recentReferencePreview = recentReferenceImages.map((reference) => ({
     id: reference.id,
@@ -31,7 +31,7 @@ export default async function HomePage() {
           models={modelOptions}
           promptTemplates={templates}
           recentReferenceImages={recentReferencePreview}
-          promptOptimizeEnabled={promptOptimize.enabled}
+          promptOptimizeEnabled={promptOptimize.enabled && promptOptimize.hasApiKey}
         />
       </main>
       <AppFooter />

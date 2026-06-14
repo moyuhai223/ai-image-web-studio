@@ -813,6 +813,13 @@ summary:focus-visible,
   height: 16px;
 }
 
+.prompt-optimize-clear {
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .generation-controls {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(82px, 0.72fr);

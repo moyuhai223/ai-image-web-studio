@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { respondError } from "@/lib/api-errors";
-import { optimizePrompt, PromptOptimizeDisabledError, OPTIMIZE_INPUT_MAX_LENGTH } from "@/lib/prompt-optimize";
+import {
+  optimizePrompt,
+  PromptOptimizeDisabledError,
+  PromptOptimizeNotConfiguredError,
+  OPTIMIZE_INPUT_MAX_LENGTH
+} from "@/lib/prompt-optimize";
 
 export const runtime = "nodejs";
 
@@ -56,6 +61,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof PromptOptimizeDisabledError) {
       return NextResponse.json({ error: "提示词优化未启用" }, { status: 403 });
+    }
+    if (error instanceof PromptOptimizeNotConfiguredError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
     return respondError(error, { context: "prompt.optimize.POST", fallbackStatus: 502 });
   }

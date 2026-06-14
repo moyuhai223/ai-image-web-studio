@@ -3,10 +3,11 @@ import { requireAdmin } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { respondError } from "@/lib/api-errors";
 import {
-  getPromptOptimizeSettings,
+  getPromptOptimizeSummary,
   updatePromptOptimizeSettings,
   OPTIMIZE_MODEL_MAX_LENGTH,
-  OPTIMIZE_SYSTEM_PROMPT_MAX_LENGTH
+  OPTIMIZE_SYSTEM_PROMPT_MAX_LENGTH,
+  OPTIMIZE_BASE_URL_MAX_LENGTH
 } from "@/lib/prompt-optimize-settings";
 
 export const runtime = "nodejs";
@@ -14,7 +15,7 @@ export const runtime = "nodejs";
 export async function GET() {
   await requireAdmin();
   try {
-    const settings = await getPromptOptimizeSettings();
+    const settings = await getPromptOptimizeSummary();
     return NextResponse.json(settings);
   } catch (error) {
     return respondError(error, { context: "settings.promptOptimize.GET", fallbackStatus: 500 });
@@ -27,13 +28,30 @@ export async function PATCH(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 
-    const patch: { enabled?: boolean; model?: string; systemPrompt?: string; userId: string } = { userId: user.id };
+    const patch: {
+      enabled?: boolean;
+      baseUrl?: string;
+      model?: string;
+      systemPrompt?: string;
+      apiKey?: string;
+      clearApiKey?: boolean;
+      userId: string;
+    } = { userId: user.id };
 
     if (body.enabled !== undefined) {
       if (typeof body.enabled !== "boolean") {
         return NextResponse.json({ error: "enabled 必须是布尔值" }, { status: 400 });
       }
       patch.enabled = body.enabled;
+    }
+    if (body.baseUrl !== undefined) {
+      if (typeof body.baseUrl !== "string") {
+        return NextResponse.json({ error: "baseUrl 必须是字符串" }, { status: 400 });
+      }
+      if (body.baseUrl.length > OPTIMIZE_BASE_URL_MAX_LENGTH) {
+        return NextResponse.json({ error: `Base URL 不能超过 ${OPTIMIZE_BASE_URL_MAX_LENGTH} 个字符` }, { status: 400 });
+      }
+      patch.baseUrl = body.baseUrl;
     }
     if (body.model !== undefined) {
       if (typeof body.model !== "string" || !body.model.trim()) {
@@ -53,6 +71,15 @@ export async function PATCH(request: Request) {
       }
       patch.systemPrompt = body.systemPrompt;
     }
+    if (body.clearApiKey === true) {
+      patch.clearApiKey = true;
+    } else if (body.apiKey !== undefined) {
+      if (typeof body.apiKey !== "string") {
+        return NextResponse.json({ error: "apiKey 必须是字符串" }, { status: 400 });
+      }
+      // 空串视为「不修改」(避免误清空);要清除请传 clearApiKey:true。
+      if (body.apiKey.trim()) patch.apiKey = body.apiKey;
+    }
 
     const settings = await updatePromptOptimizeSettings(patch);
     await writeAuditLog({
@@ -60,7 +87,7 @@ export async function PATCH(request: Request) {
       request,
       action: "更新提示词优化设置",
       targetType: "prompt_optimize_settings",
-      detail: { enabled: settings.enabled, model: settings.model }
+      detail: { enabled: settings.enabled, model: settings.model, baseUrl: settings.baseUrl, hasApiKey: settings.hasApiKey }
     });
 
     return NextResponse.json(settings);
