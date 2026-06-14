@@ -3,6 +3,7 @@ import { AppFooter } from "@/components/app-footer";
 import { Workspace } from "@/components/workspace";
 import { requireUser } from "@/lib/auth";
 import { listPromptTemplates } from "@/lib/prompt-templates";
+import { getPromptOptimizeSettings } from "@/lib/prompt-optimize-settings";
 import { listRecentReferenceImagesForUser } from "@/lib/repository";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import { modelOptions } from "@/lib/validation";
@@ -11,10 +12,11 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const user = await requireUser();
-  const [templates, themePreference, recentReferenceImages] = await Promise.all([
+  const [templates, themePreference, recentReferenceImages, promptOptimize] = await Promise.all([
     listPromptTemplates(),
     getUiThemePreference(),
-    listRecentReferenceImagesForUser(user, 5)
+    listRecentReferenceImagesForUser(user, 5),
+    getPromptOptimizeSettings()
   ]);
   const recentReferencePreview = recentReferenceImages.map((reference) => ({
     id: reference.id,
@@ -25,7 +27,12 @@ export default async function HomePage() {
     <div className="shell" data-theme={themePreference.theme}>
       <AppNav user={user} themeMode={themePreference.mode} />
       <main className="main">
-        <Workspace models={modelOptions} promptTemplates={templates} recentReferenceImages={recentReferencePreview} />
+        <Workspace
+          models={modelOptions}
+          promptTemplates={templates}
+          recentReferenceImages={recentReferencePreview}
+          promptOptimizeEnabled={promptOptimize.enabled}
+        />
       </main>
       <AppFooter />
     </div>

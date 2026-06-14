@@ -777,6 +777,42 @@ summary:focus-visible,
   min-height: 190px;
 }
 
+.prompt-optimize-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.prompt-optimize-bar button.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.prompt-optimize-button:not(:disabled) {
+  color: var(--accent, #6d5efc);
+  border-color: color-mix(in srgb, var(--accent, #6d5efc) 45%, transparent);
+}
+
+.prompt-optimize-error {
+  color: var(--danger, #d9534f);
+}
+
+.optimize-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.optimize-toggle input {
+  width: 16px;
+  height: 16px;
+}
+
 .generation-controls {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(82px, 0.72fr);

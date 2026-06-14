@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, Download, ImagePlus, Pencil, Play, RefreshCcw, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Download, ImagePlus, Pencil, Play, RefreshCcw, Sparkles, Undo2, X } from "lucide-react";
 import { CopyPromptButton } from "./copy-prompt-button";
 import { DeleteRecordButton } from "./delete-record-button";
 import { FavoriteImageButton } from "./favorite-image-button";
@@ -266,11 +266,13 @@ function isAbortError(error: unknown) {
 export function Workspace({
   models,
   promptTemplates,
-  recentReferenceImages
+  recentReferenceImages,
+  promptOptimizeEnabled = false
 }: {
   models: ModelOption[];
   promptTemplates: PromptTemplateOption[];
   recentReferenceImages: RecentReferenceImage[];
+  promptOptimizeEnabled?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -291,6 +293,9 @@ export function Workspace({
   const [upscaleError, setUpscaleError] = useState("");
   const [count, setCount] = useState("1");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizeError, setOptimizeError] = useState("");
+  const [optimizeUndo, setOptimizeUndo] = useState<string | null>(null);
   const [selectedReferences, setSelectedReferences] = useState<SelectedReference[]>([]);
   const [referencesOpen, setReferencesOpen] = useState(false);
   const [limits, setLimits] = useState<LimitsConfig>(DEFAULT_LIMITS);
@@ -970,6 +975,45 @@ export function Workspace({
     selectTemplatePlaceholder(nextPrompt, prefix.length);
   }
 
+  async function optimizePrompt() {
+    const current = prompt.trim();
+    if (!current || optimizing) return;
+    setOptimizing(true);
+    setOptimizeError("");
+
+    const resolvedSize = size === "custom" ? `${customWidth}x${customHeight}` : size;
+    try {
+      const response = await fetch("/api/prompt/optimize", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          prompt: current,
+          model,
+          size: resolvedSize && resolvedSize !== "auto" ? resolvedSize : undefined,
+          hasReference: selectedReferences.length > 0
+        })
+      });
+      const data = (await response.json().catch(() => ({}))) as { optimized?: string; error?: string };
+      if (!response.ok || !data.optimized) {
+        setOptimizeError(data.error ?? "优化失败,请稍后再试");
+        return;
+      }
+      setOptimizeUndo(prompt);
+      setPrompt(data.optimized);
+    } catch {
+      setOptimizeError("优化请求失败,请检查网络后重试");
+    } finally {
+      setOptimizing(false);
+    }
+  }
+
+  function undoOptimize() {
+    if (optimizeUndo === null) return;
+    setPrompt(optimizeUndo);
+    setOptimizeUndo(null);
+    setOptimizeError("");
+  }
+
   function addSelectedReferences(nextReferences: SelectedReference[]) {
     if (nextReferences.length === 0) return;
     setSelectedReferences((current) => {
@@ -1212,6 +1256,27 @@ export function Workspace({
                 placeholder="描述你要生成的画面、风格、主体、构图和细节"
                 required
               />
+              {promptOptimizeEnabled ? (
+                <div className="prompt-optimize-bar">
+                  <button
+                    className="status prompt-optimize-button"
+                    type="button"
+                    onClick={() => void optimizePrompt()}
+                    disabled={optimizing || !prompt.trim()}
+                    title="用 AI 把当前描述改写成更利于出图的高质量提示词"
+                  >
+                    <Sparkles size={13} />
+                    {optimizing ? "优化中…" : "优化提示词"}
+                  </button>
+                  {optimizeUndo !== null ? (
+                    <button className="status" type="button" onClick={undoOptimize} disabled={optimizing}>
+                      <Undo2 size={13} />
+                      撤销
+                    </button>
+                  ) : null}
+                  {optimizeError ? <span className="small prompt-optimize-error">{optimizeError}</span> : null}
+                </div>
+              ) : null}
             </div>
           </section>
 

@@ -7,6 +7,7 @@ import { CreateUserForm } from "@/components/create-user-form";
 import { DataBackupPanel } from "@/components/data-backup-panel";
 import { PresetsManager } from "@/components/presets-manager";
 import { PromptTemplatesPanel } from "@/components/prompt-templates-panel";
+import { PromptOptimizePanel } from "@/components/prompt-optimize-panel";
 import { ReferenceImagesPanel } from "@/components/reference-images-panel";
 import { SettingsTabs } from "@/components/settings-tabs";
 import { StorageMaintenancePanel } from "@/components/storage-maintenance-panel";
@@ -21,6 +22,11 @@ import { getSystemHealth } from "@/lib/health";
 import { getOperationalMetrics } from "@/lib/metrics";
 import { getProviderSettings } from "@/lib/provider-settings";
 import { listPromptTemplates } from "@/lib/prompt-templates";
+import {
+  getPromptOptimizeSettings,
+  DEFAULT_OPTIMIZE_SYSTEM_PROMPT,
+  DEFAULT_OPTIMIZE_MODEL
+} from "@/lib/prompt-optimize-settings";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import { APP_VERSION_LABEL } from "@/lib/version";
 import type { User } from "@/lib/types";
@@ -29,15 +35,17 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const user = await requireAdmin();
-  const [users, aiKeys, health, providerSettings, promptTemplates, themePreference, metrics] = await Promise.all([
-    query<User>(`select id, username, role, active, created_at, updated_at from users order by created_at desc`),
-    listAiKeySummaries(),
-    getSystemHealth(),
-    getProviderSettings(),
-    listPromptTemplates(),
-    getUiThemePreference(),
-    getOperationalMetrics()
-  ]);
+  const [users, aiKeys, health, providerSettings, promptTemplates, promptOptimize, themePreference, metrics] =
+    await Promise.all([
+      query<User>(`select id, username, role, active, created_at, updated_at from users order by created_at desc`),
+      listAiKeySummaries(),
+      getSystemHealth(),
+      getProviderSettings(),
+      listPromptTemplates(),
+      getPromptOptimizeSettings(),
+      getUiThemePreference(),
+      getOperationalMetrics()
+    ]);
 
   return (
     <div className="shell" data-theme={themePreference.theme}>
@@ -92,7 +100,14 @@ export default async function SettingsPage() {
             </>
           }
           templates={
-            <PromptTemplatesPanel templates={promptTemplates} />
+            <>
+              <PromptOptimizePanel
+                settings={promptOptimize}
+                defaultSystemPrompt={DEFAULT_OPTIMIZE_SYSTEM_PROMPT}
+                defaultModel={DEFAULT_OPTIMIZE_MODEL}
+              />
+              <PromptTemplatesPanel templates={promptTemplates} />
+            </>
           }
           references={
             <ReferenceImagesPanel />
