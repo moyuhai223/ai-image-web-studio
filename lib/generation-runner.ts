@@ -75,6 +75,19 @@ function isGeminiImageModel(model: string) {
   return model === config.imageModelGemini || model.toLowerCase().includes("gemini");
 }
 
+function providerWaitingMessage(
+  flowLabel: string,
+  referenceTotal: number,
+  current: number,
+  total: number,
+  providerName: string | null
+) {
+  const who = providerName ? `（Provider:${providerName}）` : "";
+  return referenceTotal > 0
+    ? `${flowLabel}请求已发送${who}，正在等待第 ${current}/${total} 张图片返回（参考图 ${referenceTotal} 张）`
+    : `${flowLabel}请求已发送${who}，正在等待第 ${current}/${total} 张图片返回`;
+}
+
 function providerFlowLabel(input: GenerationRunInput, referenceTotal: number) {
   if (isGptImageModel(input.model)) {
     return referenceTotal > 0 ? "Image 2 编辑接口" : "Image 2 生成接口";
@@ -431,10 +444,13 @@ async function markFailed(
   providerResults: unknown[],
   error: unknown,
   stage: string,
-  phaseTimings: GenerationPhaseTimings
+  phaseTimings: GenerationPhaseTimings,
+  providerName: string | null
 ) {
   const raw = sanitizeProviderMetadata((error as Error & { raw?: unknown }).raw ?? null);
-  const message = stageErrorMessage(stage, error);
+  const baseMessage = stageErrorMessage(stage, error);
+  // 把实际使用的 Provider 带进失败文案,便于判断是哪家 Provider 的问题。
+  const message = providerName ? `${baseMessage}（Provider:${providerName}）` : baseMessage;
   const status = failureStatusForError(error);
   const phaseLabel: GenerationProgress["phase"] = status === "upstream_error" ? "upstream_error" : "failed";
   const failedProgress = progress({
@@ -496,6 +512,8 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
   const runId = claimedRunId ?? randomUUID();
   let failureStage = "读取任务参数";
   const phaseTimings: GenerationPhaseTimings = {};
+  // 实际选中的 Provider 名(轮换/failover 时为最后一次尝试的那个),用于进度与失败消息显示。
+  let selectedProviderName: string | null = null;
 
   try {
     if (!claimedRunId) {
@@ -553,27 +571,34 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
           requestStartedAt
         })
       );
-      await updateProgress(
-        jobId,
-        runId,
-        progress({
-          phase: "requesting",
-          current: index,
-          total: input.count,
-          percent: Math.min(90, 15 + Math.round((index / input.count) * 68)),
-          message:
-            totalReferences > 0
-              ? `${flowLabel}请求已发送，正在等待第 ${current}/${input.count} 张图片返回（参考图 ${totalReferences} 张）`
-              : `${flowLabel}请求已发送，正在等待第 ${current}/${input.count} 张图片返回`,
-          referenceCount: totalReferences,
-          requestStartedAt
-        })
-      );
+      const inputCount = input.count;
+      const emitRequesting = (providerName: string | null) =>
+        updateProgress(
+          jobId,
+          runId,
+          progress({
+            phase: "requesting",
+            current: index,
+            total: inputCount,
+            percent: Math.min(90, 15 + Math.round((index / inputCount) * 68)),
+            message: providerWaitingMessage(flowLabel, totalReferences, current, inputCount, providerName),
+            referenceCount: totalReferences,
+            requestStartedAt
+          })
+        );
+      await emitRequesting(null);
       failureStage = "等待模型返回";
       const upstreamStartedAt = performance.now();
       const providerResult = await generateWithProvider(
         { ...input, count: 1 },
-        { presetId: input.presetId ?? null }
+        {
+          presetId: input.presetId ?? null,
+          // 选中(或 failover 切换到)某个 Provider 时,把进度消息更新为实际 Provider 名。
+          onProviderSelected: (info) => {
+            selectedProviderName = info.presetName;
+            void emitRequesting(info.presetName);
+          }
+        }
       );
       addPhaseTiming(phaseTimings, "upstream_wait_ms", performance.now() - upstreamStartedAt);
       providerResults.push(providerResult);
@@ -697,7 +722,7 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
       log.warn("Generation job will auto-retry", { jobId, stage: failureStage });
       return;
     }
-    await markFailed(jobId, runId, input, providerResults, error, failureStage, phaseTimings);
+    await markFailed(jobId, runId, input, providerResults, error, failureStage, phaseTimings, selectedProviderName);
     log.warn("Generation job failed", { jobId, stage: failureStage, error });
   }
 }

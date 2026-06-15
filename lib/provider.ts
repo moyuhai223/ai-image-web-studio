@@ -28,8 +28,16 @@ export type ProviderResult = {
   raw: Record<string, unknown>;
 };
 
+export type ProviderSelectedInfo = {
+  presetId: string | null;
+  presetName: string | null;
+  baseUrl: string;
+};
+
 export type ProviderRequestOptions = {
   presetId?: string | null;
+  /** 真正向某个 Provider(preset)发起请求前回调;轮换 failover 时每个被尝试的 preset 都会回调一次。 */
+  onProviderSelected?: (info: ProviderSelectedInfo) => void;
 };
 
 type ProviderPayloadResult = Omit<ProviderResult, "keyId" | "keyLabel" | "keySource" | "baseUrl" | "presetId" | "presetName">;
@@ -665,6 +673,7 @@ export async function generateWithProvider(
       let lastError: unknown;
       for (let i = 0; i < presets.length; i += 1) {
         const preset = presets[(start + i) % presets.length];
+        options.onProviderSelected?.({ presetId: preset.id, presetName: preset.name, baseUrl: preset.baseUrl });
         try {
           return await runWithPreset(input, { baseUrl: preset.baseUrl, presetId: preset.id, presetName: preset.name });
         } catch (error) {
@@ -682,6 +691,11 @@ export async function generateWithProvider(
   }
 
   const resolved = await resolveProvider(isRotatePreset(options.presetId) ? null : options.presetId);
+  options.onProviderSelected?.({
+    presetId: resolved.preset?.id ?? null,
+    presetName: resolved.preset?.name ?? null,
+    baseUrl: resolved.baseUrl
+  });
   return runWithPreset(input, {
     baseUrl: resolved.baseUrl,
     presetId: resolved.preset?.id ?? null,
