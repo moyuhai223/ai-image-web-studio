@@ -1698,9 +1698,7 @@ export function Workspace({
             )}
           </div>
         </section>
-      </div>
 
-      <aside className="side-stack">
         <section className="panel">
           <div className="panel-header">
             <h2 className="panel-title">任务队列</h2>
@@ -1751,6 +1749,9 @@ export function Workspace({
             ))}
           </div>
         </section>
+      </div>
+
+      <aside className="side-stack">
         <section className="panel">
           <div className="panel-header">
             <h2 className="panel-title">最近记录</h2>
