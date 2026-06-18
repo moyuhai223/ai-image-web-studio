@@ -8,6 +8,9 @@
   --border: #d7dee8;
   --brand: #0f766e;
   --brand-2: #2563eb;
+  /* --accent 此前全站被引用 10+ 处却从未定义,带兜底处落到游离紫 #6d5efc、无兜底处直接失效。
+     统一绑到品牌色:惰性求值,在 dark/gallery 子树会各自解析为该主题的 --brand,无需重复定义。 */
+  --accent: var(--brand);
   --danger: #b42318;
   --ok: #157f3b;
   --shadow: 0 8px 24px rgba(20, 33, 61, 0.06), 0 2px 8px rgba(20, 33, 61, 0.03);
@@ -31,6 +34,9 @@
   --radius-sm: 8px;
   --radius-md: 14px;
   --radius-lg: 20px;
+
+  /* 表单输入/下拉统一高度;此前主输入 40、参数下拉 36 同屏不齐,统一到一个 token。 */
+  --control-h: 40px;
 
   --glass-bg: rgba(255, 255, 255, 0.72);
   --glass-bg-strong: rgba(255, 255, 255, 0.88);
@@ -189,7 +195,9 @@ summary:focus-visible,
 }
 
 .shell[data-theme="dark"],
-.login-wrap[data-theme="dark"] {
+.shell[data-theme="gallery-dark"],
+.login-wrap[data-theme="dark"],
+.login-wrap[data-theme="gallery-dark"] {
   color-scheme: dark;
   --bg: #111827;
   --panel: rgba(24, 34, 50, 0.70);
@@ -226,6 +234,20 @@ summary:focus-visible,
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.12);
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.32), 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+/* FOUC 兜底:<html> 在 SSR 即带 data-theme(见 app/layout.tsx),让首屏背景与 color-scheme 立刻正确,
+   深色主题不再先渲染浅色再被 .shell 覆盖。完整 token 仍由上方 .shell[data-theme="dark"] 应用。
+   studio / gallery 均为浅色(同 :root --bg),无需兜底。 */
+html[data-theme="dark"],
+html[data-theme="gallery-dark"] {
+  color-scheme: dark;
+  background-color: #111827;
+}
+
+html[data-theme="dark"] body,
+html[data-theme="gallery-dark"] body {
+  background-color: #111827;
 }
 
 .topbar {
@@ -564,7 +586,7 @@ summary:focus-visible,
   display: grid;
   /* 三栏 cap 放大,宽屏(1700+)上两侧不再卡死在 320/340 的窄壳里,中间也保留充足留白。
      workspace 整体 max-width 1760 + 居中,避免在 4K/超宽屏上被无限拉伸,内容仍处在可读密度。 */
-  grid-template-columns: minmax(280px, 380px) minmax(420px, 1fr) minmax(300px, 440px);
+  grid-template-columns: minmax(280px, 360px) minmax(480px, 1fr) minmax(280px, 420px);
   max-width: 1760px;
   margin-inline: auto;
   gap: 16px;
@@ -762,7 +784,7 @@ summary:focus-visible,
 
 .input,
 .select {
-  min-height: 40px;
+  min-height: var(--control-h);
   padding: 0 11px;
 }
 
@@ -899,7 +921,7 @@ summary:focus-visible,
 }
 
 .generation-controls .select {
-  min-height: 36px;
+  min-height: var(--control-h);
   padding: 0 9px;
   font-size: 13px;
 }
@@ -1367,7 +1389,8 @@ button.action-button:hover:not(:disabled),
 
 .preview-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  /* 最小列宽 220→190:中栏一到 ~400px 就能两列铺开,生成 2–4 张图不再塌成单列长条。 */
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 14px;
 }
 
@@ -4073,37 +4096,48 @@ button.action-button:hover:not(:disabled),
   }
 }
 
-.shell[data-theme="gallery"] .workspace {
-  grid-template-columns: minmax(240px, 300px) minmax(520px, 1fr);
+.shell[data-theme^="gallery"] .workspace {
+  /* 表单不再钉死 240–300px:给 340px 下限 + 0.62fr 弹性,宽屏约 38/62,表单更舒展、图区仍占主导。 */
+  grid-template-columns: minmax(340px, 0.62fr) minmax(0, 1fr);
 }
 
-.shell[data-theme="gallery"] .workspace > .side-stack {
+/* 画廊核心是挑图:让右侧结果列也跟随视口(独立滚动),与左侧 sticky 表单对齐,改参数时大图与表单都常驻。 */
+.shell[data-theme^="gallery"] .workspace > .center-stack {
+  position: sticky;
+  top: 76px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+}
+
+.shell[data-theme^="gallery"] .workspace > .side-stack {
   grid-column: 1 / -1;
+  margin-top: 4px;
 }
 
-.shell[data-theme="gallery"] .history-list {
+.shell[data-theme^="gallery"] .history-list {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 }
 
-.shell[data-theme="gallery"] .preview-grid {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+.shell[data-theme^="gallery"] .preview-grid {
+  /* 画廊语义=图更突出:单图最小宽提到 300,每行 1–2 张大图而非 3 张中图。 */
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
 
-.shell[data-theme="gallery"] .image-card {
+.shell[data-theme^="gallery"] .image-card {
   position: relative;
   grid-template-rows: minmax(0, 1fr);
 }
 
-.shell[data-theme="gallery"] .image-open-button img {
+.shell[data-theme^="gallery"] .image-open-button img {
   aspect-ratio: 4 / 3;
 }
 
-.shell[data-theme="gallery"] .record-card .image-open-button img {
+.shell[data-theme^="gallery"] .record-card .image-open-button img {
   aspect-ratio: 1 / 1;
 }
 
-.shell[data-theme="gallery"] .image-card footer,
-.shell[data-theme="gallery"] .record-card-footer {
+.shell[data-theme^="gallery"] .image-card footer,
+.shell[data-theme^="gallery"] .record-card-footer {
   position: absolute;
   right: 0;
   bottom: 0;
@@ -4121,57 +4155,57 @@ button.action-button:hover:not(:disabled),
   transition: opacity var(--transition-base), transform var(--transition-base);
 }
 
-.shell[data-theme="gallery"] .image-card:hover footer,
-.shell[data-theme="gallery"] .image-card:focus-within footer,
-.shell[data-theme="gallery"] .image-card:hover .record-card-footer,
-.shell[data-theme="gallery"] .image-card:focus-within .record-card-footer {
+.shell[data-theme^="gallery"] .image-card:hover footer,
+.shell[data-theme^="gallery"] .image-card:focus-within footer,
+.shell[data-theme^="gallery"] .image-card:hover .record-card-footer,
+.shell[data-theme^="gallery"] .image-card:focus-within .record-card-footer {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
 }
 
-.shell[data-theme="gallery"] .image-card footer .muted,
-.shell[data-theme="gallery"] .record-card-prompt,
-.shell[data-theme="gallery"] .record-card-meta-row p {
+.shell[data-theme^="gallery"] .image-card footer .muted,
+.shell[data-theme^="gallery"] .record-card-prompt,
+.shell[data-theme^="gallery"] .record-card-meta-row p {
   color: rgba(255, 255, 255, 0.78);
 }
 
-.shell[data-theme="gallery"] .image-card footer .status:not(.succeeded):not(.failed):not(.running):not(.queued):not(.canceled),
-.shell[data-theme="gallery"] .record-card-footer .status:not(.succeeded):not(.failed):not(.running):not(.queued):not(.canceled) {
+.shell[data-theme^="gallery"] .image-card footer .status:not(.succeeded):not(.failed):not(.running):not(.queued):not(.canceled),
+.shell[data-theme^="gallery"] .record-card-footer .status:not(.succeeded):not(.failed):not(.running):not(.queued):not(.canceled) {
   background: rgba(255, 255, 255, 0.16);
   color: white;
 }
 
-.shell[data-theme="gallery"] .record-card-prompt {
+.shell[data-theme^="gallery"] .record-card-prompt {
   min-height: 20px;
   -webkit-line-clamp: 1;
 }
 
-.shell[data-theme="gallery"] .history-item {
+.shell[data-theme^="gallery"] .history-item {
   position: relative;
   grid-template-columns: 92px minmax(0, 1fr);
 }
 
-.shell[data-theme="gallery"] .history-item .actions {
+.shell[data-theme^="gallery"] .history-item .actions {
   opacity: 1;
   transform: none;
   transition: opacity 160ms ease, transform 160ms ease;
 }
 
-.shell[data-theme="gallery"] .history-item:hover .actions,
-.shell[data-theme="gallery"] .history-item:focus-within .actions {
+.shell[data-theme^="gallery"] .history-item:hover .actions,
+.shell[data-theme^="gallery"] .history-item:focus-within .actions {
   opacity: 1;
   transform: none;
 }
 
-.shell[data-theme="gallery"] .history-prompt {
+.shell[data-theme^="gallery"] .history-prompt {
   min-height: 18px;
   -webkit-line-clamp: 1;
 }
 
-.shell[data-theme="gallery"] .thumb,
-.shell[data-theme="gallery"] .thumb-link,
-.shell[data-theme="gallery"] .thumb-skeleton {
+.shell[data-theme^="gallery"] .thumb,
+.shell[data-theme^="gallery"] .thumb-link,
+.shell[data-theme^="gallery"] .thumb-skeleton {
   width: 92px;
   height: 92px;
 }
@@ -4193,6 +4227,11 @@ button.action-button:hover:not(:disabled),
 .shell[data-theme="dark"] .version-node,
 .shell[data-theme="dark"] .settings-nav,
 .login-wrap[data-theme="dark"] .panel {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* 深色画廊沿用深色的面板/卡片描边精修(与上方深色一致,additive 不影响 dark 主题)。 */
+.shell[data-theme="gallery-dark"] :is(.panel, .image-card, .queue-item, .history-item, .key-row, .backup-row, .health-metric, .health-check, .storage-metric, .storage-orphan-list, .prompt-template-card, .user-security-card, .flow-panel, .version-panel, .version-node, .settings-nav) {
   border-color: rgba(255, 255, 255, 0.06);
 }
 
@@ -4543,6 +4582,22 @@ code {
   object-fit: cover;
 }
 
+/* 1101–1320:默认三栏在这段宽度会把中栏挤窄(结果塌单列),先收成两栏(表单+结果并排,
+   最近记录/队列换到整行下方),到 1100 才真正塌单列。复用画廊已验证的两栏方案,过渡更平滑。 */
+@media (min-width: 1101px) and (max-width: 1320px) {
+  .workspace {
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+  }
+
+  .workspace > .side-stack {
+    grid-column: 1 / -1;
+  }
+
+  .side-stack .history-list {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}
+
 @media (max-width: 1100px) {
   .workspace {
     grid-template-columns: 1fr;
@@ -4557,7 +4612,7 @@ code {
     overflow: visible;
   }
 
-  .shell[data-theme="gallery"] .workspace {
+  .shell[data-theme^="gallery"] .workspace {
     grid-template-columns: 1fr;
   }
 
@@ -4604,14 +4659,14 @@ code {
   }
 
   .workspace,
-  .shell[data-theme="gallery"] .workspace {
+  .shell[data-theme^="gallery"] .workspace {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
     width: 100%;
     max-width: 100%;
   }
 
-  .shell[data-theme="gallery"] .workspace > .side-stack {
+  .shell[data-theme^="gallery"] .workspace > .side-stack {
     grid-column: auto;
   }
 
@@ -4652,7 +4707,7 @@ code {
   }
 
   .preview-grid,
-  .shell[data-theme="gallery"] .preview-grid {
+  .shell[data-theme^="gallery"] .preview-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -5049,12 +5104,12 @@ code {
     box-shadow: var(--shadow-sm);
   }
 
-  .shell[data-theme="gallery"] .image-card {
+  .shell[data-theme^="gallery"] .image-card {
     grid-template-rows: auto 1fr;
   }
 
-  .shell[data-theme="gallery"] .image-card footer,
-  .shell[data-theme="gallery"] .record-card-footer {
+  .shell[data-theme^="gallery"] .image-card footer,
+  .shell[data-theme^="gallery"] .record-card-footer {
     position: static;
     padding: 10px;
     background: transparent;
@@ -5064,21 +5119,33 @@ code {
     transform: none;
   }
 
-  .shell[data-theme="gallery"] .image-card footer .muted,
-  .shell[data-theme="gallery"] .record-card-prompt,
-  .shell[data-theme="gallery"] .record-card-meta-row p {
+  .shell[data-theme^="gallery"] .image-card footer .muted,
+  .shell[data-theme^="gallery"] .record-card-prompt,
+  .shell[data-theme^="gallery"] .record-card-meta-row p {
     color: var(--muted);
   }
 
-  .shell[data-theme="gallery"] .image-card footer .status:not(.succeeded):not(.failed):not(.running):not(.queued):not(.canceled),
-  .shell[data-theme="gallery"] .record-card-footer .status:not(.succeeded):not(.failed):not(.running):not(.queued):not(.canceled) {
+  .shell[data-theme^="gallery"] .image-card footer .status:not(.succeeded):not(.failed):not(.running):not(.queued):not(.canceled),
+  .shell[data-theme^="gallery"] .record-card-footer .status:not(.succeeded):not(.failed):not(.running):not(.queued):not(.canceled) {
     background: var(--panel-2);
     color: var(--muted);
   }
 
-  .shell[data-theme="gallery"] .history-item .actions {
+  .shell[data-theme^="gallery"] .history-item .actions {
     opacity: 1;
     transform: none;
+  }
+}
+
+@media (max-width: 680px) {
+  /* iOS Safari 对 <16px 的聚焦表单控件会自动放大页面;把生成参数三个下拉在窄屏回升到 16px,消除聚焦跳动。 */
+  .generation-controls .select {
+    font-size: 16px;
+  }
+
+  /* 触控目标:.status 作为真实按钮(.action-button)时窄屏给到 ≥40px 高,降低密集排布误触(WCAG 2.5.5)。 */
+  .action-button {
+    min-height: 40px;
   }
 }
 
@@ -5087,8 +5154,9 @@ code {
   .ghost-button,
   .theme-mode-control {
     justify-content: center;
-    width: 38px;
-    min-width: 38px;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
     padding: 0;
   }
 

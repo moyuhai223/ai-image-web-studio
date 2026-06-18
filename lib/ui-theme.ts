@@ -6,6 +6,7 @@ import {
   normalizeUiThemeMode,
   resolveUiThemeMode,
   UI_THEME_COOKIE_NAME,
+  type ResolvedUiTheme,
   type UiThemeId,
   type UiThemeMode
 } from "./ui-theme-options";
@@ -17,6 +18,7 @@ export {
   normalizeUiThemeMode,
   resolveUiThemeMode,
   UI_THEME_COOKIE_NAME,
+  type ResolvedUiTheme,
   type UiThemeId,
   type UiThemeMode
 } from "./ui-theme-options";
@@ -25,7 +27,7 @@ const log = createLogger("ui-theme");
 
 export type UiThemePreference = {
   mode: UiThemeMode;
-  theme: UiThemeId;
+  theme: ResolvedUiTheme;
 };
 
 export async function getUiThemePreference(): Promise<UiThemePreference> {
@@ -43,7 +45,7 @@ export async function getUiThemePreference(): Promise<UiThemePreference> {
   };
 }
 
-export async function getUiTheme(): Promise<UiThemeId> {
+export async function getUiTheme(): Promise<ResolvedUiTheme> {
   const preference = await getUiThemePreference();
   return preference.theme;
 }

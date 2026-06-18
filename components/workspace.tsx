@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Check, ChevronDown, Download, ImagePlus, Pencil, Play, RefreshCcw, Sparkles, Undo2, X } from "lucide-react";
+import { ButtonSpinner } from "./button-spinner";
 import { CopyPromptButton } from "./copy-prompt-button";
 import { DeleteRecordButton } from "./delete-record-button";
 import { FavoriteImageButton } from "./favorite-image-button";
@@ -1607,15 +1608,15 @@ export function Workspace({
           />
 
           <div className="generation-submit">
-            {error ? <p className="small form-error">{error}</p> : null}
+            {error ? <p className="small form-error" role="alert">{error}</p> : null}
             <div className="generation-summary-bar" aria-label="生成参数确认">
               <span>{modelLabel}</span>
               <span>{size}</span>
               <span>{count} 张</span>
               <span>{referenceSummary}</span>
             </div>
-            <button className="button" type="submit" disabled={loading}>
-              <Play size={17} />
+            <button className="button" type="submit" disabled={loading} aria-busy={loading}>
+              {loading ? <ButtonSpinner size={17} /> : <Play size={17} />}
               {loading ? "生成中" : "开始生成"}
             </button>
           </div>
@@ -1632,7 +1633,7 @@ export function Workspace({
             {activeImages.length > 0 ? (
               <div className="preview-stack">
                 {activeSummary && !activeSummary.terminal ? (
-                  <div className="inline-progress batch-progress" aria-label="批量生成进度">
+                  <div className="inline-progress batch-progress" aria-label="批量生成进度" aria-live="polite">
                     <div className="flow-track" aria-hidden="true">
                       <div className={`flow-bar ${activeSummary.status}`} style={{ width: `${activeSummary.percent}%` }} />
                       <div className="flow-tail" style={{ left: progressTailLeft(activeSummary.percent) }} />
@@ -1666,7 +1667,7 @@ export function Workspace({
                   <ImagePlus size={34} />
                   <p>{activeSummary?.message ?? "正在创建后台任务"}</p>
                   {activeSummary ? (
-                    <div className="inline-progress" aria-label="生成进度">
+                    <div className="inline-progress" aria-label="生成进度" aria-live="polite">
                       <div className="flow-track" aria-hidden="true">
                         <div className={`flow-bar ${activeSummary.status}`} style={{ width: `${activeSummary.percent}%` }} />
                         {!activeSummary.terminal ? <div className="flow-tail" style={{ left: progressTailLeft(activeSummary.percent) }} /> : null}
@@ -1697,7 +1698,9 @@ export function Workspace({
             )}
           </div>
         </section>
+      </div>
 
+      <aside className="side-stack">
         <section className="panel">
           <div className="panel-header">
             <h2 className="panel-title">任务队列</h2>
@@ -1748,9 +1751,6 @@ export function Workspace({
             ))}
           </div>
         </section>
-      </div>
-
-      <aside className="side-stack">
         <section className="panel">
           <div className="panel-header">
             <h2 className="panel-title">最近记录</h2>

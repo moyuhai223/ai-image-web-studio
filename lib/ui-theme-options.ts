@@ -7,7 +7,7 @@ export const uiThemes = [
   {
     id: "gallery",
     name: "图片画廊",
-    description: "图片更突出，适合挑图和展示"
+    description: "图片更突出，按北京时间自动浅色/深色"
   },
   {
     id: "dark",
@@ -18,6 +18,8 @@ export const uiThemes = [
 
 export type UiThemeId = (typeof uiThemes)[number]["id"];
 export type UiThemeMode = UiThemeId | "auto";
+/** 解析后的实际主题:在可选主题之外多出「深色画廊」——它不是可选模式,只由 gallery 在夜间解析得到。 */
+export type ResolvedUiTheme = UiThemeId | "gallery-dark";
 
 export const DEFAULT_UI_THEME: UiThemeId = "studio";
 export const DEFAULT_UI_THEME_MODE: UiThemeMode = "auto";
@@ -60,6 +62,9 @@ export function resolveAutoUiTheme(date = new Date()): UiThemeId {
   return hour >= 7 && hour < 19 ? "studio" : "dark";
 }
 
-export function resolveUiThemeMode(mode: UiThemeMode, date = new Date()): UiThemeId {
-  return mode === "auto" ? resolveAutoUiTheme(date) : normalizeUiTheme(mode);
+export function resolveUiThemeMode(mode: UiThemeMode, date = new Date()): ResolvedUiTheme {
+  if (mode === "auto") return resolveAutoUiTheme(date);
+  // 画廊模式跟随白天/夜间:沿用 auto 的 7/19 点边界,夜间解析成深色画廊。
+  if (mode === "gallery") return resolveAutoUiTheme(date) === "dark" ? "gallery-dark" : "gallery";
+  return normalizeUiTheme(mode);
 }

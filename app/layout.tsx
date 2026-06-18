@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Noto_Sans_SC } from "next/font/google";
 import { Suspense } from "react";
 import { NavigationProgress } from "@/components/navigation-progress";
+import { getUiThemePreference } from "@/lib/ui-theme";
 import "./globals.css";
 
 /**
@@ -45,10 +46,14 @@ export const metadata: Metadata = {
   description: "Small-team AI image generation workspace"
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // SSR 时把解析出的主题写到 <html>,让首屏背景/色彩模式就正确,消除深色主题的白闪(FOUC)。
+  const { theme, mode } = await getUiThemePreference();
   return (
     <html
       lang="zh-CN"
+      data-theme={theme}
+      data-theme-mode={mode}
       className={`${inter.variable} ${notoSansSC.variable} ${jetbrainsMono.variable}`}
     >
       <body>

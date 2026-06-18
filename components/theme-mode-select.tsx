@@ -47,8 +47,9 @@ export function ThemeModeSelect({ initialMode }: { initialMode: UiThemeMode }) {
   }, [mode]);
 
   useEffect(() => {
-    if (mode !== "auto") return;
-    const timer = window.setInterval(() => applyThemeMode("auto"), 60 * 1000);
+    // auto 与 gallery 都按北京时间白天/夜间解析,定时刷新以跨越 7/19 点边界自动切换深浅。
+    if (mode !== "auto" && mode !== "gallery") return;
+    const timer = window.setInterval(() => applyThemeMode(mode), 60 * 1000);
     return () => window.clearInterval(timer);
   }, [mode]);
 
