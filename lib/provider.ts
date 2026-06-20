@@ -412,13 +412,13 @@ function isGeminiImageModel(model: string) {
 
 type PreparedReference = Awaited<ReturnType<typeof prepareImage2Reference>>;
 
-function buildImageEditForm(input: GenerateInput, references: PreparedReference[], responseFormat?: "url" | "b64_json") {
+function buildImageEditForm(input: GenerateInput, references: PreparedReference[]) {
   const form = new FormData();
   form.set("model", input.model);
   form.set("prompt", input.prompt);
   form.set("size", input.size);
   form.set("n", String(input.count));
-  if (responseFormat) form.set("response_format", responseFormat);
+  // 不传 response_format:实测网关带上该参数会返回首页 HTML / 报 Unknown parameter,返回体由 normalizeImageGenerations 兼容 b64/url。
   for (const reference of references) {
     form.append("image", new Blob([blobPartFromBuffer(reference.buffer)], { type: reference.mimeType }), reference.filename);
   }
@@ -444,36 +444,18 @@ async function generateImageEdit(input: GenerateInput, apiKey: string, deadline:
     model: input.model
   });
 
-  const attemptEdit = async (responseFormat: "url" | "b64_json" | undefined, label: string) => {
-    const form = buildImageEditForm(input, references, responseFormat);
-    const raw = await retryProvider(label, deadline, () => postForm("/v1/images/edits", form, apiKey, deadline, baseUrl));
+  // 只发一次「不传 response_format」的请求。实测这家网关带上 response_format(无论 url/b64_json)会返回
+  // 首页 HTML 或报 Unknown parameter,旧的 b64/url 兜底链只会把真实错误掩盖成「Unknown parameter」。
+  // 失败就如实抛(带诊断信息),由任务级自动重试兜过偶发故障。
+  try {
+    const form = buildImageEditForm(input, references);
+    const raw = await retryProvider("image edit", deadline, () => postForm("/v1/images/edits", form, apiKey, deadline, baseUrl));
     const normalized = normalizeImageGenerations(raw);
     if (normalized.images.length > 0) return normalized;
     throw Object.assign(new Error("Provider returned no edited image"), { raw });
-  };
-
-  try {
-    return await attemptEdit(undefined, "image edit default");
-  } catch (defaultError) {
-    if (isProviderTimeoutError(defaultError)) throw defaultError;
-    if (!shouldTryBase64Fallback(defaultError)) {
-      throw enrichEditError(defaultError, diagnostic);
-    }
-    log.warn("image2 edit default failed, retrying with response_format=b64_json", { diagnostic, error: defaultError });
-    try {
-      return await attemptEdit("b64_json", "image edit b64 fallback");
-    } catch (b64Error) {
-      if (isProviderTimeoutError(b64Error)) throw b64Error;
-      if (!shouldTryBase64Fallback(b64Error)) {
-        throw enrichEditError(b64Error, diagnostic);
-      }
-      log.warn("image2 edit b64 fallback failed, retrying with response_format=url", { diagnostic, error: b64Error });
-      try {
-        return await attemptEdit("url", "image edit url fallback");
-      } catch (urlError) {
-        throw enrichEditError(urlError, diagnostic);
-      }
-    }
+  } catch (error) {
+    if (isProviderTimeoutError(error)) throw error;
+    throw enrichEditError(error, diagnostic);
   }
 }
 
@@ -485,15 +467,6 @@ function enrichEditError(error: unknown, diagnostic: string) {
     enriched.message = `${enriched.message}（${diagnostic}）`;
   }
   return enriched;
-}
-
-function shouldTryBase64Fallback(error: unknown) {
-  if (isProviderTimeoutError(error) || isTransientProviderError(error)) return false;
-  const status = (error as Error & { status?: number }).status;
-  if (status) return [400, 404, 405, 422].includes(status);
-
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-  return message.includes("response_format") || message.includes("unsupported") || message.includes("provider returned no");
 }
 
 function shouldTryAnotherKey(error: unknown) {
@@ -513,29 +486,14 @@ async function generateImageGeneration(input: GenerateInput, apiKey: string, dea
     n: input.count
   };
 
-  try {
-    const raw = await retryProvider("image url generation", deadline, () =>
-      postJson("/v1/images/generations", {
-        ...imageRequest,
-        response_format: "url"
-      }, apiKey, deadline, baseUrl)
-    );
-    const normalized = normalizeImageGenerations(raw);
-    if (normalized.images.length > 0) return normalized;
-    throw Object.assign(new Error("Provider returned no images"), { raw });
-  } catch (urlError) {
-    if (!shouldTryBase64Fallback(urlError)) throw urlError;
-
-    const raw = await retryProvider("image base64 generation", deadline, () =>
-      postJson("/v1/images/generations", {
-        ...imageRequest,
-        response_format: "b64_json"
-      }, apiKey, deadline, baseUrl)
-    );
-    const normalized = normalizeImageGenerations(raw);
-    if (normalized.images.length > 0) return normalized;
-    throw Object.assign(new Error("Provider returned no images"), { raw });
-  }
+  // 不传 response_format:实测网关带上该参数会返回首页 HTML / 报 Unknown parameter。
+  // 返回体由 normalizeImageGenerations 兼容 b64/url;失败如实抛,由任务级自动重试兜底。
+  const raw = await retryProvider("image generation", deadline, () =>
+    postJson("/v1/images/generations", imageRequest, apiKey, deadline, baseUrl)
+  );
+  const normalized = normalizeImageGenerations(raw);
+  if (normalized.images.length > 0) return normalized;
+  throw Object.assign(new Error("Provider returned no images"), { raw });
 }
 
 async function generateChatImage(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {

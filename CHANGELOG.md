@@ -2,6 +2,14 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.7.40] - 2026-06-21
+
+### 修复
+
+- **生成 / 编辑报「Unknown parameter: 'response_format'」(或偶发失败)**:实测当前 Provider 网关**任何路径都不接受 `response_format`**——带上它(无论 `url` 还是 `b64_json`)会返回首页 HTML 或报 Unknown parameter。而旧逻辑里编辑接口首次失败后会**回退**去发带 `response_format` 的请求,把真实错误掩盖成「Unknown parameter」;生成接口更是**每次都带**。
+  - 现在生成与编辑都**只发一次「不传 `response_format`」的请求**,彻底删掉 url/b64_json 兜底链(返回体由统一归一化逻辑兼容 b64/url);出错如实抛出真实原因,偶发故障交给任务级自动重试兜底。
+  - 探针实测:不传 `response_format` 时编辑接口在 `size=auto` 与具体尺寸下都正常出图(`data[0].b64_json`);带上则返回网关 HTML。
+
 ## [0.7.39] - 2026-06-15
 
 ### 变更
