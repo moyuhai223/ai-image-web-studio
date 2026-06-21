@@ -2,6 +2,15 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.7.41] - 2026-06-21
+
+### 新增
+
+- **一键卸载脚本 `scripts/uninstall.sh`(默认保留图片)**:与 `aiws-update` 对称的脚本部署卸载工具,curl 装成 `aiws-uninstall`。默认停止并删除容器 + 本应用构建的镜像 + 应用代码(`source/`、`scripts/`、`docker-compose.yml`、`data.yml`、`.env.sample`、更新备份),但**保留 `storage/`(图片/参考图)与 `.env`**,且**不触碰外部 1Panel PostgreSQL**(图片/记录元数据)——重新 `aiws-update` 安装即自动恢复。
+  - `storage/` 是 bind mount,`docker compose down` 不会动它;脚本也不用 `--volumes`,从机制上保证图片安全。
+  - 开关:`YES=1` 跳过确认、`PURGE_ENV=1` 连 `.env` 一起删(仅留图片)、`PURGE_ALL=1` 全删(含图片,需二次输入 `DELETE`)。执行前打印将删/将留清单与图片数量、占用。
+  - README 补充了卸载用法,并提示 1Panel 应用商店安装走原生卸载、卸载前先拷出 `storage/`。
+
 ## [0.7.40] - 2026-06-21
 
 ### 修复

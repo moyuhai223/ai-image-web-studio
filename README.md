@@ -288,6 +288,22 @@ FORCE=1 aiws-update      # 版本相同也强制重建
 
 默认安装目录为 `/opt/1panel/apps/ai-image-web-studio`，可用 `APP_DIR=/你的路径 aiws-update` 覆盖。脚本只更新 `source/`、`docker-compose.yml`、`scripts/`，不会动 `.env`（连接串/密钥）和 `storage/`（图片数据）。
 
+### 一键卸载脚本（默认保留图片）
+
+`scripts/uninstall.sh` 会停止并删除容器与本应用构建的镜像、删除应用代码，但**默认保留 `storage/`（图片、参考图）与 `.env`**，且**不触碰外部 1Panel PostgreSQL**（图片/记录的元数据）。因此重新 `aiws-update` 安装后图片与历史会自动恢复。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/moyuhai223/ai-image-web-studio/main/scripts/uninstall.sh -o /usr/local/bin/aiws-uninstall
+chmod +x /usr/local/bin/aiws-uninstall
+
+aiws-uninstall            # 卸载,保留 storage/ 与 .env(执行前会确认)
+YES=1 aiws-uninstall      # 跳过交互确认
+PURGE_ENV=1 aiws-uninstall  # 连 .env 一起删(仅保留图片)
+PURGE_ALL=1 aiws-uninstall  # 全部删除(含图片!)——需二次输入 DELETE 确认
+```
+
+同样可用 `APP_DIR=/你的路径` 覆盖安装目录。注意:这是给**脚本部署**用的卸载;若是从 1Panel 应用商店安装的,请走 1Panel 自带的卸载(但它会删除整个应用目录,**卸载前请先把 `storage/` 拷出来**)。
+
 > 说明:脚本是直接重建容器,**1Panel 应用列表里显示的版本号可能仍是旧的**(没走 1Panel 自己的升级流程),但实际运行的就是新版——以 app 内页脚 / 设置 → 系统状态 里的版本号为准。若想让 1Panel 原生显示「升级」按钮,得把新版本目录也解压进 `resource/apps/local/ai-image-web-studio/` 再同步;用脚本则免去这步。
 
 ## 上传文件说明
