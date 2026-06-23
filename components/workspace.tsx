@@ -1413,17 +1413,17 @@ export function Workspace({
                 <select className="select" id="size" name="size" value={size} onChange={(event) => setSize(event.target.value)}>
                   <option value="auto">自动 - auto</option>
                   <option value="1024x1024">1:1 - 1024x1024</option>
-                  <option value="1024x1824">9:16 - 1024x1824</option>
-                  <option value="1824x1024">16:9 - 1824x1024</option>
-                  <option value="1360x1024">4:3 - 1360x1024</option>
-                  <option value="1024x1360">3:4 - 1024x1360</option>
+                  <option value="1024x1824">纵向 9:16 - 1024x1824</option>
+                  <option value="1824x1024">横向 16:9 - 1824x1024</option>
+                  <option value="1360x1024">横向 4:3 - 1360x1024</option>
+                  <option value="1024x1360">纵向 3:4 - 1024x1360</option>
                   <option value="2080x1472">A4 横向 2K - 2080x1472</option>
                   <option value="1472x2080">A4 纵向 2K - 1472x2080</option>
                   <option value="2880x2880">1:1 4K - 2880x2880</option>
-                  <option value="3840x2160">16:9 4K - 3840x2160</option>
-                  <option value="2160x3840">9:16 4K - 2160x3840</option>
-                  <option value="3264x2448">4:3 4K - 3264x2448</option>
-                  <option value="2448x3264">3:4 4K - 2448x3264</option>
+                  <option value="3840x2160">横向 16:9 4K - 3840x2160</option>
+                  <option value="2160x3840">纵向 9:16 4K - 2160x3840</option>
+                  <option value="3264x2448">横向 4:3 4K - 3264x2448</option>
+                  <option value="2448x3264">纵向 3:4 4K - 2448x3264</option>
                   <option value="3424x2416">A4 横向 4K - 3424x2416</option>
                   <option value="2416x3424">A4 纵向 4K - 2416x3424</option>
                   <option value="custom">自定义…</option>
