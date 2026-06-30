@@ -60,6 +60,8 @@ type GenerateInput = {
   count: number;
   referenceDataUrl?: string;
   referenceDataUrls?: string[];
+  /** 局部重绘蒙版(data URL,带 alpha:透明=要改)。仅编辑接口用,作用于第一张参考图。 */
+  maskDataUrl?: string;
 };
 
 const MAX_KEY_ATTEMPTS = 3;
@@ -412,7 +414,7 @@ function isGeminiImageModel(model: string) {
 
 type PreparedReference = Awaited<ReturnType<typeof prepareImage2Reference>>;
 
-function buildImageEditForm(input: GenerateInput, references: PreparedReference[]) {
+function buildImageEditForm(input: GenerateInput, references: PreparedReference[], maskBuffer?: Buffer) {
   const form = new FormData();
   form.set("model", input.model);
   form.set("prompt", input.prompt);
@@ -422,7 +424,24 @@ function buildImageEditForm(input: GenerateInput, references: PreparedReference[
   for (const reference of references) {
     form.append("image", new Blob([blobPartFromBuffer(reference.buffer)], { type: reference.mimeType }), reference.filename);
   }
+  // 局部重绘蒙版:OpenAI 规定 mask 作用于第一张 image,且须与之等尺寸(由调用方缩放后传入)。
+  if (maskBuffer) {
+    form.append("mask", new Blob([blobPartFromBuffer(maskBuffer)], { type: "image/png" }), "mask.png");
+  }
   return form;
+}
+
+/** 把蒙版 data URL 解码并缩放到与(处理后的)第一张参考图等尺寸、带 alpha 的 PNG。 */
+async function prepareMaskForReference(maskDataUrl: string, reference: PreparedReference): Promise<Buffer> {
+  const parsed = parseDataUrl(maskDataUrl);
+  const meta = await sharp(reference.buffer).metadata();
+  const width = meta.width ?? 0;
+  const height = meta.height ?? 0;
+  let pipeline = sharp(parsed.buffer).ensureAlpha();
+  if (width > 0 && height > 0) {
+    pipeline = pipeline.resize(width, height, { fit: "fill", kernel: "nearest" });
+  }
+  return pipeline.png().toBuffer();
 }
 
 async function generateImageEdit(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
@@ -444,11 +463,14 @@ async function generateImageEdit(input: GenerateInput, apiKey: string, deadline:
     model: input.model
   });
 
+  // 局部重绘:把蒙版缩放到与第一张参考图等尺寸(OpenAI 要求 image 与 mask 等尺寸,且 mask 作用于第一张)。
+  const maskBuffer = input.maskDataUrl ? await prepareMaskForReference(input.maskDataUrl, references[0]) : undefined;
+
   // 只发一次「不传 response_format」的请求。实测这家网关带上 response_format(无论 url/b64_json)会返回
   // 首页 HTML 或报 Unknown parameter,旧的 b64/url 兜底链只会把真实错误掩盖成「Unknown parameter」。
   // 失败就如实抛(带诊断信息),由任务级自动重试兜过偶发故障。
   try {
-    const form = buildImageEditForm(input, references);
+    const form = buildImageEditForm(input, references, maskBuffer);
     const raw = await retryProvider("image edit", deadline, () => postForm("/v1/images/edits", form, apiKey, deadline, baseUrl));
     const normalized = normalizeImageGenerations(raw);
     if (normalized.images.length > 0) return normalized;

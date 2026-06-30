@@ -914,6 +914,76 @@ html[data-theme="gallery-dark"] body {
   gap: 4px;
 }
 
+/* 局部重绘蒙版编辑器 */
+.mask-enable-toggle {
+  margin-top: 10px;
+}
+
+.mask-editor {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mask-editor-stage {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-sm, 8px);
+  overflow: hidden;
+  border: 1px solid var(--border, #e2e6ee);
+  background: var(--media-bg, #edf2f7);
+  line-height: 0;
+}
+
+.mask-editor-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.mask-editor-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.mask-editor-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.mask-editor-controls .mask-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mask-tool-active {
+  color: var(--accent, #6d5efc);
+  border-color: color-mix(in srgb, var(--accent, #6d5efc) 45%, transparent);
+  background: color-mix(in srgb, var(--accent, #6d5efc) 10%, transparent);
+}
+
+.mask-brush {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+}
+
+.mask-brush input[type="range"] {
+  width: 90px;
+}
+
 .generation-controls {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(82px, 0.72fr);

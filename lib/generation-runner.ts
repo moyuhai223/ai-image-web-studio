@@ -18,6 +18,8 @@ export type GenerationRunInput = {
   count: number;
   referenceDataUrl?: string;
   referenceDataUrls?: string[];
+  /** 局部重绘蒙版 data URL(来自 request_metadata.mask),透传给 provider 编辑接口,作用于第一张参考图。 */
+  maskDataUrl?: string;
   parentImageId?: string;
   /** 来自 request_metadata.providerPresetId;runner 透传给 provider 用于选 baseUrl + key */
   presetId?: string | null;
@@ -160,6 +162,15 @@ async function referenceToDataUrl(reference: Record<string, unknown>) {
   };
 }
 
+async function loadMaskDataUrl(requestMetadata: Record<string, unknown>): Promise<string | undefined> {
+  const mask = asRecord(requestMetadata.mask);
+  const localPath = typeof mask?.localPath === "string" ? mask.localPath : "";
+  const mimeType = typeof mask?.mimeType === "string" ? mask.mimeType : "";
+  if (!localPath || !mimeType) return undefined;
+  const file = await readStoredFile(localPath);
+  return `data:${mimeType};base64,${file.buffer.toString("base64")}`;
+}
+
 async function getReferenceInfo(requestMetadata: Record<string, unknown>) {
   const references = Array.isArray(requestMetadata.references)
     ? requestMetadata.references.map(asRecord).filter((item): item is Record<string, unknown> => Boolean(item))
@@ -191,6 +202,7 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
     throw new Error("任务不存在");
   }
   const referenceInfo = await getReferenceInfo(job.request_metadata);
+  const maskDataUrl = await loadMaskDataUrl(job.request_metadata);
   const presetId =
     typeof job.request_metadata?.providerPresetId === "string" && job.request_metadata.providerPresetId.trim()
       ? (job.request_metadata.providerPresetId as string)
@@ -212,6 +224,7 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
     presetId,
     upscaleTargetLongEdge,
     autoRetryAttempts,
+    maskDataUrl,
     ...referenceInfo
   };
 }

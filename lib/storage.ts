@@ -34,7 +34,7 @@ export async function checkStorageWritable() {
   return root;
 }
 
-function datedPath(kind: "images" | "references") {
+function datedPath(kind: "images" | "references" | "masks") {
   const now = new Date();
   return path.join(
     kind,
@@ -179,7 +179,7 @@ function dimensions(buffer: Buffer, mimeType: string) {
 export async function saveImageBuffer(
   buffer: Buffer,
   mimeType: string,
-  kind: "images" | "references",
+  kind: "images" | "references" | "masks",
   filenamePrefix: string = randomUUID()
 ): Promise<StoredFile> {
   if (!allowedImageTypes.has(mimeType)) {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Check, ChevronDown, Download, ImagePlus, Pencil, Play, RefreshCcw, Sparkles, Undo2, X } from "lucide-react";
 import { ButtonSpinner } from "./button-spinner";
 import { CopyPromptButton } from "./copy-prompt-button";
+import { MaskEditor } from "./mask-editor";
 import { DeleteRecordButton } from "./delete-record-button";
 import { FavoriteImageButton } from "./favorite-image-button";
 import { ImageWithSkeleton } from "./image-with-skeleton";
@@ -300,6 +301,8 @@ export function Workspace({
   const [optimizeUndo, setOptimizeUndo] = useState<string | null>(null);
   const [optimizeResult, setOptimizeResult] = useState<{ original: string; optimized: string } | null>(null);
   const [selectedReferences, setSelectedReferences] = useState<SelectedReference[]>([]);
+  const [maskOpen, setMaskOpen] = useState(false);
+  const [maskBlob, setMaskBlob] = useState<Blob | null>(null);
   const [referencesOpen, setReferencesOpen] = useState(false);
   const [limits, setLimits] = useState<LimitsConfig>(DEFAULT_LIMITS);
   const [presets, setPresets] = useState<WorkspacePresetOption[]>([]);
@@ -348,6 +351,16 @@ export function Workspace({
   }, [activeJobs]);
   const modelLabel = models.find((item) => item.value === model)?.label ?? model;
   const referenceSummary = selectedReferences.length > 0 ? `${selectedReferences.length} 张参考图` : "无参考图";
+  // 局部重绘蒙版画在第一张参考图上(上传用 objectUrl,生成/库用 imageSrc)。
+  const primaryReferenceSrc = selectedReferences[0]?.objectUrl ?? selectedReferences[0]?.imageSrc ?? "";
+
+  // 参考图清空时,关掉局部重绘并丢弃蒙版。
+  useEffect(() => {
+    if (selectedReferences.length === 0) {
+      setMaskOpen(false);
+      setMaskBlob(null);
+    }
+  }, [selectedReferences.length]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -1238,6 +1251,10 @@ export function Workspace({
     if (items.length > 0) {
       formData.set("referenceItems", JSON.stringify(items));
     }
+    // 局部重绘:开启且有涂抹时,把蒙版随参考图一起提交(作用于第一张参考图)。
+    if (maskOpen && maskBlob && selectedReferences.length > 0) {
+      formData.append("maskImage", maskBlob, "mask.png");
+    }
   }
 
   return (
@@ -1577,6 +1594,13 @@ export function Workspace({
                       <button className="status reference-clear-all" type="button" onClick={clearAllReferences}>
                         清空参考图
                       </button>
+                      <label className="optimize-toggle mask-enable-toggle">
+                        <input type="checkbox" checked={maskOpen} onChange={(event) => setMaskOpen(event.target.checked)} />
+                        <span>✏️ 局部重绘(只重画涂抹的区域)</span>
+                      </label>
+                      {maskOpen && primaryReferenceSrc ? (
+                        <MaskEditor key={primaryReferenceSrc} imageSrc={primaryReferenceSrc} onChange={setMaskBlob} />
+                      ) : null}
                     </>
                   ) : (
                     <p className="small muted reference-empty-copy">未选择参考图。可上传多张、选择最近参考图，或在图片卡片点击“编辑”加入参考图。</p>

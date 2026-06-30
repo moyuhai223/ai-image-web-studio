@@ -440,6 +440,7 @@ function sanitizeRequestMetadataForClient(meta: GenerationJob["request_metadata"
   const clone: Record<string, unknown> = { ...(meta as Record<string, unknown>) };
   if ("reference" in clone) clone.reference = stripRef(clone.reference);
   if (Array.isArray(clone.references)) clone.references = clone.references.map(stripRef);
+  if ("mask" in clone) clone.mask = stripRef(clone.mask);
   return clone as GenerationJob["request_metadata"];
 }
 

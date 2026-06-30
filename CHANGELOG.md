@@ -2,6 +2,15 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.7.43] - 2026-06-21
+
+### 新增
+
+- **局部重绘(mask inpainting)**:有参考图(编辑模式)时,生成区出现「✏️ 局部重绘」开关 —— 在第一张参考图上**涂抹要重画的区域**(画笔/橡皮/笔刷大小/清除),只重绘涂抹处、其余保持不变。基于近期复测确认网关已忠实执行 `mask`。
+  - 前端新增 `components/mask-editor.tsx`:canvas 涂抹,导出与画布同分辨率、带 alpha 的 PNG(涂过=透明=要改,OpenAI 标准约定);蒙版随参考图一起提交。
+  - 后端:`/api/generate` 收 `maskImage`(仅有参考图时)存盘并写 `request_metadata.mask`;runner 载成 dataUrl 透传;`provider.generateImageEdit` 用 `sharp` 把蒙版缩放到与处理后第一张参考图等尺寸后 `form.append("mask", …)`(OpenAI 规定 mask 作用于第一张 image 且须等尺寸)。
+  - 安全:`mask.localPath` 已纳入客户端 metadata 脱敏(不外泄服务器路径);蒙版限 12MB。banana2/gemini 走 chat 流程,不受影响。
+
 ## [0.7.42] - 2026-06-21
 
 ### 变更

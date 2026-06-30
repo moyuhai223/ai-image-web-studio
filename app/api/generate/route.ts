@@ -210,6 +210,16 @@ export async function POST(request: Request) {
   }
   const referenceMetadata = references[0] ?? null;
 
+  // 局部重绘蒙版:仅在有参考图(编辑模式)时接受;存盘并写入 metadata,作用于第一张参考图。
+  let maskMetadata: { localPath: string; mimeType: string } | null = null;
+  const maskFile = formData.get("maskImage");
+  if (references.length > 0 && maskFile instanceof File && maskFile.size > 0 && maskFile.size <= 12 * 1024 * 1024) {
+    const maskMime = maskFile.type && maskFile.type.startsWith("image/") ? maskFile.type : "image/png";
+    const maskBuffer = Buffer.from(await maskFile.arrayBuffer());
+    const stored = await saveImageBuffer(maskBuffer, maskMime, "masks", `${user.id.slice(0, 8)}-mask-${randomUUID()}`);
+    maskMetadata = { localPath: stored.relativePath, mimeType: maskMime };
+  }
+
   const batchId = randomUUID();
   const now = new Date().toISOString();
   const jobs = await transaction(async (client) => {
@@ -234,6 +244,7 @@ export async function POST(request: Request) {
             },
             reference: referenceMetadata,
             references,
+            mask: maskMetadata,
             providerPresetId: parsed.data.presetId ?? null,
             progress: {
               phase: "queued",
