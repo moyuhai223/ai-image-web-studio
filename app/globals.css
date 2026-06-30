@@ -914,21 +914,67 @@ html[data-theme="gallery-dark"] body {
   gap: 4px;
 }
 
-/* 局部重绘蒙版编辑器 */
-.mask-enable-toggle {
-  margin-top: 10px;
-}
-
-.mask-editor {
+/* 局部重绘:工作区入口行 */
+.mask-controls-row {
   margin-top: 10px;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
-.mask-editor-stage {
+.mask-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* 局部重绘:全屏弹窗编辑器 */
+.mask-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.mask-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 16, 28, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.mask-modal-panel {
   position: relative;
-  width: 100%;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(1100px, 96vw);
+  max-height: 94vh;
+  padding: 16px;
+  border-radius: var(--radius-md, 14px);
+  background: var(--glass-bg-strong, #fff);
+  border: 1px solid var(--glass-border, #e2e6ee);
+  box-shadow: var(--shadow-lg);
+}
+
+.mask-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.mask-modal-stage {
+  position: relative;
+  align-self: center;
+  width: fit-content;
+  max-width: 100%;
   border-radius: var(--radius-sm, 8px);
   overflow: hidden;
   border: 1px solid var(--border, #e2e6ee);
@@ -936,9 +982,13 @@ html[data-theme="gallery-dark"] body {
   line-height: 0;
 }
 
+/* 图片自身按 74vh / 面板宽度上限等比缩放,stage 用 fit-content 收紧到图片尺寸,
+   canvas inset:0 即与图片逐像素对齐(避免 object-fit 留黑边导致蒙版错位)。 */
 .mask-editor-image {
   display: block;
-  width: 100%;
+  max-width: min(1060px, 92vw);
+  max-height: 74vh;
+  width: auto;
   height: auto;
   user-select: none;
   -webkit-user-drag: none;
@@ -953,17 +1003,25 @@ html[data-theme="gallery-dark"] body {
   touch-action: none;
 }
 
-.mask-editor-controls {
+.mask-modal-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 
-.mask-editor-controls .mask-tool {
+.mask-modal-controls .mask-tool {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+}
+
+.mask-modal-hint {
+  margin-left: 4px;
+}
+
+.mask-modal-done {
+  margin-left: auto;
 }
 
 .mask-tool-active {
@@ -981,7 +1039,7 @@ html[data-theme="gallery-dark"] body {
 }
 
 .mask-brush input[type="range"] {
-  width: 90px;
+  width: 110px;
 }
 
 .generation-controls {

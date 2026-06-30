@@ -557,7 +557,50 @@ async function generateChatImage(input: GenerateInput, apiKey: string, deadline:
   return normalized;
 }
 
+const MASK_EDIT_INSTRUCTION = [
+  "你将收到两张图片:第一张为原图,第二张为遮罩。",
+  "编辑规则(必须严格遵守):",
+  "1) 只允许修改遮罩中【白色】区域对应的内容;遮罩中【黑色】区域必须与原图保持完全一致(像素级不变,包括构图、背景、位置、轮廓、大小、颜色、光照、阴影、清晰度、风格、文字水印等)。",
+  "2) 白色区域的边缘要自然融合,不要溢出到黑色区域,也不要产生新的改动区域或额外元素。",
+  "3) 若编辑要求与「仅修改白色区域、黑色区域完全不变」冲突,优先保证黑色区域不变。",
+  "编辑要求:"
+].join("\n");
+
+/**
+ * 局部重绘:聚合网关对 OpenAI /images/edits 的 mask 参数实现不可靠(实测整图重绘),
+ * 改走多模态对话——把【原图 + 黑白遮罩(白=要改、黑=保留) + 强指令】喂给 /v1/chat/completions。
+ * 参考开源项目 chunxiuxiamo/ai-image-edit 的实战做法。作用于第一张参考图,其余作为额外上下文。
+ */
+async function generateMaskedEdit(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
+  const references = getReferenceDataUrls(input);
+  if (references.length === 0 || !input.maskDataUrl) {
+    throw new Error("局部重绘需要参考图与蒙版");
+  }
+  const content: Array<Record<string, unknown>> = [
+    { type: "text", text: `${MASK_EDIT_INSTRUCTION}\n${input.prompt}\n仅输出一张编辑后的图片,不要输出任何解释文字。` },
+    { type: "image_url", image_url: { url: references[0] } },
+    { type: "image_url", image_url: { url: input.maskDataUrl } }
+  ];
+  for (const dataUrl of references.slice(1)) {
+    content.push({ type: "image_url", image_url: { url: dataUrl } });
+  }
+
+  const raw = await retryProvider("masked chat edit", deadline, () =>
+    postJson("/v1/chat/completions", { model: input.model, messages: [{ role: "user", content }], n: input.count }, apiKey, deadline, baseUrl)
+  );
+  const normalized = normalizeChatResult(raw);
+  if (normalized.images.length === 0) {
+    throw Object.assign(new Error("Provider response did not contain an image"), { raw });
+  }
+  return normalized;
+}
+
 async function generateWithSelectedKey(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
+  // 带蒙版的编辑统一走多模态对话(原图+黑白遮罩+强指令),不依赖网关对 /images/edits mask 的实现。
+  if (input.maskDataUrl && getReferenceDataUrls(input).length > 0) {
+    return generateMaskedEdit(input, apiKey, deadline, baseUrl);
+  }
+
   if (isGptImageModel(input.model)) {
     return getReferenceDataUrls(input).length > 0
       ? generateImageEdit(input, apiKey, deadline, baseUrl)

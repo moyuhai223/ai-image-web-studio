@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Check, ChevronDown, Download, ImagePlus, Pencil, Play, RefreshCcw, Sparkles, Undo2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Brush, Check, ChevronDown, Download, ImagePlus, Pencil, Play, RefreshCcw, Sparkles, Undo2, X } from "lucide-react";
 import { ButtonSpinner } from "./button-spinner";
 import { CopyPromptButton } from "./copy-prompt-button";
 import { MaskEditor } from "./mask-editor";
@@ -1251,8 +1251,8 @@ export function Workspace({
     if (items.length > 0) {
       formData.set("referenceItems", JSON.stringify(items));
     }
-    // 局部重绘:开启且有涂抹时,把蒙版随参考图一起提交(作用于第一张参考图)。
-    if (maskOpen && maskBlob && selectedReferences.length > 0) {
+    // 局部重绘:有蒙版时随参考图一起提交(作用于第一张参考图)。maskBlob 由全屏编辑器在涂抹后写入,关闭弹窗后仍保留。
+    if (maskBlob && selectedReferences.length > 0) {
       formData.append("maskImage", maskBlob, "mask.png");
     }
   }
@@ -1594,12 +1594,31 @@ export function Workspace({
                       <button className="status reference-clear-all" type="button" onClick={clearAllReferences}>
                         清空参考图
                       </button>
-                      <label className="optimize-toggle mask-enable-toggle">
-                        <input type="checkbox" checked={maskOpen} onChange={(event) => setMaskOpen(event.target.checked)} />
-                        <span>✏️ 局部重绘(只重画涂抹的区域)</span>
-                      </label>
+                      <div className="mask-controls-row">
+                        <button
+                          type="button"
+                          className={`status mask-open-btn${maskBlob ? " mask-tool-active" : ""}`}
+                          onClick={() => setMaskOpen(true)}
+                          disabled={!primaryReferenceSrc}
+                        >
+                          <Brush size={13} />
+                          {maskBlob ? "局部重绘已设置 · 重新涂抹" : "局部重绘"}
+                        </button>
+                        {maskBlob ? (
+                          <button type="button" className="status" onClick={() => setMaskBlob(null)}>
+                            <X size={13} /> 清除蒙版
+                          </button>
+                        ) : (
+                          <span className="small muted">只想改局部(如只换裤子颜色)就涂抹该区域</span>
+                        )}
+                      </div>
                       {maskOpen && primaryReferenceSrc ? (
-                        <MaskEditor key={primaryReferenceSrc} imageSrc={primaryReferenceSrc} onChange={setMaskBlob} />
+                        <MaskEditor
+                          key={primaryReferenceSrc}
+                          imageSrc={primaryReferenceSrc}
+                          onChange={setMaskBlob}
+                          onClose={() => setMaskOpen(false)}
+                        />
                       ) : null}
                     </>
                   ) : (

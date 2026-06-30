@@ -1,32 +1,51 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Brush, Eraser, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Brush, Check, Eraser, Trash2, X } from "lucide-react";
 
-const MAX_SIDE = 1024; // 画布内部分辨率上限(长边),够细 + 导出小
+const MAX_SIDE = 1280; // 画布内部分辨率上限(长边)
 
 type Point = { x: number; y: number };
 
 type Props = {
   /** 主参考图(第一张),蒙版画在它上面 */
   imageSrc: string;
-  /** 每次笔迹结束/清除时回调:有涂抹→alpha PNG Blob(透明=要改),无涂抹→null */
+  /** 每次笔迹结束/清除时回调:有涂抹→黑白 PNG Blob(白=要改、黑=保留),无涂抹→null */
   onChange: (mask: Blob | null) => void;
+  /** 关闭全屏编辑器 */
+  onClose: () => void;
 };
 
 /**
- * 局部重绘蒙版编辑器:在参考图上叠一层 canvas,涂抹「要重画的区域」(红色),
- * 导出与画布同分辨率、带 alpha 的 PNG —— 涂过处 alpha=0(透明=编辑,OpenAI 标准),其余 alpha=255(保留)。
- * 服务端再把该蒙版缩放到与处理后参考图等尺寸。
+ * 局部重绘蒙版编辑器(全屏弹窗):在参考图上涂抹「要重画的区域」(红色高亮),
+ * 导出与画布同分辨率的**黑白** PNG —— 涂过=白(要改)、未涂=黑(保留),配合 provider 的多模态对话指令使用。
  */
-export function MaskEditor({ imageSrc, onChange }: Props) {
+export function MaskEditor({ imageSrc, onChange, onClose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
   const lastRef = useRef<Point | null>(null);
-  const [brush, setBrush] = useState(48);
+  const [brush, setBrush] = useState(60);
   const [eraser, setEraser] = useState(false);
   const [hasStrokes, setHasStrokes] = useState(false);
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  // Esc 关闭 + 锁定 body 滚动
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
 
   // 载入图片拿自然尺寸,按长边限到 MAX_SIDE 设画布内部分辨率
   useEffect(() => {
@@ -46,7 +65,6 @@ export function MaskEditor({ imageSrc, onChange }: Props) {
     };
   }, [imageSrc]);
 
-  // 尺寸就绪/变化时重置画布(换参考图也走这里)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !dims) return;
@@ -70,8 +88,8 @@ export function MaskEditor({ imageSrc, onChange }: Props) {
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     ctx.globalCompositeOperation = eraser ? "destination-out" : "source-over";
-    ctx.strokeStyle = "rgba(239,68,68,0.55)";
-    ctx.fillStyle = "rgba(239,68,68,0.55)";
+    ctx.strokeStyle = "rgba(239,68,68,0.6)";
+    ctx.fillStyle = "rgba(239,68,68,0.6)";
     ctx.lineWidth = brush;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -99,14 +117,12 @@ export function MaskEditor({ imageSrc, onChange }: Props) {
     const md = octx.createImageData(canvas.width, canvas.height);
     let painted = 0;
     for (let i = 0; i < src.data.length; i += 4) {
-      if (src.data[i + 3] > 10) {
-        // 涂过 → 透明(alpha=0 = 要重绘)
-        md.data[i + 3] = 0;
-        painted += 1;
-      } else {
-        // 未涂 → 不透明黑(alpha=255 = 保留)
-        md.data[i + 3] = 255;
-      }
+      const v = src.data[i + 3] > 10 ? 255 : 0; // 涂过 → 白(要改),未涂 → 黑(保留)
+      md.data[i] = v;
+      md.data[i + 1] = v;
+      md.data[i + 2] = v;
+      md.data[i + 3] = 255; // 不透明,纯黑白
+      if (v === 255) painted += 1;
     }
     octx.putImageData(md, 0, 0);
     if (painted === 0) {
@@ -151,35 +167,52 @@ export function MaskEditor({ imageSrc, onChange }: Props) {
     onChange(null);
   }
 
-  return (
-    <div className="mask-editor">
-      <div className="mask-editor-stage">
-        <img src={imageSrc} alt="" className="mask-editor-image" draggable={false} />
-        <canvas
-          ref={canvasRef}
-          className="mask-editor-canvas"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-        />
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="mask-modal" role="dialog" aria-modal="true" aria-label="局部重绘">
+      <div className="mask-modal-backdrop" onClick={onClose} />
+      <div className="mask-modal-panel">
+        <div className="mask-modal-head">
+          <strong>局部重绘 — 涂抹要重画的区域</strong>
+          <button className="status" type="button" onClick={onClose} aria-label="关闭">
+            <X size={15} />
+          </button>
+        </div>
+
+        <div className="mask-modal-stage">
+          <img src={imageSrc} alt="" className="mask-editor-image" draggable={false} />
+          <canvas
+            ref={canvasRef}
+            className="mask-editor-canvas"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+          />
+        </div>
+
+        <div className="mask-modal-controls">
+          <button type="button" className={`status mask-tool${eraser ? "" : " mask-tool-active"}`} onClick={() => setEraser(false)}>
+            <Brush size={14} /> 涂抹
+          </button>
+          <button type="button" className={`status mask-tool${eraser ? " mask-tool-active" : ""}`} onClick={() => setEraser(true)}>
+            <Eraser size={14} /> 橡皮
+          </button>
+          <label className="mask-brush">
+            笔刷
+            <input type="range" min={10} max={220} value={brush} onChange={(event) => setBrush(Number(event.target.value))} />
+          </label>
+          <button type="button" className="status mask-tool" onClick={clear} disabled={!hasStrokes}>
+            <Trash2 size={14} /> 清除
+          </button>
+          <span className="small muted mask-modal-hint">红色=要重画,其余保持不变</span>
+          <button type="button" className="button action-button action-save mask-modal-done" onClick={onClose}>
+            <Check size={16} /> 完成
+          </button>
+        </div>
       </div>
-      <div className="mask-editor-controls">
-        <button type="button" className={`status mask-tool${eraser ? "" : " mask-tool-active"}`} onClick={() => setEraser(false)}>
-          <Brush size={13} /> 涂抹
-        </button>
-        <button type="button" className={`status mask-tool${eraser ? " mask-tool-active" : ""}`} onClick={() => setEraser(true)}>
-          <Eraser size={13} /> 橡皮
-        </button>
-        <label className="mask-brush">
-          笔刷
-          <input type="range" min={8} max={160} value={brush} onChange={(event) => setBrush(Number(event.target.value))} />
-        </label>
-        <button type="button" className="status mask-tool" onClick={clear} disabled={!hasStrokes}>
-          <Trash2 size={13} /> 清除
-        </button>
-      </div>
-      <p className="small muted">在参考图上涂抹要<strong>重新绘制</strong>的区域(红色),其余保持不变。蒙版作用于第一张参考图。</p>
-    </div>
+    </div>,
+    document.body
   );
 }
