@@ -953,9 +953,9 @@ html[data-theme="gallery-dark"] body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: min(1100px, 96vw);
-  max-height: 94vh;
-  padding: 16px;
+  width: 98vw;
+  height: 97vh;
+  padding: 14px 16px;
   border-radius: var(--radius-md, 14px);
   background: var(--glass-bg-strong, #fff);
   border: 1px solid var(--glass-border, #e2e6ee);
@@ -970,9 +970,17 @@ html[data-theme="gallery-dark"] body {
   font-size: 14px;
 }
 
+.mask-modal-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
 .mask-modal-stage {
   position: relative;
-  align-self: center;
   width: fit-content;
   max-width: 100%;
   border-radius: var(--radius-sm, 8px);
@@ -982,12 +990,12 @@ html[data-theme="gallery-dark"] body {
   line-height: 0;
 }
 
-/* 图片自身按 74vh / 面板宽度上限等比缩放,stage 用 fit-content 收紧到图片尺寸,
-   canvas inset:0 即与图片逐像素对齐(避免 object-fit 留黑边导致蒙版错位)。 */
+/* 图片按 ~82vh / 96vw 等比放大占满弹窗;stage 用 fit-content 收紧到图片尺寸,
+   两层 canvas inset:0 即与图片逐像素对齐(避免 object-fit 留黑边导致蒙版错位)。 */
 .mask-editor-image {
   display: block;
-  max-width: min(1060px, 92vw);
-  max-height: 74vh;
+  max-width: 96vw;
+  max-height: 82vh;
   width: auto;
   height: auto;
   user-select: none;
@@ -999,6 +1007,14 @@ html[data-theme="gallery-dark"] body {
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+/* 底层:已提交的蒙版(红色),不接收指针;顶层:套索预览 + 接收所有指针。 */
+.mask-paint-canvas {
+  pointer-events: none;
+}
+
+.mask-preview-canvas {
   cursor: crosshair;
   touch-action: none;
 }
