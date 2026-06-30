@@ -466,8 +466,19 @@ async function generateImageEdit(input: GenerateInput, apiKey: string, deadline:
     model: input.model
   });
 
-  // 局部重绘:把蒙版缩放到与第一张参考图等尺寸(OpenAI 要求 image 与 mask 等尺寸,且 mask 作用于第一张)。
-  const maskBuffer = input.maskDataUrl ? await prepareMaskForReference(input.maskDataUrl, references[0]) : undefined;
+  // 局部重绘:OpenAI 要求 image 与 mask **同格式、同尺寸**,且 mask 作用于第一张参考图。
+  // 蒙版是带 alpha 的 PNG,所以这里把第一张参考图也转成 PNG(尺寸不变),否则「JPEG 图 + PNG 蒙版」
+  // 格式不符会被网关忽略 mask → 整图重绘(实测 JPEG 参考图就是这个症状)。
+  let maskBuffer: Buffer | undefined;
+  if (input.maskDataUrl) {
+    references[0] = {
+      ...references[0],
+      buffer: await sharp(references[0].buffer).png().toBuffer(),
+      mimeType: "image/png",
+      filename: "reference-1.png"
+    };
+    maskBuffer = await prepareMaskForReference(input.maskDataUrl, references[0]);
+  }
 
   // 只发一次「不传 response_format」的请求。实测这家网关带上 response_format(无论 url/b64_json)会返回
   // 首页 HTML 或报 Unknown parameter,旧的 b64/url 兜底链只会把真实错误掩盖成「Unknown parameter」。
