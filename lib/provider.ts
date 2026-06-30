@@ -417,8 +417,11 @@ type PreparedReference = Awaited<ReturnType<typeof prepareImage2Reference>>;
 function buildImageEditForm(input: GenerateInput, references: PreparedReference[], maskBuffer?: Buffer) {
   const form = new FormData();
   form.set("model", input.model);
-  form.set("prompt", input.prompt);
-  form.set("size", input.size);
+  // 局部重绘:① 提示词前置极性声明,给 gpt-image 的「软蒙版」加自然语言双保险;
+  //          ② 不发 size —— 发 size(尤其 "auto" / 与输入图不等大)会让网关把带蒙版的编辑退化成整图重绘。
+  //             省略后输出沿用输入图尺寸,与蒙版天然对齐(参考 infinite-canvas 的做法)。
+  form.set("prompt", maskBuffer ? `只修改蒙版透明区域，其他区域保持不变。${input.prompt}` : input.prompt);
+  if (!maskBuffer) form.set("size", input.size);
   form.set("n", String(input.count));
   // 不传 response_format:实测网关带上该参数会返回首页 HTML / 报 Unknown parameter,返回体由 normalizeImageGenerations 兼容 b64/url。
   for (const reference of references) {
