@@ -567,9 +567,53 @@ const MASK_EDIT_INSTRUCTION = [
 ].join("\n");
 
 /**
+ * 保留原图质量:多模态模型会把整张图按 ~1024px 重画,连没改的区域也降清(结果只几百 KB)。
+ * 这里把模型编辑区(白色蒙版)贴回**原图高清版**:蒙版外=原图像素零损失,蒙版内=模型编辑(放大到原尺寸+羽化融合)。
+ */
+async function compositeMaskedEditOntoOriginal(
+  originalDataUrl: string,
+  maskDataUrl: string,
+  result: ProviderImage
+): Promise<ProviderImage> {
+  const original = parseDataUrl(originalDataUrl).buffer;
+  const meta = await sharp(original).metadata();
+  const width = meta.width ?? 0;
+  const height = meta.height ?? 0;
+  if (!width || !height) throw new Error("无法读取原图尺寸");
+
+  let resultBuffer: Buffer;
+  if (result.b64) {
+    resultBuffer = Buffer.from(result.b64, "base64");
+  } else if (result.url && result.url.startsWith("data:")) {
+    resultBuffer = Buffer.from(result.url.split(",")[1] ?? "", "base64");
+  } else if (result.url) {
+    resultBuffer = Buffer.from(await (await fetch(result.url)).arrayBuffer());
+  } else {
+    throw new Error("模型结果无图片数据");
+  }
+
+  const feather = Math.max(1, Math.round(Math.max(width, height) / 300));
+  // 模型结果放大到原尺寸的 RGB
+  const resultRgb = await sharp(resultBuffer).resize(width, height, { fit: "fill" }).removeAlpha().toColourspace("srgb").raw().toBuffer();
+  // 蒙版 → 单通道羽化 alpha(白=不透明=用编辑区,黑=透明=保原图)
+  const maskAlpha = await sharp(parseDataUrl(maskDataUrl).buffer).resize(width, height, { fit: "fill" }).blur(feather).toColourspace("b-w").raw().toBuffer();
+  // 编辑结果 + 蒙版 alpha → 半透明覆盖层
+  const editWithAlpha = await sharp(resultRgb, { raw: { width, height, channels: 3 } })
+    .joinChannel(maskAlpha, { raw: { width, height, channels: 1 } })
+    .png()
+    .toBuffer();
+  // 贴到原图上:蒙版外原图不动,蒙版内被编辑区覆盖,边缘羽化
+  const base = sharp(original).composite([{ input: editWithAlpha, blend: "over" }]);
+  const isPng = meta.format === "png";
+  const composited = isPng ? await base.png().toBuffer() : await base.jpeg({ quality: 92 }).toBuffer();
+  return { b64: composited.toString("base64"), mimeType: isPng ? "image/png" : "image/jpeg" };
+}
+
+/**
  * 局部重绘:聚合网关对 OpenAI /images/edits 的 mask 参数实现不可靠(实测整图重绘),
  * 改走多模态对话——把【原图 + 黑白遮罩(白=要改、黑=保留) + 强指令】喂给 /v1/chat/completions。
  * 参考开源项目 chunxiuxiamo/ai-image-edit 的实战做法。作用于第一张参考图,其余作为额外上下文。
+ * 出图后把编辑区贴回原图高清版,保留原图质量(见 compositeMaskedEditOntoOriginal)。
  */
 async function generateMaskedEdit(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
   const references = getReferenceDataUrls(input);
@@ -592,7 +636,14 @@ async function generateMaskedEdit(input: GenerateInput, apiKey: string, deadline
   if (normalized.images.length === 0) {
     throw Object.assign(new Error("Provider response did not contain an image"), { raw });
   }
-  return normalized;
+  // 保留原图质量:把模型编辑区贴回原图高清版。合成失败(如模型挪了构图导致对齐异常)兜底返回模型原图。
+  try {
+    const composited = await compositeMaskedEditOntoOriginal(references[0], input.maskDataUrl, normalized.images[0]);
+    return { ...normalized, images: [composited] };
+  } catch (error) {
+    log.warn("局部重绘合成贴回原图失败,返回模型原始输出", { error });
+    return normalized;
+  }
 }
 
 async function generateWithSelectedKey(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
