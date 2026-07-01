@@ -4,6 +4,7 @@ import { config } from "./config";
 import { createLogger } from "./logger";
 import { getProviderSettings, resolveProvider } from "./provider-settings";
 import { isRotatePreset } from "./provider-rotation";
+import { imageSourceToBuffer } from "./storage";
 
 const log = createLogger("provider");
 
@@ -581,16 +582,9 @@ async function compositeMaskedEditOntoOriginal(
   const height = meta.height ?? 0;
   if (!width || !height) throw new Error("无法读取原图尺寸");
 
-  let resultBuffer: Buffer;
-  if (result.b64) {
-    resultBuffer = Buffer.from(result.b64, "base64");
-  } else if (result.url && result.url.startsWith("data:")) {
-    resultBuffer = Buffer.from(result.url.split(",")[1] ?? "", "base64");
-  } else if (result.url) {
-    resultBuffer = Buffer.from(await (await fetch(result.url)).arrayBuffer());
-  } else {
-    throw new Error("模型结果无图片数据");
-  }
+  // 模型返回的 b64 可能其实是 data URL(带 data:image/...;base64, 前缀),直接 Buffer.from 会解成乱码 →
+  // sharp 报「unsupported image format」。imageSourceToBuffer 会先剥 data URL 前缀,和 runner 存图同一套解析。
+  const { buffer: resultBuffer } = await imageSourceToBuffer(result);
 
   const feather = Math.max(1, Math.round(Math.max(width, height) / 300));
   // 模型结果放大到原尺寸的 RGB
