@@ -362,6 +362,49 @@ export function Workspace({
     }
   }, [selectedReferences.length]);
 
+  // 蒙版预览:把黑白蒙版(白=要改)着色成红色半透明 PNG,叠加在主参考图缩略图上,
+  // 让用户不打开编辑器也能看到涂抹了哪里。
+  const [maskPreviewUrl, setMaskPreviewUrl] = useState("");
+  useEffect(() => {
+    if (!maskBlob) {
+      setMaskPreviewUrl("");
+      return;
+    }
+    let cancelled = false;
+    let url = "";
+    (async () => {
+      try {
+        const bitmap = await createImageBitmap(maskBlob);
+        const canvas = document.createElement("canvas");
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(bitmap, 0, 0);
+        bitmap.close();
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < data.data.length; i += 4) {
+          const painted = data.data[i] > 128;
+          data.data[i] = 239;
+          data.data[i + 1] = 68;
+          data.data[i + 2] = 68;
+          data.data[i + 3] = painted ? 150 : 0;
+        }
+        ctx.putImageData(data, 0, 0);
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+        if (cancelled || !blob) return;
+        url = URL.createObjectURL(blob);
+        setMaskPreviewUrl(url);
+      } catch {
+        // 预览失败不影响蒙版本身
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [maskBlob]);
+
   useEffect(() => {
     mountedRef.current = true;
     void loadRecentJobs();
@@ -1547,7 +1590,14 @@ export function Workspace({
                           key={reference.key}
                         >
                           {reference.imageSrc ? (
-                            <img src={reference.imageSrc} alt="" />
+                            index === 0 && maskPreviewUrl ? (
+                              <span className="reference-thumb-masked" title="已设置局部重绘,红色为涂抹区域">
+                                <img src={reference.imageSrc} alt="" />
+                                <img src={maskPreviewUrl} alt="" className="reference-thumb-mask-overlay" />
+                              </span>
+                            ) : (
+                              <img src={reference.imageSrc} alt="" />
+                            )
                           ) : (
                             <div className="reference-chip-icon">
                               <ImagePlus size={20} />

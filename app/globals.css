@@ -3838,6 +3838,26 @@ button.action-button:hover:not(:disabled),
   background: var(--panel-2);
 }
 
+/* 已设置局部重绘:主参考图缩略图叠红色涂抹区(蒙版与原图同长宽比,同 cover 裁切即对齐) */
+.reference-thumb-masked {
+  position: relative;
+  display: block;
+  width: 64px;
+  height: 64px;
+  line-height: 0;
+}
+
+.reference-thumb-masked img {
+  width: 100%;
+  height: 100%;
+}
+
+.reference-thumb-mask-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 .reference-chip p {
   margin: 4px 0 0;
   overflow: hidden;
@@ -4936,6 +4956,16 @@ code {
   .reference-chip img {
     width: 52px;
     height: 52px;
+  }
+
+  .reference-thumb-masked {
+    width: 52px;
+    height: 52px;
+  }
+
+  .reference-thumb-masked img {
+    width: 100%;
+    height: 100%;
   }
 
   .reference-chip button {

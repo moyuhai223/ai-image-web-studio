@@ -43,6 +43,10 @@ export function MaskEditor({ imageSrc, onChange, onClose }: Props) {
   const panningRef = useRef<{ pointerId: number; startX: number; startY: number; tx: number; ty: number } | null>(null);
   const spaceRef = useRef(false);
   const pinchRef = useRef<Map<number, Point>>(new Map());
+  // 触屏防误涂:第一指落下先拍 paint 层快照;若随后第二指落下(捏合意图),整笔撤销。
+  const strokeSnapshotRef = useRef<ImageData | null>(null);
+  // 多边形同理:记录「最近一个点是触屏刚加的」,捏合开始时弹掉它。
+  const touchPolyPointRef = useRef(false);
   const [tool, setTool] = useState<Tool>("brush");
   const [brush, setBrush] = useState(80);
   const [hasStrokes, setHasStrokes] = useState(false);
@@ -304,6 +308,15 @@ export function MaskEditor({ imageSrc, onChange, onClose }: Props) {
     if (event.pointerType === "touch") {
       pinchRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (pinchRef.current.size === 2) {
+        // 防误涂:恢复第一指落下前的快照,撤销已画的半笔;多边形则弹掉第一指刚加的点
+        const ctx = paintRef.current?.getContext("2d");
+        if (ctx && strokeSnapshotRef.current) ctx.putImageData(strokeSnapshotRef.current, 0, 0);
+        strokeSnapshotRef.current = null;
+        if (touchPolyPointRef.current) {
+          polyRef.current.pop();
+          touchPolyPointRef.current = false;
+          if (polyRef.current.length === 0) polyActiveRef.current = false;
+        }
         drawingRef.current = false;
         lastRef.current = null;
         lassoRef.current = [];
@@ -330,13 +343,23 @@ export function MaskEditor({ imageSrc, onChange, onClose }: Props) {
     if (tool === "polygon") {
       const pts = polyRef.current;
       if (pts.length >= 3 && dist(p, pts[0]) <= closeThreshold) {
+        touchPolyPointRef.current = false;
         commitPolygon();
       } else {
         pts.push(p);
         polyActiveRef.current = true;
+        // 触屏落点先标记:若这根手指其实是捏合的第一指,第二指落下时弹掉该点
+        touchPolyPointRef.current = event.pointerType === "touch";
         drawOutline(pts, p, false);
       }
       return;
+    }
+
+    // 触屏落笔先拍快照:若第二指随后落下(捏合意图),putImageData 整笔撤销
+    if (event.pointerType === "touch") {
+      const c = paintRef.current;
+      const ctx = c?.getContext("2d");
+      strokeSnapshotRef.current = c && ctx ? ctx.getImageData(0, 0, c.width, c.height) : null;
     }
 
     previewRef.current?.setPointerCapture(event.pointerId);
@@ -392,6 +415,9 @@ export function MaskEditor({ imageSrc, onChange, onClose }: Props) {
 
   function onPointerUp(event: React.PointerEvent<HTMLCanvasElement>) {
     pinchRef.current.delete(event.pointerId);
+    // 正常抬指 = 这笔/这点确定保留,清掉防误涂的撤销依据
+    strokeSnapshotRef.current = null;
+    touchPolyPointRef.current = false;
     if (panningRef.current?.pointerId === event.pointerId) {
       panningRef.current = null;
       previewRef.current?.releasePointerCapture(event.pointerId);
