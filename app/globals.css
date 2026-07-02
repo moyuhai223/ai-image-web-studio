@@ -3852,10 +3852,13 @@ button.action-button:hover:not(:disabled),
   height: 100%;
 }
 
-.reference-thumb-mask-overlay {
+/* 用 img.xxx 提升 specificity 压过 .reference-chip img 的不透明底色,
+   否则 overlay 自己的背景会把下层原图整个挡住(只剩灰底+红斑)。 */
+.reference-chip img.reference-thumb-mask-overlay {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  background: transparent;
 }
 
 .reference-chip p {
