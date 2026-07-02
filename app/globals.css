@@ -979,6 +979,8 @@ html[data-theme="gallery-dark"] body {
   overflow: hidden;
 }
 
+/* transform 由组件内联设置(translate + scale,滚轮/拖拽/捏合驱动);
+   transform-origin 取中心,与组件里「未变换中心 = body 中心」的锚点缩放推导一致。 */
 .mask-modal-stage {
   position: relative;
   width: fit-content;
@@ -988,6 +990,8 @@ html[data-theme="gallery-dark"] body {
   border: 1px solid var(--border, #e2e6ee);
   background: var(--media-bg, #edf2f7);
   line-height: 0;
+  transform-origin: center center;
+  will-change: transform;
 }
 
 /* 图片按 ~82vh / 96vw 等比放大占满弹窗;stage 用 fit-content 收紧到图片尺寸,
@@ -1017,6 +1021,27 @@ html[data-theme="gallery-dark"] body {
 .mask-preview-canvas {
   cursor: crosshair;
   touch-action: none;
+}
+
+/* 移动工具 / 按住空格:抓手光标 */
+.mask-preview-canvas.mask-preview-pan {
+  cursor: grab;
+}
+
+.mask-preview-canvas.mask-preview-pan:active {
+  cursor: grabbing;
+}
+
+.mask-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mask-zoom-value {
+  min-width: 52px;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .mask-modal-controls {
