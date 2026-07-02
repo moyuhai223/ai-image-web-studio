@@ -923,6 +923,20 @@ html[data-theme="gallery-dark"] body {
   gap: 8px;
 }
 
+/* 局部重绘合成开关(有蒙版时显示):勾选=贴回原图保清晰度,取消=直接用模型编辑图 */
+.mask-composite-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mask-composite-toggle input {
+  accent-color: var(--brand, #6366f1);
+  margin: 0;
+}
+
 .mask-open-btn {
   display: inline-flex;
   align-items: center;

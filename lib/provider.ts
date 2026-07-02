@@ -63,6 +63,8 @@ type GenerateInput = {
   referenceDataUrls?: string[];
   /** 局部重绘蒙版(data URL,带 alpha:透明=要改)。仅编辑接口用,作用于第一张参考图。 */
   maskDataUrl?: string;
+  /** 局部重绘出图后是否把编辑区贴回原图高清版(sharp 合成)。默认 true;false 直接返回模型编辑图。 */
+  maskComposite?: boolean;
 };
 
 const MAX_KEY_ATTEMPTS = 3;
@@ -517,7 +519,8 @@ async function generateImageEdit(input: GenerateInput, apiKey: string, deadline:
     }
     // 局部重绘:gpt-image 系是整图语义重生成(官方明说 mask 只是 prompt 级引导,网关更是接受但忽略),
     // 像素级局部性只能靠出图后把编辑区贴回原图高清版保证——与多模态链路(generateMaskedEdit)同一套合成。
-    if (input.maskDataUrl) {
+    // maskComposite=false(用户关掉开关)时跳过,直接返回模型编辑图。
+    if (input.maskDataUrl && input.maskComposite !== false) {
       try {
         const composited = await compositeMaskedEditOntoOriginal(referenceDataUrls[0], input.maskDataUrl, normalized.images[0]);
         return { ...normalized, images: [composited] };
@@ -667,6 +670,8 @@ async function generateMaskedEdit(input: GenerateInput, apiKey: string, deadline
     throw Object.assign(new Error("Provider response did not contain an image"), { raw });
   }
   // 保留原图质量:把模型编辑区贴回原图高清版。合成失败(如模型挪了构图导致对齐异常)兜底返回模型原图。
+  // maskComposite=false(用户关掉开关)时跳过,直接返回模型编辑图。
+  if (input.maskComposite === false) return normalized;
   try {
     const composited = await compositeMaskedEditOntoOriginal(references[0], input.maskDataUrl, normalized.images[0]);
     return { ...normalized, images: [composited] };

@@ -303,6 +303,8 @@ export function Workspace({
   const [selectedReferences, setSelectedReferences] = useState<SelectedReference[]>([]);
   const [maskOpen, setMaskOpen] = useState(false);
   const [maskBlob, setMaskBlob] = useState<Blob | null>(null);
+  // 局部重绘合成开关:开(默认)=出图后把编辑区贴回原图高清版;关=直接用模型编辑图。
+  const [maskComposite, setMaskComposite] = useState(true);
   const [referencesOpen, setReferencesOpen] = useState(false);
   const [limits, setLimits] = useState<LimitsConfig>(DEFAULT_LIMITS);
   const [presets, setPresets] = useState<WorkspacePresetOption[]>([]);
@@ -1297,6 +1299,8 @@ export function Workspace({
     // 局部重绘:有蒙版时随参考图一起提交(作用于第一张参考图)。maskBlob 由全屏编辑器在涂抹后写入,关闭弹窗后仍保留。
     if (maskBlob && selectedReferences.length > 0) {
       formData.append("maskImage", maskBlob, "mask.png");
+      // 合成开关:默认开;关掉时显式告知服务端,直接返回模型编辑图。
+      formData.append("maskComposite", maskComposite ? "true" : "false");
     }
   }
 
@@ -1655,9 +1659,22 @@ export function Workspace({
                           {maskBlob ? "局部重绘已设置 · 重新涂抹" : "局部重绘"}
                         </button>
                         {maskBlob ? (
-                          <button type="button" className="status" onClick={() => setMaskBlob(null)}>
-                            <X size={13} /> 清除蒙版
-                          </button>
+                          <>
+                            <button type="button" className="status" onClick={() => setMaskBlob(null)}>
+                              <X size={13} /> 清除蒙版
+                            </button>
+                            <label
+                              className="small muted mask-composite-toggle"
+                              title="开:出图后把编辑区贴回原图高清版,蒙版外像素零变化;关:直接用模型返回的编辑图(整图重绘,分辨率随模型)"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={maskComposite}
+                                onChange={(event) => setMaskComposite(event.target.checked)}
+                              />
+                              合成回原图(保留原清晰度)
+                            </label>
+                          </>
                         ) : (
                           <span className="small muted">只想改局部(如只换裤子颜色)就涂抹该区域</span>
                         )}

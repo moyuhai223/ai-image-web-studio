@@ -20,6 +20,8 @@ export type GenerationRunInput = {
   referenceDataUrls?: string[];
   /** 局部重绘蒙版 data URL(来自 request_metadata.mask),透传给 provider 编辑接口,作用于第一张参考图。 */
   maskDataUrl?: string;
+  /** 来自 request_metadata.mask.composite;false 时 provider 跳过合成贴回,直接返回模型编辑图。 */
+  maskComposite?: boolean;
   parentImageId?: string;
   /** 来自 request_metadata.providerPresetId;runner 透传给 provider 用于选 baseUrl + key */
   presetId?: string | null;
@@ -171,6 +173,12 @@ async function loadMaskDataUrl(requestMetadata: Record<string, unknown>): Promis
   return `data:${mimeType};base64,${file.buffer.toString("base64")}`;
 }
 
+/** request_metadata.mask.composite;仅显式 false 才关(缺省/旧任务=开,保持既有行为)。 */
+function loadMaskComposite(requestMetadata: Record<string, unknown>): boolean {
+  const mask = asRecord(requestMetadata.mask);
+  return mask?.composite !== false;
+}
+
 async function getReferenceInfo(requestMetadata: Record<string, unknown>) {
   const references = Array.isArray(requestMetadata.references)
     ? requestMetadata.references.map(asRecord).filter((item): item is Record<string, unknown> => Boolean(item))
@@ -203,6 +211,7 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
   }
   const referenceInfo = await getReferenceInfo(job.request_metadata);
   const maskDataUrl = await loadMaskDataUrl(job.request_metadata);
+  const maskComposite = loadMaskComposite(job.request_metadata);
   const presetId =
     typeof job.request_metadata?.providerPresetId === "string" && job.request_metadata.providerPresetId.trim()
       ? (job.request_metadata.providerPresetId as string)
@@ -225,6 +234,7 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
     upscaleTargetLongEdge,
     autoRetryAttempts,
     maskDataUrl,
+    maskComposite,
     ...referenceInfo
   };
 }
