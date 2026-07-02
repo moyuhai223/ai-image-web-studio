@@ -415,14 +415,15 @@ function isGeminiImageModel(model: string) {
 
 type PreparedReference = Awaited<ReturnType<typeof prepareImage2Reference>>;
 
-function buildImageEditForm(input: GenerateInput, references: PreparedReference[], maskBuffer?: Buffer) {
+function buildImageEditForm(input: GenerateInput, references: PreparedReference[], maskBuffer?: Buffer, maskSize?: string) {
   const form = new FormData();
   form.set("model", input.model);
-  // 局部重绘:① 提示词前置极性声明,给 gpt-image 的「软蒙版」加自然语言双保险;
-  //          ② 不发 size —— 发 size(尤其 "auto" / 与输入图不等大)会让网关把带蒙版的编辑退化成整图重绘。
-  //             省略后输出沿用输入图尺寸,与蒙版天然对齐(参考 infinite-canvas 的做法)。
-  form.set("prompt", maskBuffer ? `只修改蒙版透明区域，其他区域保持不变。${input.prompt}` : input.prompt);
-  if (!maskBuffer) form.set("size", input.size);
+  // 局部重绘:① 提示词前置极性声明——官方指南明说 GPT image 的 masking 是「entirely prompt-based」,
+  //             这句是模型侧唯一有效的保持构图手段(像素级局部性由出图后的合成贴回保证);
+  //          ② size 显式传「参考图尺寸对齐 16 的倍数」(gpt-image-2 任意尺寸要求宽高被 16 整除),
+  //             让输出与输入同长宽比,合成贴回不变形。
+  form.set("prompt", maskBuffer ? `严格保持原图的构图、相机角度、透视、光照和所有未提及的内容不变,只修改蒙版透明区域。${input.prompt}` : input.prompt);
+  form.set("size", maskBuffer ? maskSize ?? input.size : input.size);
   form.set("n", String(input.count));
   // 不传 response_format:实测网关带上该参数会返回首页 HTML / 报 Unknown parameter,返回体由 normalizeImageGenerations 兼容 b64/url。
   for (const reference of references) {
@@ -435,17 +436,33 @@ function buildImageEditForm(input: GenerateInput, references: PreparedReference[
   return form;
 }
 
-/** 把蒙版 data URL 解码并缩放到与(处理后的)第一张参考图等尺寸、带 alpha 的 PNG。 */
+/**
+ * 把黑白蒙版(白=要改)转成 OpenAI /images/edits 官方格式并缩放到与第一张参考图等尺寸。
+ * 官方规范(API Reference createEdit):mask 必须是带 alpha 通道的 PNG,
+ * 「完全透明(alpha=0)=要重绘、不透明=保留」——纯黑白 PNG 没有 alpha 语义上无效。
+ * 官方 PIL 示例是 putalpha(mask)(黑→编辑);我们约定白=要改,所以灰度取反后作 alpha。
+ */
 async function prepareMaskForReference(maskDataUrl: string, reference: PreparedReference): Promise<Buffer> {
   const parsed = parseDataUrl(maskDataUrl);
   const meta = await sharp(reference.buffer).metadata();
   const width = meta.width ?? 0;
   const height = meta.height ?? 0;
-  let pipeline = sharp(parsed.buffer).ensureAlpha();
-  if (width > 0 && height > 0) {
-    pipeline = pipeline.resize(width, height, { fit: "fill", kernel: "nearest" });
-  }
-  return pipeline.png().toBuffer();
+  if (!width || !height) throw new Error("无法读取参考图尺寸");
+  // 白(要改)→ alpha 0(透明),黑(保留)→ alpha 255。走 PNG 中间态让 sharp 自读尺寸(raw 缓冲在真实图片上易碎,见 v0.7.50)。
+  const alpha = await sharp(parsed.buffer)
+    .resize(width, height, { fit: "fill", kernel: "nearest" })
+    .toColourspace("b-w")
+    .negate()
+    .png()
+    .toBuffer();
+  const rgb = await sharp(parsed.buffer)
+    .resize(width, height, { fit: "fill", kernel: "nearest" })
+    .removeAlpha()
+    .toColourspace("srgb")
+    .png()
+    .toBuffer();
+  // joinChannel 必须单独一个管道:sharp 固定先 joinChannel 后 removeAlpha,同管道里刚接上的 alpha 会被剥掉。
+  return sharp(rgb).joinChannel(alpha).png().toBuffer();
 }
 
 async function generateImageEdit(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
@@ -471,6 +488,7 @@ async function generateImageEdit(input: GenerateInput, apiKey: string, deadline:
   // 蒙版是带 alpha 的 PNG,所以这里把第一张参考图也转成 PNG(尺寸不变),否则「JPEG 图 + PNG 蒙版」
   // 格式不符会被网关忽略 mask → 整图重绘(实测 JPEG 参考图就是这个症状)。
   let maskBuffer: Buffer | undefined;
+  let maskSize: string | undefined;
   if (input.maskDataUrl) {
     references[0] = {
       ...references[0],
@@ -479,17 +497,35 @@ async function generateImageEdit(input: GenerateInput, apiKey: string, deadline:
       filename: "reference-1.png"
     };
     maskBuffer = await prepareMaskForReference(input.maskDataUrl, references[0]);
+    // size = 参考图尺寸就近对齐 16 的倍数(gpt-image-2 任意尺寸的官方约束),保证输出同长宽比、合成不变形。
+    const refMeta = await sharp(references[0].buffer).metadata();
+    if (refMeta.width && refMeta.height) {
+      const align16 = (edge: number) => Math.max(16, Math.round(edge / 16) * 16);
+      maskSize = `${align16(refMeta.width)}x${align16(refMeta.height)}`;
+    }
   }
 
   // 只发一次「不传 response_format」的请求。实测这家网关带上 response_format(无论 url/b64_json)会返回
   // 首页 HTML 或报 Unknown parameter,旧的 b64/url 兜底链只会把真实错误掩盖成「Unknown parameter」。
   // 失败就如实抛(带诊断信息),由任务级自动重试兜过偶发故障。
   try {
-    const form = buildImageEditForm(input, references, maskBuffer);
+    const form = buildImageEditForm(input, references, maskBuffer, maskSize);
     const raw = await retryProvider("image edit", deadline, () => postForm("/v1/images/edits", form, apiKey, deadline, baseUrl));
     const normalized = normalizeImageGenerations(raw);
-    if (normalized.images.length > 0) return normalized;
-    throw Object.assign(new Error("Provider returned no edited image"), { raw });
+    if (normalized.images.length === 0) {
+      throw Object.assign(new Error("Provider returned no edited image"), { raw });
+    }
+    // 局部重绘:gpt-image 系是整图语义重生成(官方明说 mask 只是 prompt 级引导,网关更是接受但忽略),
+    // 像素级局部性只能靠出图后把编辑区贴回原图高清版保证——与多模态链路(generateMaskedEdit)同一套合成。
+    if (input.maskDataUrl) {
+      try {
+        const composited = await compositeMaskedEditOntoOriginal(referenceDataUrls[0], input.maskDataUrl, normalized.images[0]);
+        return { ...normalized, images: [composited] };
+      } catch (error) {
+        log.warn("局部重绘合成贴回原图失败,返回模型原始输出", { error });
+      }
+    }
+    return normalized;
   } catch (error) {
     if (isProviderTimeoutError(error)) throw error;
     throw enrichEditError(error, diagnostic);
@@ -641,8 +677,11 @@ async function generateMaskedEdit(input: GenerateInput, apiKey: string, deadline
 }
 
 async function generateWithSelectedKey(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
-  // 带蒙版的编辑统一走多模态对话(原图+黑白遮罩+强指令),不依赖网关对 /images/edits mask 的实现。
-  if (input.maskDataUrl && getReferenceDataUrls(input).length > 0) {
+  // 带蒙版的编辑按模型分流:
+  // - gpt-image 系不是对话模型(网关直接拒:only supported on /v1/images/generations and /v1/images/edits),
+  //   走 /images/edits(官方 alpha 蒙版 + 提示词引导)+ 出图后合成贴回,见 generateImageEdit;
+  // - 多模态模型(Nano Banana / Gemini 等)走 chat-completions(原图+黑白遮罩+强指令)+ 同一套合成贴回。
+  if (input.maskDataUrl && getReferenceDataUrls(input).length > 0 && !isGptImageModel(input.model)) {
     return generateMaskedEdit(input, apiKey, deadline, baseUrl);
   }
 
