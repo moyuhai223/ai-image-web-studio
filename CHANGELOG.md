@@ -2,6 +2,17 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.7.56] - 2026-07-03
+
+### 安全
+
+安全审计后的第一批加固(P0,均为低风险纯加固,不改业务逻辑):
+
+- **生产启动断言弱 `AUTH_SECRET`**:该密钥同时用于会话签名与上游 Key 加密,若为空或仍是公开默认值(`dev-only-change-me` / docker-compose 占位符)即可被伪造 admin 会话、离线解密全部上游 Key。现在生产环境启动时(`instrumentation.ts`)检测到空值/已知默认值**直接拒绝启动**,长度<32 仅告警不拦(不误伤已设中等强度密钥的部署)。开发环境不受影响。
+- **`/api/health` 收敛信息泄露**:此前未认证即可读到版本、全部上游网关地址、存储路径、Key 数量、最近失败任务。现在详细诊断**仅管理员可见**,未认证/普通用户只返回 `{ok, checkedAt}`——健康检查只看状态码,不受影响。
+- **补齐安全响应头**:全站加 `X-Frame-Options: DENY`(防点击劫持)、`Referrer-Policy`、`Permissions-Policy`、`X-Content-Type-Options`,以及一个安全子集 CSP(`frame-ancestors 'none'; base-uri 'self'; object-src 'none'`)。
+- **sharp 解码像素上限**:高清化处理用户图时设 `limitInputPixels: 4000 万`,防超大像素图/解压炸弹撑爆内存。
+
 ## [0.7.55] - 2026-07-02
 
 ### 新增

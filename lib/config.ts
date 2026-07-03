@@ -80,3 +80,29 @@ export function requireEnv(value: string, label: string) {
 
   return value;
 }
+
+/** 公开已知的弱/默认 AUTH_SECRET —— 出现在代码默认值与 docker-compose 占位符里,等同无密钥。 */
+const KNOWN_WEAK_AUTH_SECRETS = new Set(["", "dev-only-change-me", "replace-with-a-long-random-secret"]);
+
+/**
+ * 生产启动断言:AUTH_SECRET 同时用于会话 HMAC 签名与 AI Key 池/优化 Key 的 AES 加密,
+ * 一旦是公开默认值即可被离线伪造 admin 会话 + 解密全部上游 Key。生产环境若仍是空值/已知默认值,
+ * 直接拒绝启动(fail-fast);长度不足 32 只告警不拦(避免误伤已设中等强度密钥的既有部署)。
+ * 由 instrumentation.ts 的 register() 在服务器启动时调用——不在模块 import 期跑,避免破坏 next build。
+ */
+export function assertProductionSecrets() {
+  if (process.env.NODE_ENV !== "production") return;
+  const secret = process.env.AUTH_SECRET ?? "";
+  if (KNOWN_WEAK_AUTH_SECRETS.has(secret)) {
+    throw new Error(
+      "启动被拒绝:生产环境必须设置 AUTH_SECRET 为一个高熵随机值(当前为空或仍是公开默认值)。" +
+        "该密钥用于会话签名与上游 Key 加密,使用默认值会导致会话伪造与密钥泄露。请设置 ≥32 字符的随机值后重启。"
+    );
+  }
+  if (secret.length < 32) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[security] AUTH_SECRET 长度不足 32 字符,强度偏弱,建议更换为 ≥32 字符的高熵随机值(会话签名 + 密钥加密共用此密钥)。"
+    );
+  }
+}
