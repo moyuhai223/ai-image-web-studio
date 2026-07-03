@@ -1,11 +1,24 @@
+import { config } from "./config";
 import { query } from "./db";
 
 const LOGIN_FAILURE_LIMIT = 5;
 const LOGIN_WINDOW_MINUTES = 15;
 
+/**
+ * 取真实客户端 IP 用于登录限流。优先读可信来源头(默认 cf-connecting-ip,由 Cloudflare 注入、
+ * 客户端不可伪造),该头缺失才回退到反代设的 x-real-ip,最后才是可被伪造的 x-forwarded-for 首段。
+ * 之前无条件取 XFF 首段,攻击者每请求换个伪造 IP 即可绕过 IP 维度限流做撞库(已修)。
+ */
 export function getClientIp(request: Request) {
+  const trusted = config.trustedClientIpHeader;
+  if (trusted) {
+    const value = request.headers.get(trusted)?.split(",")[0]?.trim();
+    if (value) return value;
+  }
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || request.headers.get("x-real-ip") || "unknown";
+  return forwarded || "unknown";
 }
 
 export async function checkLoginAllowed(username: string, ip: string) {

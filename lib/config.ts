@@ -34,6 +34,12 @@ const DEFAULT_ALLOWED_IMAGE_MIMES = ["image/png", "image/jpeg", "image/webp"];
 export const config = {
   databaseUrl: process.env.DATABASE_URL ?? "",
   authSecret: process.env.AUTH_SECRET ?? "dev-only-change-me",
+  /**
+   * 登录限流取「真实客户端 IP」的可信来源头。默认 cf-connecting-ip——Cloudflare 注入且客户端不可伪造
+   * (源站只接受反代流量时)。**不要**盲信 X-Forwarded-For 首段(客户端可任意伪造,曾致 IP 维度限流被绕过)。
+   * 不走 Cloudflare 的部署应改为反代权威注入的头(并确保反代覆盖/剥离入站同名头);置空则回退到尽力而为的启发式。
+   */
+  trustedClientIpHeader: (process.env.TRUSTED_CLIENT_IP_HEADER ?? "cf-connecting-ip").trim().toLowerCase(),
   timeZone: process.env.APP_TIME_ZONE ?? process.env.TZ ?? DEFAULT_TIME_ZONE,
   aiBaseUrl: optionalUrlEnv(process.env.PROVIDER_BASE_URL),
   aiApiKey: process.env.PROVIDER_API_KEY ?? "",

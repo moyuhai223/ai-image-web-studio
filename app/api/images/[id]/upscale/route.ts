@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { config } from "@/lib/config";
+import { tryAcquire } from "@/lib/concurrency";
 import { query, transaction } from "@/lib/db";
 import { enqueueGenerationJob } from "@/lib/generation-queue";
 import { createJob, getActiveQueueStats, getImageForUser, getJobById } from "@/lib/repository";
@@ -46,13 +47,24 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const targetLongEdge = config.upscaleLongEdge;
 
   // ---- 快速放大(sharp):同步完成,直接建一条 succeeded 任务 + 子版本图 ----
+  // 并发闸:fast 分支在请求线程内同步跑 sharp(CPU/内存重活),不走生成队列。
+  // 若不限并发,单用户反复打此端点即可耗尽 CPU/内存(DoS)。用信号量限到与生成同样的并发上限,
+  // 满了直接 429(快速失败,不排队占连接)。
   if (mode === "fast") {
-    const file = await readStoredFile(source.local_path);
-    const upscaled = await upscaleBufferToLongEdge(file.buffer, targetLongEdge);
-    const stored = await saveImageBuffer(upscaled.buffer, upscaled.mimeType, "images", `${source.job_id}-up`);
-    const now = new Date().toISOString();
+    const release = tryAcquire("fast-upscale", config.maxGenerationConcurrency);
+    if (!release) {
+      return NextResponse.json(
+        { error: "高清化服务繁忙,请稍后再试", code: "upscale_busy", retryAfterSeconds: 5 },
+        { status: 429, headers: { "retry-after": "5" } }
+      );
+    }
+    try {
+      const file = await readStoredFile(source.local_path);
+      const upscaled = await upscaleBufferToLongEdge(file.buffer, targetLongEdge);
+      const stored = await saveImageBuffer(upscaled.buffer, upscaled.mimeType, "images", `${source.job_id}-up`);
+      const now = new Date().toISOString();
 
-    const job = await transaction(async (client) => {
+      const job = await transaction(async (client) => {
       const created = await createJob(client, {
         user_id: user.id,
         model: "upscale-fast",
@@ -85,8 +97,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return created;
     });
 
-    const full = await getJobById(job.id, user);
-    return NextResponse.json({ job: full, mode: "fast" }, { status: 201 });
+      const full = await getJobById(job.id, user);
+      return NextResponse.json({ job: full, mode: "fast" }, { status: 201 });
+    } finally {
+      release();
+    }
   }
 
   // ---- AI 高清重绘:走队列,以源图为参考做编辑重绘,runner 存盘前 sharp 收尾到 4K ----
