@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import { getNextAiApiKey, reportAiKeyFailure, reportAiKeySuccess } from "./api-keys";
 import { config } from "./config";
+import { assertPublicBaseUrl } from "./egress-guard";
 import { createLogger } from "./logger";
 import { getProviderSettings, resolveProvider } from "./provider-settings";
 import { isRotatePreset } from "./provider-rotation";
@@ -108,6 +109,7 @@ function timeoutForDeadline(deadline: ProviderDeadline) {
 }
 
 async function postJson(pathname: string, body: Record<string, unknown>, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
+  await assertPublicBaseUrl(baseUrl); // SSRF 守卫:拒绝 baseUrl 解析到内网/云元数据
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutForDeadline(deadline));
 
@@ -155,6 +157,7 @@ async function postJson(pathname: string, body: Record<string, unknown>, apiKey:
 }
 
 async function postForm(pathname: string, body: FormData, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
+  await assertPublicBaseUrl(baseUrl); // SSRF 守卫:拒绝 baseUrl 解析到内网/云元数据
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutForDeadline(deadline));
 

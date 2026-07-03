@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { query, transaction } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { config } from "@/lib/config";
+import { requestBodyTooLarge } from "@/lib/request-guard";
 import { generateSchema, allowedImageTypes } from "@/lib/validation";
 import { enqueueGenerationJob } from "@/lib/generation-queue";
 import {
@@ -97,6 +98,9 @@ async function saveReferenceFile(file: File, userId: string): Promise<ReferenceM
 
 export async function POST(request: Request) {
   const user = await requireUser();
+  if (requestBodyTooLarge(request)) {
+    return NextResponse.json({ error: "上传内容过大", code: "payload_too_large" }, { status: 413 });
+  }
   const formData = await request.formData();
   const parsed = generateSchema.safeParse({
     prompt: formData.get("prompt"),

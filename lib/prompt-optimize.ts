@@ -1,3 +1,4 @@
+import { assertPublicBaseUrl } from "./egress-guard";
 import { createLogger } from "./logger";
 import { getPromptOptimizeRuntime } from "./prompt-optimize-settings";
 import { resolveProvider } from "./provider-settings";
@@ -72,6 +73,7 @@ async function postChat(
   apiKey: string,
   body: Record<string, unknown>
 ): Promise<{ ok: boolean; status: number; json: Record<string, unknown> }> {
+  await assertPublicBaseUrl(baseUrl); // SSRF 守卫:拒绝 baseUrl 解析到内网/云元数据
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OPTIMIZE_TIMEOUT_MS);
   let response: Response;

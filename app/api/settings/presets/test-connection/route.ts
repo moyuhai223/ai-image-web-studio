@@ -3,6 +3,7 @@ import { performance } from "node:perf_hooks";
 import { requireAdmin } from "@/lib/auth";
 import { respondError } from "@/lib/api-errors";
 import { getNextAiApiKey } from "@/lib/api-keys";
+import { assertPublicBaseUrl } from "@/lib/egress-guard";
 import { listProviderPresets, normalizeAiBaseUrl } from "@/lib/provider-settings";
 import { writeAuditLog } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
@@ -24,6 +25,12 @@ type TestResult = {
 };
 
 async function probeBaseUrl(baseUrl: string, apiKey: string): Promise<{ ok: boolean; status: number | null; error?: string }> {
+  try {
+    // SSRF 守卫:不允许拿真实上游 Key 去探测内网/云元数据地址
+    await assertPublicBaseUrl(baseUrl);
+  } catch (error) {
+    return { ok: false, status: null, error: error instanceof Error ? error.message : "出站地址被拒绝" };
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
   try {

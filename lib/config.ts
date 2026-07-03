@@ -48,6 +48,13 @@ export const config = {
   imageModelGemini: process.env.IMAGE_MODEL_GEMINI ?? "gemini-3.1-flash-image",
   storageRoot: process.env.LOCAL_STORAGE_ROOT ?? "./storage",
   maxUploadMb: numberEnv(process.env.MAX_UPLOAD_MB, 20),
+  /** 单个 multipart 请求体总上限(MB):formData() 会先全量缓冲进内存,超此即 413 早退防 OOM。默认 100。 */
+  maxRequestBodyMb: numberEnv(process.env.MAX_REQUEST_BODY_MB, 100),
+  /**
+   * 站点公开源(如 https://draw.mjj.link)。设置后对状态变更请求做 Origin/Referer 同源校验(CSRF 纵深防御)。
+   * 留空则不校验(默认,避免反代改写 Host 误伤);会话 cookie 已是 sameSite=lax 作为主要 CSRF 防线。
+   */
+  appOrigin: (process.env.APP_ORIGIN ?? "").trim().replace(/\/+$/, ""),
   maxReferenceImages: numberEnv(process.env.MAX_REFERENCE_IMAGES, 4),
   allowedImageMimes: csvEnv(process.env.ALLOWED_IMAGE_MIMES, DEFAULT_ALLOWED_IMAGE_MIMES),
   maxGenerationConcurrency: numberEnv(process.env.MAX_GENERATION_CONCURRENCY, 2),

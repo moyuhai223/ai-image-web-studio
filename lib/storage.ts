@@ -5,6 +5,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import sharp from "sharp";
 import { config } from "./config";
+import { assertPublicBaseUrl } from "./egress-guard";
 import { THUMBNAIL_MAX_EDGE, THUMBNAIL_STORAGE_VERSION, THUMBNAIL_WEBP_QUALITY } from "./thumbnails";
 import { allowedImageTypes } from "./validation";
 
@@ -226,6 +227,8 @@ export async function imageSourceToBuffer(source: { b64?: string; url?: string; 
   }
 
   if (source.url) {
+    // SSRF 守卫:上游返回的图片 URL 也可能指向内网/元数据(半可信上游夹带),下载前先校验。
+    await assertPublicBaseUrl(source.url);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.generationTimeoutMs);
 

@@ -4,6 +4,7 @@ import { setSessionCookie } from "@/lib/auth";
 import { verifyPassword } from "@/lib/password";
 import { loginSchema } from "@/lib/validation";
 import { checkLoginAllowed, getClientIp, recordLoginAttempt } from "@/lib/login-security";
+import { crossOriginViolation } from "@/lib/request-guard";
 import type { User } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -11,6 +12,9 @@ export const runtime = "nodejs";
 type LoginUser = User & { password_hash: string };
 
 export async function POST(request: Request) {
+  if (crossOriginViolation(request)) {
+    return NextResponse.json({ error: "请求来源校验失败" }, { status: 403 });
+  }
   const parsed = loginSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ error: "用户名或密码无效" }, { status: 400 });

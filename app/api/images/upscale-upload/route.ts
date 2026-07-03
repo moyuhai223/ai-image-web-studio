@@ -8,6 +8,7 @@ import { enqueueGenerationJob } from "@/lib/generation-queue";
 import { createJob, findReferenceByChecksum, getActiveQueueStats, getJobById, getReferenceImageById } from "@/lib/repository";
 import { readStoredFile, saveImageBuffer } from "@/lib/storage";
 import { computeUpscaleSize } from "@/lib/image-size";
+import { requestBodyTooLarge } from "@/lib/request-guard";
 import { allowedImageTypes } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -22,6 +23,9 @@ type UpscaleReference = { source: "library"; referenceImageId?: string; localPat
 // (runner 用 sharp 兜底到 4K),结果作为一条新生成记录(无 parent)。
 export async function POST(request: Request) {
   const user = await requireUser();
+  if (requestBodyTooLarge(request)) {
+    return NextResponse.json({ error: "上传内容过大", code: "payload_too_large" }, { status: 413 });
+  }
 
   const formData = await request.formData().catch(() => null);
   const file = formData?.get("image");

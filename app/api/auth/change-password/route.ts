@@ -3,11 +3,15 @@ import { getCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { query } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { crossOriginViolation } from "@/lib/request-guard";
 import { changePasswordSchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  if (crossOriginViolation(request)) {
+    return NextResponse.json({ error: "请求来源校验失败" }, { status: 403 });
+  }
   // 自助改密：用 getCurrentUser 而非 requireUser，避免被强制改密总闸重定向(否则死循环)。
   const user = await getCurrentUser();
   if (!user) {
