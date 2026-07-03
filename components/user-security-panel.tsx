@@ -1,9 +1,10 @@
 "use client";
 
-import { KeyRound, Save, ShieldCheck, UserX } from "lucide-react";
+import { KeyRound, Save, ShieldCheck, Trash2, UserX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { User } from "@/lib/types";
+import { DangerConfirmDialog } from "./danger-confirm-dialog";
 
 export function UserSecurityPanel({
   users,
@@ -17,6 +18,31 @@ export function UserSecurityPanel({
   const router = useRouter();
   const [busyId, setBusyId] = useState("");
   const [message, setMessage] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  // 默认保留图片、转给当前管理员接管(较不破坏);可切换为一并删除。
+  const [transferImages, setTransferImages] = useState(true);
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError("");
+    const response = await fetch(`/api/users/${deleteTarget.id}?transferImages=${transferImages}`, { method: "DELETE" });
+    const data = await response.json().catch(() => ({}));
+    setDeleting(false);
+    if (response.ok) {
+      setMessage(
+        transferImages
+          ? `已删除用户 ${deleteTarget.username},其图片(${data.transferredJobs ?? 0} 组)已转给你管理`
+          : `已删除用户 ${deleteTarget.username}(清理 ${data.filesRemoved ?? 0}/${data.filesTotal ?? 0} 个文件)`
+      );
+      setDeleteTarget(null);
+      router.refresh();
+    } else {
+      setDeleteError(data.error ?? "删除失败");
+    }
+  }
 
   async function updateUser(userId: string, body: Record<string, unknown>) {
     setBusyId(userId);
@@ -88,6 +114,20 @@ export function UserSecurityPanel({
                     <UserX size={13} />
                     {item.active ? "停用" : "启用"}
                   </button>
+                  <button
+                    className="status action-button action-danger"
+                    type="button"
+                    disabled={busyId === item.id || item.id === currentUserId}
+                    onClick={() => {
+                      setDeleteError("");
+                      setTransferImages(true);
+                      setDeleteTarget(item);
+                    }}
+                    title={item.id === currentUserId ? "不能删除当前账号" : "删除用户"}
+                  >
+                    <Trash2 size={13} />
+                    删除
+                  </button>
                 </div>
 
                 <form className="inline-user-form user-security-action-row" onSubmit={(event) => setRole(event, item.id)}>
@@ -116,6 +156,53 @@ export function UserSecurityPanel({
           <Save size={13} style={{ verticalAlign: "-2px" }} /> 登录失败 5 次后会限制 15 分钟；密码使用 scrypt 加盐哈希保存，不明文存储。
         </p>
       </div>
+
+      <DangerConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="确认删除用户"
+        description={
+          deleteTarget ? `将永久删除用户「${deleteTarget.username}」(不可恢复)。审计日志会保留。` : ""
+        }
+        confirmLabel="永久删除"
+        loadingLabel="删除中"
+        loading={deleting}
+        error={deleteError}
+        icon={<Trash2 size={20} />}
+        onClose={() => {
+          if (!deleting) {
+            setDeleteTarget(null);
+            setDeleteError("");
+          }
+        }}
+        onConfirm={confirmDelete}
+      >
+        <fieldset className="user-delete-options" disabled={deleting}>
+          <label className="user-delete-option">
+            <input
+              type="radio"
+              name="deleteImages"
+              checked={transferImages}
+              onChange={() => setTransferImages(true)}
+            />
+            <span>
+              <strong>保留图片,转给我管理</strong>
+              <span className="small muted">该用户的生成记录/图片/参考图转到你名下,出现在你的记录页。</span>
+            </span>
+          </label>
+          <label className="user-delete-option">
+            <input
+              type="radio"
+              name="deleteImages"
+              checked={!transferImages}
+              onChange={() => setTransferImages(false)}
+            />
+            <span>
+              <strong>一并删除图片</strong>
+              <span className="small muted">连同其全部生成记录、图片、参考图、收藏及磁盘文件永久删除。</span>
+            </span>
+          </label>
+        </fieldset>
+      </DangerConfirmDialog>
     </section>
   );
 }

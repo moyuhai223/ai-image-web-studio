@@ -11,6 +11,8 @@ create table if not exists users (
 );
 
 alter table users add column if not exists must_change_password boolean not null default false;
+-- 会话失效锚:改密/管理员重置密码/停用时递增,使该用户所有已签发的会话 token 立即失效。
+alter table users add column if not exists session_epoch integer not null default 0;
 
 create table if not exists login_attempts (
   id uuid primary key default gen_random_uuid(),

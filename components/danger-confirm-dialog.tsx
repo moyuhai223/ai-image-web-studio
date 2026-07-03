@@ -15,6 +15,8 @@ type DangerConfirmDialogProps = {
   error?: string;
   icon?: ReactNode;
   confirmIcon?: ReactNode;
+  /** 额外内容(如选项),渲染在描述与操作按钮之间。 */
+  children?: ReactNode;
   onClose: () => void;
   onConfirm: () => void;
 };
@@ -29,6 +31,7 @@ export function DangerConfirmDialog({
   error,
   icon,
   confirmIcon,
+  children,
   onClose,
   onConfirm
 }: DangerConfirmDialogProps) {
@@ -75,6 +78,7 @@ export function DangerConfirmDialog({
             <X size={17} />
           </button>
         </div>
+        {children ? <div className="delete-confirm-body">{children}</div> : null}
         {error ? <p className="delete-confirm-error small">{error}</p> : null}
         <div className="delete-confirm-actions">
           <button className="status action-button action-neutral" type="button" onClick={onClose} disabled={loading}>

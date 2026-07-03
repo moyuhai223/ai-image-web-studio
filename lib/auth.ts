@@ -12,8 +12,12 @@ type SessionPayload = {
   userId: string;
   username: string;
   role: User["role"];
+  /** 签发时用户的 session_epoch;与 DB 当前值不一致即视为已撤销。旧 token 无此字段按 0 处理。 */
+  epoch?: number;
   exp: number;
 };
+
+type SessionUser = Pick<User, "id" | "username" | "role"> & { session_epoch?: number };
 
 function base64Url(input: string) {
   return Buffer.from(input).toString("base64url");
@@ -29,11 +33,12 @@ function safeEqual(a: string, b: string) {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-export function createSessionToken(user: Pick<User, "id" | "username" | "role">) {
+export function createSessionToken(user: SessionUser) {
   const payload: SessionPayload = {
     userId: user.id,
     username: user.username,
     role: user.role,
+    epoch: user.session_epoch ?? 0,
     exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SECONDS
   };
   const encoded = base64Url(JSON.stringify(payload));
@@ -54,7 +59,7 @@ export function parseSessionToken(token: string | undefined): SessionPayload | n
   }
 }
 
-export async function setSessionCookie(user: Pick<User, "id" | "username" | "role">) {
+export async function setSessionCookie(user: SessionUser) {
   const store = await cookies();
   store.set(SESSION_COOKIE, createSessionToken(user), {
     httpOnly: true,
@@ -76,13 +81,19 @@ export async function getCurrentUser(): Promise<User | null> {
   if (!session) return null;
 
   const result = await query<User>(
-    `select id, username, role, active, must_change_password, created_at, updated_at
+    `select id, username, role, active, must_change_password, session_epoch, created_at, updated_at
      from users
      where id = $1 and active = true`,
     [session.userId]
   );
 
-  return result.rows[0] ?? null;
+  const user = result.rows[0];
+  if (!user) return null;
+  // 会话撤销:token 内 epoch 与 DB 当前值不一致即失效(改密/重置/停用后旧 token 立即作废)。
+  // 旧 token 无 epoch 字段按 0 处理,与既有用户默认 0 相符,避免升级后全员被登出。
+  if ((session.epoch ?? 0) !== user.session_epoch) return null;
+
+  return user;
 }
 
 export async function requireUser() {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, setSessionCookie } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { query } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
@@ -38,10 +38,15 @@ export async function POST(request: Request) {
   }
 
   const passwordHash = await hashPassword(newPassword);
-  await query(
-    `update users set password_hash = $2, must_change_password = false, updated_at = now() where id = $1`,
+  // 递增 session_epoch 使所有旧 token 立即失效(改密应踢掉泄露的会话),再给当前会话重发新 cookie。
+  const updated = await query<{ session_epoch: number }>(
+    `update users
+     set password_hash = $2, must_change_password = false, session_epoch = session_epoch + 1, updated_at = now()
+     where id = $1
+     returning session_epoch`,
     [user.id, passwordHash]
   );
+  await setSessionCookie({ ...user, session_epoch: updated.rows[0]?.session_epoch ?? user.session_epoch });
 
   await writeAuditLog({
     user,

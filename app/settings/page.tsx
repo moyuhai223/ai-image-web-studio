@@ -37,7 +37,7 @@ export default async function SettingsPage() {
   const user = await requireAdmin();
   const [users, aiKeys, health, providerSettings, promptTemplates, promptOptimize, themePreference, metrics] =
     await Promise.all([
-      query<User>(`select id, username, role, active, created_at, updated_at from users order by created_at desc`),
+      query<User>(`select id, username, role, active, must_change_password, session_epoch, created_at, updated_at from users order by created_at desc`),
       listAiKeySummaries(),
       getSystemHealth(),
       getProviderSettings(),

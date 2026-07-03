@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   }
 
   const result = await query<LoginUser>(
-    `select id, username, password_hash, role, active, created_at, updated_at
+    `select id, username, password_hash, role, active, session_epoch, created_at, updated_at
      from users
      where username = $1 and active = true`,
     [parsed.data.username]

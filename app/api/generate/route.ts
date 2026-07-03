@@ -96,6 +96,14 @@ async function saveReferenceFile(file: File, userId: string): Promise<ReferenceM
   };
 }
 
+/** 事务内权威配额判定失败时抛出,由 POST 捕获并转成对应的 429 响应。 */
+class QuotaError extends Error {
+  constructor(readonly body: Record<string, unknown>, readonly headers?: Record<string, string>) {
+    super("quota exceeded");
+    this.name = "QuotaError";
+  }
+}
+
 export async function POST(request: Request) {
   const user = await requireUser();
   if (requestBodyTooLarge(request)) {
@@ -231,7 +239,33 @@ export async function POST(request: Request) {
 
   const batchId = randomUUID();
   const now = new Date().toISOString();
-  const jobs = await transaction(async (client) => {
+  let jobs: Awaited<ReturnType<typeof createJob>>[];
+  try {
+    jobs = await transaction(async (client) => {
+    // 配额 TOCTOU 修复:per-user advisory lock 串行化同一用户的并发建任务,锁内权威重算队列/日次配额,
+    // 再插入。上面的早退检查只是乐观快返(省掉超限时的参考图处理),这里才是防并发绕过的真正闸门。
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [user.id]);
+
+    const activeRes = await client.query<{ count: string }>(
+      `select count(*)::text as count from generation_jobs where user_id = $1 and status in ('queued', 'running')`,
+      [user.id]
+    );
+    if (Number(activeRes.rows[0]?.count ?? 0) + requestedCount > config.maxGenerationQueueSize) {
+      throw new QuotaError(
+        { error: `当前队列已满(上限 ${config.maxGenerationQueueSize}),请稍后再试`, code: "queue_full", retryAfterSeconds: 30 },
+        { "retry-after": "30" }
+      );
+    }
+    if (config.dailyGenerationLimit > 0) {
+      const dailyRes = await client.query<{ count: string }>(
+        `select count(*)::text as count from generation_jobs where user_id = $1 and created_at >= current_date`,
+        [user.id]
+      );
+      if (Number(dailyRes.rows[0]?.count ?? 0) + requestedCount > config.dailyGenerationLimit) {
+        throw new QuotaError({ error: `今日生成次数已达上限（${config.dailyGenerationLimit} 次）` });
+      }
+    }
+
     const created = [];
     for (let index = 0; index < requestedCount; index += 1) {
       created.push(
@@ -268,7 +302,13 @@ export async function POST(request: Request) {
       );
     }
     return created;
-  });
+    });
+  } catch (error) {
+    if (error instanceof QuotaError) {
+      return NextResponse.json(error.body, { status: 429, headers: error.headers });
+    }
+    throw error;
+  }
 
   for (const job of jobs) {
     enqueueGenerationJob(job.id);

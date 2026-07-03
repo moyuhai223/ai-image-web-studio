@@ -6,6 +6,8 @@ export type User = {
   role: UserRole;
   active: boolean;
   must_change_password: boolean;
+  /** 会话失效锚:token 内的 epoch 与此不一致即视为已撤销(改密/重置/停用时递增)。 */
+  session_epoch: number;
   created_at: string;
   updated_at: string;
 };

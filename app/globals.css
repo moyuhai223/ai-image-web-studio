@@ -567,6 +567,46 @@ html[data-theme="gallery-dark"] body {
   line-height: 1.5;
 }
 
+.delete-confirm-body {
+  margin: 4px 0 2px;
+}
+
+/* 删除用户:图片处理选项(保留转移 / 一并删除) */
+.user-delete-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.user-delete-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.user-delete-option:has(input:checked) {
+  border-color: color-mix(in srgb, var(--brand) 55%, var(--border));
+  background: color-mix(in srgb, var(--brand) 8%, var(--panel));
+}
+
+.user-delete-option input {
+  margin-top: 3px;
+  accent-color: var(--brand, #6366f1);
+}
+
+.user-delete-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .delete-confirm-actions {
   display: flex;
   justify-content: flex-end;
