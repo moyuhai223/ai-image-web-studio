@@ -61,6 +61,14 @@ function isBlockedIpv6(b: number[]): boolean {
   }
   // IPv4-compatible ::/96(已废弃但仍可解析,如 ::7f00:1 = ::127.0.0.1)
   if (b.slice(0, 12).every((x) => x === 0)) return isBlockedIpv4(dotted());
+  // 6to4 2002::/16:内嵌 IPv4 在 bytes[2..5](纵深防御,标准云主机通常无 6to4 隧道不可达)
+  if (b[0] === 0x20 && b[1] === 0x02) return isBlockedIpv4(`${b[2]}.${b[3]}.${b[4]}.${b[5]}`);
+  // Teredo 2001:0000::/32:server IPv4=bytes[4..7],client IPv4=bytes[12..15] 按位取反;任一落私网即拒
+  if (b[0] === 0x20 && b[1] === 0x01 && b[2] === 0x00 && b[3] === 0x00) {
+    const server = `${b[4]}.${b[5]}.${b[6]}.${b[7]}`;
+    const client = `${b[12] ^ 0xff}.${b[13] ^ 0xff}.${b[14] ^ 0xff}.${b[15] ^ 0xff}`;
+    return isBlockedIpv4(server) || isBlockedIpv4(client);
+  }
   return false;
 }
 

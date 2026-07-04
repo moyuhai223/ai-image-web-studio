@@ -2,6 +2,21 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.7.60] - 2026-07-03
+
+### 安全
+
+安全审计收官版:Fable 5 独立复审(换模型二次审计 + 回归检查)确认的 8 条,全部修复。
+
+- **【HIGH】全局像素上限,堵超大图 OOM**:上一版只给「快速放大」的 sharp 设了 4000 万像素上限,但用户上传的参考图最先撞到的是 provider 预处理、缩略图、upscale-upload 里的 sharp——那些仍是默认 268MP,一张 ~16000×16000 的高压缩 PNG(文件几百 KB、能过体积闸)解码即 ~1GB 内存,并发下 OOM 崩站。现新增 `lib/image-limits.ts` 的 `boundedSharp`,**所有解码非受信图片的 sharp 调用统一强制 `limitInputPixels`**(provider 12 处 / storage 缩略图 / upscale / upscale-upload 全覆盖)。
+- **【MEDIUM】SSRF 守卫补重定向**:`imageSourceToBuffer` 下载上游返回图片 URL 时,此前只校验首个 URL、`fetch` 默认跟随重定向,可被上游 302→内网/云元数据绕过。现改为**手动逐跳**:每一跳都先 `assertPublicBaseUrl` 再取,`redirect:"manual"`,限 6 跳。
+- **会话撤销补齐两处遗漏**:①`POST /api/users` 同名重置密码时递增 `session_epoch`(与 PATCH 对齐);②**登出即递增 `session_epoch`**——无状态 token 无法只失效单个,登出现在会作废该用户所有已签发 token(即「登出=登出所有设备」),泄露的会话也能靠登出踢掉。
+- **登录锁定防「锁定 DoS」**:username 维度改为按「攻击来源的不同 IP 数」触发(≥10 个不同 IP 才锁账号),单个 IP 无法靠连错密码锁死他人账号;单机暴破仍由「同 IP 15 分钟 5 次」硬闸挡住。
+- **备份上传体积上限**:`backups/restore`、`backups/validate` 接入体积早退(专用上限 `MAX_BACKUP_UPLOAD_MB`,默认 1GB),防超大备份包缓冲 OOM。
+- **last-admin 竞态加锁**:停用/降级/删除管理员的「至少保留一个启用管理员」校验与写操作,收进同一事务 + `pg_advisory_xact_lock` 串行化,防两个并发请求各删一个致零管理员锁死。
+- **SSRF 守卫补 6to4/Teredo**:egress 分类补 `2002::/16`、`2001:0000::/32` 内嵌 IPv4 解码(纵深防御;标准云主机无隧道接口本不可达)。
+- 说明:`requestBodyTooLarge` 对 chunked(无 `content-length`)请求无法预判,仍以反代 `client_max_body_size` 为硬前置兜底(浏览器 multipart 均带 content-length)。
+
 ## [0.7.59] - 2026-07-03
 
 ### 新增

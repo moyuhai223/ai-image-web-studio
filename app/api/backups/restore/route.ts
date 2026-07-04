@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { ApiError, respondError } from "@/lib/api-errors";
+import { config } from "@/lib/config";
+import { requestBodyTooLarge } from "@/lib/request-guard";
 import { listDataBackups, restoreDataBackup, saveUploadedDataBackup } from "@/lib/data-backup";
 
 export const runtime = "nodejs";
@@ -16,6 +18,9 @@ async function restoreFromJson(request: Request) {
 }
 
 async function restoreFromUpload(request: Request) {
+  if (requestBodyTooLarge(request, config.maxBackupUploadMb * 1024 * 1024)) {
+    throw new ApiError("备份包过大", 413);
+  }
   const formData = await request.formData();
   const file = formData.get("file");
   if (!(file instanceof File)) {

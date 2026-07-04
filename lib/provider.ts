@@ -2,6 +2,7 @@ import sharp from "sharp";
 import { getNextAiApiKey, reportAiKeyFailure, reportAiKeySuccess } from "./api-keys";
 import { config } from "./config";
 import { assertPublicBaseUrl } from "./egress-guard";
+import { boundedSharp } from "./image-limits";
 import { createLogger } from "./logger";
 import { getProviderSettings, resolveProvider } from "./provider-settings";
 import { isRotatePreset } from "./provider-rotation";
@@ -230,7 +231,7 @@ async function prepareImage2Reference(dataUrl: string, index: number) {
 
   let metadata: sharp.Metadata | null = null;
   try {
-    metadata = await sharp(reference.buffer).metadata();
+    metadata = await boundedSharp(reference.buffer).metadata();
   } catch (error) {
     log.warn("Image 2 参考图读取元信息失败，使用原文件", { ref: index + 1, error });
     if (IMAGE2_SUPPORTED_MIMES.has(originalMime)) return passthrough();
@@ -248,7 +249,7 @@ async function prepareImage2Reference(dataUrl: string, index: number) {
   }
 
   try {
-    const pipeline = sharp(reference.buffer).rotate();
+    const pipeline = boundedSharp(reference.buffer).rotate();
     if (needsResize || oversized) {
       pipeline.resize({
         width: IMAGE2_REFERENCE_MAX_SIDE,
@@ -449,25 +450,25 @@ function buildImageEditForm(input: GenerateInput, references: PreparedReference[
  */
 async function prepareMaskForReference(maskDataUrl: string, reference: PreparedReference): Promise<Buffer> {
   const parsed = parseDataUrl(maskDataUrl);
-  const meta = await sharp(reference.buffer).metadata();
+  const meta = await boundedSharp(reference.buffer).metadata();
   const width = meta.width ?? 0;
   const height = meta.height ?? 0;
   if (!width || !height) throw new Error("无法读取参考图尺寸");
   // 白(要改)→ alpha 0(透明),黑(保留)→ alpha 255。走 PNG 中间态让 sharp 自读尺寸(raw 缓冲在真实图片上易碎,见 v0.7.50)。
-  const alpha = await sharp(parsed.buffer)
+  const alpha = await boundedSharp(parsed.buffer)
     .resize(width, height, { fit: "fill", kernel: "nearest" })
     .toColourspace("b-w")
     .negate()
     .png()
     .toBuffer();
-  const rgb = await sharp(parsed.buffer)
+  const rgb = await boundedSharp(parsed.buffer)
     .resize(width, height, { fit: "fill", kernel: "nearest" })
     .removeAlpha()
     .toColourspace("srgb")
     .png()
     .toBuffer();
   // joinChannel 必须单独一个管道:sharp 固定先 joinChannel 后 removeAlpha,同管道里刚接上的 alpha 会被剥掉。
-  return sharp(rgb).joinChannel(alpha).png().toBuffer();
+  return boundedSharp(rgb).joinChannel(alpha).png().toBuffer();
 }
 
 async function generateImageEdit(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
@@ -497,13 +498,13 @@ async function generateImageEdit(input: GenerateInput, apiKey: string, deadline:
   if (input.maskDataUrl) {
     references[0] = {
       ...references[0],
-      buffer: await sharp(references[0].buffer).png().toBuffer(),
+      buffer: await boundedSharp(references[0].buffer).png().toBuffer(),
       mimeType: "image/png",
       filename: "reference-1.png"
     };
     maskBuffer = await prepareMaskForReference(input.maskDataUrl, references[0]);
     // size = 参考图尺寸就近对齐 16 的倍数(gpt-image-2 任意尺寸的官方约束),保证输出同长宽比、合成不变形。
-    const refMeta = await sharp(references[0].buffer).metadata();
+    const refMeta = await boundedSharp(references[0].buffer).metadata();
     if (refMeta.width && refMeta.height) {
       const align16 = (edge: number) => Math.max(16, Math.round(edge / 16) * 16);
       maskSize = `${align16(refMeta.width)}x${align16(refMeta.height)}`;
@@ -619,7 +620,7 @@ async function compositeMaskedEditOntoOriginal(
   result: ProviderImage
 ): Promise<ProviderImage> {
   const original = parseDataUrl(originalDataUrl).buffer;
-  const meta = await sharp(original).metadata();
+  const meta = await boundedSharp(original).metadata();
   const width = meta.width ?? 0;
   const height = meta.height ?? 0;
   if (!width || !height) throw new Error("无法读取原图尺寸");
@@ -630,16 +631,16 @@ async function compositeMaskedEditOntoOriginal(
 
   const feather = Math.max(1, Math.round(Math.max(width, height) / 300));
   // 模型结果放大到原尺寸的 RGB
-  const resultRgb = await sharp(resultBuffer).resize(width, height, { fit: "fill" }).removeAlpha().toColourspace("srgb").raw().toBuffer();
+  const resultRgb = await boundedSharp(resultBuffer).resize(width, height, { fit: "fill" }).removeAlpha().toColourspace("srgb").raw().toBuffer();
   // 蒙版 → 单通道羽化 alpha(白=不透明=用编辑区,黑=透明=保原图)
-  const maskAlpha = await sharp(parseDataUrl(maskDataUrl).buffer).resize(width, height, { fit: "fill" }).blur(feather).toColourspace("b-w").raw().toBuffer();
+  const maskAlpha = await boundedSharp(parseDataUrl(maskDataUrl).buffer).resize(width, height, { fit: "fill" }).blur(feather).toColourspace("b-w").raw().toBuffer();
   // 编辑结果 + 蒙版 alpha → 半透明覆盖层
-  const editWithAlpha = await sharp(resultRgb, { raw: { width, height, channels: 3 } })
+  const editWithAlpha = await boundedSharp(resultRgb, { raw: { width, height, channels: 3 } })
     .joinChannel(maskAlpha, { raw: { width, height, channels: 1 } })
     .png()
     .toBuffer();
   // 贴到原图上:蒙版外原图不动,蒙版内被编辑区覆盖,边缘羽化
-  const base = sharp(original).composite([{ input: editWithAlpha, blend: "over" }]);
+  const base = boundedSharp(original).composite([{ input: editWithAlpha, blend: "over" }]);
   const isPng = meta.format === "png";
   const composited = isPng ? await base.png().toBuffer() : await base.jpeg({ quality: 92 }).toBuffer();
   return { b64: composited.toString("base64"), mimeType: isPng ? "image/png" : "image/jpeg" };

@@ -6,6 +6,7 @@ import { Readable } from "node:stream";
 import sharp from "sharp";
 import { config } from "./config";
 import { assertPublicBaseUrl } from "./egress-guard";
+import { boundedSharp } from "./image-limits";
 import { THUMBNAIL_MAX_EDGE, THUMBNAIL_STORAGE_VERSION, THUMBNAIL_WEBP_QUALITY } from "./thumbnails";
 import { allowedImageTypes } from "./validation";
 
@@ -84,7 +85,7 @@ export async function readOrCreateThumbnail(relativePath: string) {
     await access(thumbPath);
   } catch {
     await mkdir(path.dirname(thumbPath), { recursive: true });
-    await sharp(sourcePath)
+    await boundedSharp(sourcePath)
       .rotate()
       .resize({ width: THUMBNAIL_MAX_EDGE, height: THUMBNAIL_MAX_EDGE, fit: "inside", withoutEnlargement: true })
       .webp({ quality: THUMBNAIL_WEBP_QUALITY, effort: 4 })
@@ -227,21 +228,29 @@ export async function imageSourceToBuffer(source: { b64?: string; url?: string; 
   }
 
   if (source.url) {
-    // SSRF 守卫:上游返回的图片 URL 也可能指向内网/元数据(半可信上游夹带),下载前先校验。
-    await assertPublicBaseUrl(source.url);
+    // SSRF 守卫:上游返回的图片 URL 可能指向内网/元数据(半可信上游夹带)。默认 fetch 会跟随重定向,
+    // 仅校验首个 URL 会被 302→内网 绕过。改为手动逐跳:每一跳都先 assertPublicBaseUrl 再取,限跳数。
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.generationTimeoutMs);
 
     try {
-      const response = await fetch(source.url, { signal: controller.signal });
-      if (!response.ok) {
-        throw new Error(`Failed to download generated image: ${response.status}`);
+      let currentUrl = source.url;
+      for (let hop = 0; hop < 6; hop += 1) {
+        await assertPublicBaseUrl(currentUrl);
+        const response = await fetch(currentUrl, { signal: controller.signal, redirect: "manual" });
+        if (response.status >= 300 && response.status < 400) {
+          const location = response.headers.get("location");
+          if (!location) throw new Error(`下载生成图片失败:重定向缺少 Location(${response.status})`);
+          currentUrl = new URL(location, currentUrl).toString(); // 相对跳转按当前 URL 解析,下一轮再过守卫
+          continue;
+        }
+        if (!response.ok) {
+          throw new Error(`Failed to download generated image: ${response.status}`);
+        }
+        const mimeType = response.headers.get("content-type")?.split(";")[0] ?? source.mimeType ?? "image/png";
+        return { buffer: Buffer.from(await response.arrayBuffer()), mimeType };
       }
-      const mimeType = response.headers.get("content-type")?.split(";")[0] ?? source.mimeType ?? "image/png";
-      return {
-        buffer: Buffer.from(await response.arrayBuffer()),
-        mimeType
-      };
+      throw new Error("下载生成图片失败:重定向次数过多");
     } catch (error) {
       if (controller.signal.aborted) {
         throw new Error(`下载生成图片超过 ${Math.round(config.generationTimeoutMs / 60000)} 分钟未完成`);

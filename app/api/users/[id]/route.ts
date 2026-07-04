@@ -7,16 +7,36 @@ import { deleteStoredImageFiles } from "@/lib/storage";
 import { createLogger } from "@/lib/logger";
 import { updateUserSchema } from "@/lib/validation";
 import type { User } from "@/lib/types";
+import type { PoolClient } from "pg";
 
 export const runtime = "nodejs";
 
 const log = createLogger("api.users");
+
+class LastActiveAdminError extends Error {
+  constructor() {
+    super("至少需要保留一个启用的管理员");
+    this.name = "LastActiveAdminError";
+  }
+}
 
 async function countActiveAdmins() {
   const result = await query<{ count: string }>(
     `select count(*)::text as count from users where role = 'admin' and active = true`
   );
   return Number(result.rows[0]?.count ?? 0);
+}
+
+/**
+ * 在事务内校验「停用/降级/删除后仍保留 ≥1 个启用管理员」的不变量。先取固定 key 的事务级 advisory lock
+ * 串行化所有会改变管理员数的操作,再锁内重算——防两个并发请求各删/降一个管理员导致零管理员锁死(TOCTOU)。
+ */
+async function assertKeepsAnAdmin(client: PoolClient) {
+  await client.query(`select pg_advisory_xact_lock(hashtext('admin-invariant'))`);
+  const result = await client.query<{ count: string }>(
+    `select count(*)::text as count from users where role = 'admin' and active = true`
+  );
+  if (Number(result.rows[0]?.count ?? 0) <= 1) throw new LastActiveAdminError();
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -37,24 +57,30 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   if (parsed.data.action === "setActive") {
-    if (target.id === currentUser.id && !parsed.data.active) {
+    const nextActive = parsed.data.active;
+    if (target.id === currentUser.id && !nextActive) {
       return NextResponse.json({ error: "不能禁用当前登录账号" }, { status: 400 });
     }
 
-    if (target.role === "admin" && target.active && !parsed.data.active && (await countActiveAdmins()) <= 1) {
-      return NextResponse.json({ error: "至少需要保留一个启用的管理员" }, { status: 400 });
-    }
-
     // 停用时递增 session_epoch,让该用户已签发的会话 token 立即失效(active=true 过滤是主保险,epoch 兜底防再启用后旧 token 复活)。
-    if (parsed.data.active) {
-      await query(`update users set active = true, updated_at = now() where id = $1`, [id]);
-    } else {
-      await query(`update users set active = false, session_epoch = session_epoch + 1, updated_at = now() where id = $1`, [id]);
+    // last-admin 校验与写在同一事务 + advisory lock 内,防并发绕过。
+    try {
+      await transaction(async (client) => {
+        if (target.role === "admin" && target.active && !nextActive) await assertKeepsAnAdmin(client);
+        if (nextActive) {
+          await client.query(`update users set active = true, updated_at = now() where id = $1`, [id]);
+        } else {
+          await client.query(`update users set active = false, session_epoch = session_epoch + 1, updated_at = now() where id = $1`, [id]);
+        }
+      });
+    } catch (error) {
+      if (error instanceof LastActiveAdminError) return NextResponse.json({ error: error.message }, { status: 400 });
+      throw error;
     }
     await writeAuditLog({
       user: currentUser,
       request,
-      action: parsed.data.active ? "启用用户" : "禁用用户",
+      action: nextActive ? "启用用户" : "禁用用户",
       targetType: "user",
       targetId: id,
       detail: { username: target.username }
@@ -81,18 +107,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   if (parsed.data.action === "setRole") {
-    if (target.role === "admin" && target.active && parsed.data.role !== "admin" && (await countActiveAdmins()) <= 1) {
-      return NextResponse.json({ error: "至少需要保留一个启用的管理员" }, { status: 400 });
+    const nextRole = parsed.data.role;
+    // last-admin 校验与写在同一事务 + advisory lock 内,防并发把最后一个管理员降级。
+    try {
+      await transaction(async (client) => {
+        if (target.role === "admin" && target.active && nextRole !== "admin") await assertKeepsAnAdmin(client);
+        await client.query(`update users set role = $2, updated_at = now() where id = $1`, [id, nextRole]);
+      });
+    } catch (error) {
+      if (error instanceof LastActiveAdminError) return NextResponse.json({ error: error.message }, { status: 400 });
+      throw error;
     }
-
-    await query(`update users set role = $2, updated_at = now() where id = $1`, [id, parsed.data.role]);
     await writeAuditLog({
       user: currentUser,
       request,
       action: "修改用户角色",
       targetType: "user",
       targetId: id,
-      detail: { username: target.username, role: parsed.data.role }
+      detail: { username: target.username, role: nextRole }
     });
     return NextResponse.json({ ok: true });
   }
@@ -115,6 +147,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   if (target.id === currentUser.id) {
     return NextResponse.json({ error: "不能删除当前登录账号" }, { status: 400 });
   }
+  // 早退乐观检查(减少无谓事务);真正的不变量在下面事务内 assertKeepsAnAdmin 加锁复算。
   if (target.role === "admin" && target.active && (await countActiveAdmins()) <= 1) {
     return NextResponse.json({ error: "至少需要保留一个启用的管理员" }, { status: 400 });
   }
@@ -122,7 +155,10 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   // transferImages=true(默认):把该用户的图片转给当前管理员接管,不删图;=false:连图带文件一并删除。
   const transferImages = new URL(request.url).searchParams.get("transferImages") !== "false";
 
-  const { paths, transferred } = await transaction(async (client) => {
+  let result: { paths: string[]; transferred: number };
+  try {
+    result = await transaction(async (client) => {
+    if (target.role === "admin" && target.active) await assertKeepsAnAdmin(client);
     if (transferImages) {
       // 生成图归属通过 generation_jobs.user_id 派生,改 job 的 user_id 即把其全部生成图转给管理员;
       // 参考图有独立 user_id,一并改。改完再删用户,jobs/refs 已不属该用户,不会被级联删除,文件保留。
@@ -153,7 +189,12 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
       paths: [...generated.rows, ...references.rows].map((row) => row.local_path).filter(Boolean),
       transferred: 0
     };
-  });
+    });
+  } catch (error) {
+    if (error instanceof LastActiveAdminError) return NextResponse.json({ error: error.message }, { status: 400 });
+    throw error;
+  }
+  const { paths, transferred } = result;
 
   let filesRemoved = 0;
   for (const relativePath of paths) {

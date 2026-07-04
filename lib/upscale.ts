@@ -1,13 +1,6 @@
-import sharp from "sharp";
+import { boundedSharp } from "./image-limits";
 
 export const UPSCALE_DEFAULT_LONG_EDGE = 3840;
-
-/**
- * 解码用户图时的像素上限(防解压炸弹/超大像素图 OOM)。sharp 默认 268MP 太宽松;
- * 本站正常参考图/结果图远小于此,4000 万像素(约 8K×5K)足够覆盖且把单张 RGBA 峰值压到 ~160MB。
- * 超限 sharp 直接抛错,由调用方兜底为处理失败。
- */
-const MAX_INPUT_PIXELS = 40_000_000;
 
 export type UpscaledImage = {
   buffer: Buffer;
@@ -26,7 +19,7 @@ export async function upscaleBufferToLongEdge(
   longEdge: number = UPSCALE_DEFAULT_LONG_EDGE
 ): Promise<UpscaledImage> {
   const target = Math.max(16, Math.trunc(longEdge));
-  const result = await sharp(buffer, { limitInputPixels: MAX_INPUT_PIXELS })
+  const result = await boundedSharp(buffer)
     .rotate()
     .resize({ width: target, height: target, fit: "inside", withoutEnlargement: false })
     .sharpen()
@@ -46,7 +39,7 @@ export async function upscaleBufferToLongEdge(
  * 保留原生质量(不重新编码/锐化);否则 sharp 放大到 longEdge。
  */
 export async function ensureLongEdge(buffer: Buffer, longEdge: number): Promise<UpscaledImage | null> {
-  const meta = await sharp(buffer).metadata().catch(() => null);
+  const meta = await boundedSharp(buffer).metadata().catch(() => null);
   const current = Math.max(meta?.width ?? 0, meta?.height ?? 0);
   if (current >= Math.floor(longEdge * 0.95)) return null;
   return upscaleBufferToLongEdge(buffer, longEdge);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHash, randomUUID } from "node:crypto";
-import sharp from "sharp";
+import { boundedSharp } from "@/lib/image-limits";
 import { requireUser } from "@/lib/auth";
 import { config } from "@/lib/config";
 import { query, transaction } from "@/lib/db";
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
   let width = 0;
   let height = 0;
   try {
-    const meta = await sharp(dimsBuffer).metadata();
+    const meta = await boundedSharp(dimsBuffer).metadata();
     width = meta.width ?? 0;
     height = meta.height ?? 0;
   } catch {

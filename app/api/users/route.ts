@@ -15,11 +15,13 @@ export async function POST(request: Request) {
   }
 
   const passwordHash = await hashPassword(parsed.data.password);
+  // 同名冲突走「重置密码」语义:递增 session_epoch 使该用户旧会话 token 立即失效,与 PATCH resetPassword 对齐。
   await query(
     `insert into users (username, password_hash, role)
      values ($1, $2, $3)
      on conflict (username) do update
-     set password_hash = excluded.password_hash, role = excluded.role, active = true, updated_at = now()`,
+     set password_hash = excluded.password_hash, role = excluded.role, active = true,
+         session_epoch = users.session_epoch + 1, updated_at = now()`,
     [parsed.data.username, passwordHash, parsed.data.role]
   );
   await writeAuditLog({

@@ -50,6 +50,8 @@ export const config = {
   maxUploadMb: numberEnv(process.env.MAX_UPLOAD_MB, 20),
   /** 单个 multipart 请求体总上限(MB):formData() 会先全量缓冲进内存,超此即 413 早退防 OOM。默认 100。 */
   maxRequestBodyMb: numberEnv(process.env.MAX_REQUEST_BODY_MB, 100),
+  /** 备份包上传上限(MB):备份可能远大于图片,单独放宽,但仍设有界上限防 OOM。默认 1024(1GB)。 */
+  maxBackupUploadMb: numberEnv(process.env.MAX_BACKUP_UPLOAD_MB, 1024),
   /**
    * 站点公开源(如 https://draw.mjj.link)。设置后对状态变更请求做 Origin/Referer 同源校验(CSRF 纵深防御)。
    * 留空则不校验(默认,避免反代改写 Host 误伤);会话 cookie 已是 sameSite=lax 作为主要 CSRF 防线。
