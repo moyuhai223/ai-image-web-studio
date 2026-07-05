@@ -102,7 +102,8 @@ export function normalizeOptimizeBaseUrl(value: unknown): string {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error("优化 Base URL 必须以 http:// 或 https:// 开头");
   }
-  return trimmed.replace(/\/+$/, "").slice(0, OPTIMIZE_BASE_URL_MAX_LENGTH);
+  // 同 provider:调用时会拼 /v1/chat/completions,容错剥掉结尾的 /v1,填不填 /v1 都能用。
+  return trimmed.replace(/\/+$/, "").replace(/\/v1$/i, "").slice(0, OPTIMIZE_BASE_URL_MAX_LENGTH);
 }
 
 function normalizeStored(value: unknown): StoredPromptOptimize {

@@ -2,6 +2,12 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.8.2] - 2026-07-03
+
+### 变更
+
+- **Provider / 提示词优化 Base URL 容错结尾的 `/v1`**:app 调用时会自己拼 `/v1/images/generations`、`/v1/chat/completions` 等。此前若把 Base URL 填成 `https://host/v1` 会变成双 `/v1` → 404。现在归一化时自动剥掉结尾的 `/v1`,填 `https://host` 或 `https://host/v1` 都能正常工作(如上游网关 `https://claw.mjj.link` 或 `https://claw.mjj.link/v1`)。
+
 ## [0.8.1] - 2026-07-03
 
 ### 修复
