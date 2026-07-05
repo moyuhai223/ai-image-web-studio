@@ -18,13 +18,13 @@ import { generationStatusLabel, isRetryableGenerationStatus, isTerminalGeneratio
 import { normalizeImageSize } from "@/lib/image-size";
 import { imageThumbnailUrl, THUMBNAIL_QUERY } from "@/lib/thumbnails";
 import { resolutionTier } from "@/lib/image-size";
-import { ROTATE_PRESET_ID } from "@/lib/provider-rotation";
+import type { GroupModelOption } from "@/lib/model-groups";
 import type { GeneratedImage, GenerationJob, JobWithImages, PromptTemplate, ReferenceImage } from "@/lib/types";
 
-type ModelOption = {
-  label: string;
-  value: string;
-};
+/** 下拉一项的 value 编码:groupId::model。同名模型跨组时用组名后缀消歧。 */
+function optionKey(groupId: string, model: string) {
+  return `${groupId}::${model}`;
+}
 
 type RecentJob = GenerationJob & {
   thumbnail_id: string | null;
@@ -78,12 +78,6 @@ type LimitsConfig = {
   maxUploadMb: number;
 };
 
-type WorkspacePresetOption = {
-  id: string;
-  name: string;
-  isDefault: boolean;
-};
-
 // 客户端默认值,与服务端 lib/config.ts 的 fallback 保持一致。
 // 首次挂载时会异步拉取 /api/config/limits 覆盖。
 const DEFAULT_LIMITS: LimitsConfig = {
@@ -92,7 +86,7 @@ const DEFAULT_LIMITS: LimitsConfig = {
   maxUploadMb: 20
 };
 
-const PRESET_STORAGE_KEY = "ai-image-web-studio:preset-id";
+const MODEL_SELECTION_STORAGE_KEY = "ai-image-web-studio:model-selection";
 
 type PromptTemplateOption = Pick<PromptTemplate, "id" | "title" | "category" | "content">;
 
@@ -266,16 +260,43 @@ function isAbortError(error: unknown) {
 }
 
 export function Workspace({
-  models,
+  groupModelOptions,
+  defaultGroupId,
   promptTemplates,
   recentReferenceImages,
   promptOptimizeEnabled = false
 }: {
-  models: ModelOption[];
+  groupModelOptions: GroupModelOption[];
+  defaultGroupId: string | null;
   promptTemplates: PromptTemplateOption[];
   recentReferenceImages: RecentReferenceImage[];
   promptOptimizeEnabled?: boolean;
 }) {
+  // 同名模型跨组时,下拉 label 后缀组名消歧。
+  const modelValueCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const o of groupModelOptions) counts.set(o.model, (counts.get(o.model) ?? 0) + 1);
+    return counts;
+  }, [groupModelOptions]);
+  const optionLabel = (o: GroupModelOption) =>
+    (modelValueCounts.get(o.model) ?? 0) > 1 ? `${o.label} · ${o.groupName}` : o.label;
+  // 初始:默认组的首个模型,否则第一项。
+  const initialSelection = useMemo(() => {
+    return (
+      groupModelOptions.find((o) => o.groupId === defaultGroupId) ??
+      groupModelOptions[0] ??
+      null
+    );
+  }, [groupModelOptions, defaultGroupId]);
+  // 把裸 model 映射到某个能服务它的组(优先默认组)。
+  const groupForModel = (modelValue: string): string => {
+    return (
+      groupModelOptions.find((o) => o.model === modelValue && o.groupId === defaultGroupId)?.groupId ??
+      groupModelOptions.find((o) => o.model === modelValue)?.groupId ??
+      initialSelection?.groupId ??
+      ""
+    );
+  };
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [queueLoading, setQueueLoading] = useState(true);
@@ -286,7 +307,8 @@ export function Workspace({
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [prompt, setPrompt] = useState("");
-  const [model, setModel] = useState(models[0]?.value ?? "");
+  const [model, setModel] = useState(initialSelection?.model ?? "");
+  const [groupId, setGroupId] = useState(initialSelection?.groupId ?? "");
   const [size, setSize] = useState("auto");
   const [customWidth, setCustomWidth] = useState("2048");
   const [customHeight, setCustomHeight] = useState("2048");
@@ -307,8 +329,6 @@ export function Workspace({
   const [maskComposite, setMaskComposite] = useState(true);
   const [referencesOpen, setReferencesOpen] = useState(false);
   const [limits, setLimits] = useState<LimitsConfig>(DEFAULT_LIMITS);
-  const [presets, setPresets] = useState<WorkspacePresetOption[]>([]);
-  const [presetId, setPresetId] = useState<string>("");
   const autoRunStarted = useRef(false);
   const mountedRef = useRef(false);
   const pollTokenRef = useRef(0);
@@ -351,7 +371,8 @@ export function Workspace({
     const timings = activePhaseTimingsFromJobs(activeJobs);
     return formatPhaseTimings(timings);
   }, [activeJobs]);
-  const modelLabel = models.find((item) => item.value === model)?.label ?? model;
+  const selectedOption = groupModelOptions.find((o) => o.groupId === groupId && o.model === model) ?? null;
+  const modelLabel = selectedOption ? optionLabel(selectedOption) : model;
   const referenceSummary = selectedReferences.length > 0 ? `${selectedReferences.length} 张参考图` : "无参考图";
   // 局部重绘蒙版画在第一张参考图上(上传用 objectUrl,生成/库用 imageSrc)。
   const primaryReferenceSrc = selectedReferences[0]?.objectUrl ?? selectedReferences[0]?.imageSrc ?? "";
@@ -433,12 +454,17 @@ export function Workspace({
     const existingRefId = params.get("refImageId");
     const shouldImportBasket = params.get("basket") === "1";
     const nextPrompt = params.get("prompt") ?? "";
-    const nextModel = normalizeModel(params.get("model"), models, model);
+    const urlModel = params.get("model");
+    const nextModel = urlModel && groupModelOptions.some((o) => o.model === urlModel) ? urlModel : model;
+    const nextGroupId = groupForModel(nextModel);
     const sizeSel = pickSizeSelection(params.get("size"));
     const nextCount = normalizeCount(params.get("count"));
 
     if (nextPrompt) setPrompt(nextPrompt);
-    if (nextModel) setModel(nextModel);
+    if (nextModel) {
+      setModel(nextModel);
+      setGroupId(nextGroupId);
+    }
     setSize(sizeSel.size);
     if (sizeSel.size === "custom") {
       setCustomWidth(sizeSel.width);
@@ -470,6 +496,7 @@ export function Workspace({
       const formData = new FormData();
       formData.set("prompt", nextPrompt);
       formData.set("model", nextModel);
+      formData.set("groupId", nextGroupId);
       formData.set("size", normalizeImageSize(params.get("size") ?? ""));
       formData.set("count", nextCount);
       if (urlReferences.length > 0) {
@@ -526,57 +553,32 @@ export function Workspace({
     return () => controller.abort();
   }, []);
 
-  // 拉取 Provider Preset 列表(普通用户可见的脱敏摘要:仅 id/name/isDefault,不暴露 baseUrl)。
-  // 失败时静默回退到空数组,默认走后端 default preset。
-  useEffect(() => {
-    const controller = new AbortController();
-    (async () => {
-      try {
-        const response = await fetch("/api/presets", { signal: controller.signal });
-        if (!response.ok) return;
-        const data = (await response.json()) as {
-          presets?: WorkspacePresetOption[];
-          defaultPresetId?: string | null;
-        };
-        if (controller.signal.aborted) return;
-        const fetchedPresets = Array.isArray(data.presets) ? data.presets : [];
-        setPresets(fetchedPresets);
-
-        // 优先使用 localStorage 记忆的选择(允许「自动轮换」这个特殊值,或仍存在的 preset id)。
-        let initial = "";
-        try {
-          const stored = window.localStorage.getItem(PRESET_STORAGE_KEY);
-          if (stored && (stored === ROTATE_PRESET_ID || fetchedPresets.some((preset) => preset.id === stored))) {
-            initial = stored;
-          }
-        } catch {
-          // localStorage 不可用(隐私模式 / 配额满),忽略。
-        }
-        // 没有记忆值时:≥2 个 Provider 默认走「自动轮换」;否则用后端 default preset。
-        if (!initial) {
-          initial = fetchedPresets.length >= 2 ? ROTATE_PRESET_ID : (data.defaultPresetId ?? "");
-        }
-        setPresetId(initial);
-      } catch {
-        // 静默,sticks with empty presets
-      }
-    })();
-    return () => controller.abort();
-  }, []);
-
-  // presetId 变化时持久化到 localStorage,下次进入页面自动恢复。
+  // 模型选择(groupId::model)记忆:挂载时若 localStorage 里存的选择仍存在于当前组选项,则恢复。
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      if (presetId) {
-        window.localStorage.setItem(PRESET_STORAGE_KEY, presetId);
-      } else {
-        window.localStorage.removeItem(PRESET_STORAGE_KEY);
+      const stored = window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY);
+      if (!stored) return;
+      const match = groupModelOptions.find((o) => optionKey(o.groupId, o.model) === stored);
+      if (match) {
+        setModel(match.model);
+        setGroupId(match.groupId);
       }
+    } catch {
+      // localStorage 不可用,忽略
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 选择变化时持久化。
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (groupId && model) window.localStorage.setItem(MODEL_SELECTION_STORAGE_KEY, optionKey(groupId, model));
     } catch {
       // 忽略 localStorage 异常
     }
-  }, [presetId]);
+  }, [groupId, model]);
 
   function clearQueueTimer() {
     if (queueTimerRef.current !== null) {
@@ -977,7 +979,11 @@ export function Workspace({
 
   function applyTaskParams(recent: RecentJob) {
     setPrompt(recent.prompt);
-    setModel(normalizeModel(recent.model, models, model));
+    // 复用历史任务的模型:若某组仍服务它则选中并锁定其组,否则保持当前选择。
+    if (recent.model && groupModelOptions.some((o) => o.model === recent.model)) {
+      setModel(recent.model);
+      setGroupId(groupForModel(recent.model));
+    }
     const recentSel = pickSizeSelection(recent.size);
     setSize(recentSel.size);
     if (recentSel.size === "custom") {
@@ -1442,36 +1448,32 @@ export function Workspace({
             <div className="generation-controls">
               <div className="field">
                 <label htmlFor="model">模型</label>
-                <select className="select" id="model" name="model" value={model} onChange={(event) => setModel(event.target.value)}>
-                  {models.map((model) => (
-                    <option key={model.value} value={model.value}>
-                      {model.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {presets.length >= 2 ? (
-                <div className="field">
-                  <label htmlFor="preset">Provider</label>
+                {groupModelOptions.length > 0 ? (
                   <select
                     className="select"
-                    id="preset"
-                    name="presetId"
-                    value={presetId}
-                    onChange={(event) => setPresetId(event.target.value)}
+                    id="model"
+                    value={optionKey(groupId, model)}
+                    onChange={(event) => {
+                      const [nextGroupId, nextModel] = event.target.value.split("::");
+                      setGroupId(nextGroupId ?? "");
+                      setModel(nextModel ?? "");
+                    }}
                   >
-                    <option value={ROTATE_PRESET_ID}>🔄 自动轮换(全部 Provider)</option>
-                    {presets.map((preset) => (
-                      <option key={preset.id} value={preset.id}>
-                        {preset.name}
-                        {preset.isDefault ? "（默认）" : ""}
+                    {groupModelOptions.map((o) => (
+                      <option key={optionKey(o.groupId, o.model)} value={optionKey(o.groupId, o.model)}>
+                        {optionLabel(o)}
                       </option>
                     ))}
                   </select>
-                </div>
-              ) : (
-                <input type="hidden" name="presetId" value={presetId} />
-              )}
+                ) : (
+                  <p className="small muted" style={{ margin: 0 }}>
+                    还没有配置模型组,请到 <a href="/settings#settings-groups">设置 → 模型组</a> 添加。
+                  </p>
+                )}
+                {/* 提交用:模型值 + 所属组,由后端锁定该组的 baseUrl+key */}
+                <input type="hidden" name="model" value={model} />
+                <input type="hidden" name="groupId" value={groupId} />
+              </div>
               <div className="field">
                 <label htmlFor="size">尺寸</label>
                 <select className="select" id="size" name="size" value={size} onChange={(event) => setSize(event.target.value)}>
@@ -1725,7 +1727,7 @@ export function Workspace({
               <span>{count} 张</span>
               <span>{referenceSummary}</span>
             </div>
-            <button className="button" type="submit" disabled={loading} aria-busy={loading}>
+            <button className="button" type="submit" disabled={loading || !model} aria-busy={loading}>
               {loading ? <ButtonSpinner size={17} /> : <Play size={17} />}
               {loading ? "生成中" : "开始生成"}
             </button>
@@ -1952,11 +1954,6 @@ export function Workspace({
       </aside>
     </div>
   );
-}
-
-function normalizeModel(value: string | null, models: ModelOption[], fallback: string) {
-  if (value && models.some((model) => model.value === value)) return value;
-  return fallback || models[0]?.value || "";
 }
 
 // 把一个尺寸值解析成下拉选择状态:命中预设档→选中该档;形如 WxH 的非预设→「自定义」并回填宽高;否则 auto。

@@ -1,11 +1,10 @@
 import { AppNav } from "@/components/app-nav";
 import { AppFooter } from "@/components/app-footer";
-import { AiKeysForm } from "@/components/ai-keys-form";
 import { AuditLogPanel } from "@/components/audit-log-panel";
 import { CacheGuidePanel } from "@/components/cache-guide-panel";
 import { CreateUserForm } from "@/components/create-user-form";
 import { DataBackupPanel } from "@/components/data-backup-panel";
-import { PresetsManager } from "@/components/presets-manager";
+import { ModelGroupsManager } from "@/components/model-groups-manager";
 import { PromptTemplatesPanel } from "@/components/prompt-templates-panel";
 import { PromptOptimizePanel } from "@/components/prompt-optimize-panel";
 import { ReferenceImagesPanel } from "@/components/reference-images-panel";
@@ -17,10 +16,9 @@ import { UserSecurityPanel } from "@/components/user-security-panel";
 import { requireAdmin } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { config } from "@/lib/config";
-import { listAiKeySummaries } from "@/lib/api-keys";
 import { getSystemHealth } from "@/lib/health";
 import { getOperationalMetrics } from "@/lib/metrics";
-import { getProviderSettings } from "@/lib/provider-settings";
+import { listModelGroups } from "@/lib/model-groups";
 import { listPromptTemplates } from "@/lib/prompt-templates";
 import {
   getPromptOptimizeSummary,
@@ -35,17 +33,17 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const user = await requireAdmin();
-  const [users, aiKeys, health, providerSettings, promptTemplates, promptOptimize, themePreference, metrics] =
+  const [users, health, modelGroups, promptTemplates, promptOptimize, themePreference, metrics] =
     await Promise.all([
       query<User>(`select id, username, role, active, must_change_password, session_epoch, created_at, updated_at from users order by created_at desc`),
-      listAiKeySummaries(),
       getSystemHealth(),
-      getProviderSettings(),
+      listModelGroups(),
       listPromptTemplates(),
       getPromptOptimizeSummary(),
       getUiThemePreference(),
       getOperationalMetrics()
     ]);
+  const defaultGroup = modelGroups.find((group) => group.isDefault) ?? modelGroups[0] ?? null;
 
   return (
     <div className="shell" data-theme={themePreference.theme}>
@@ -56,11 +54,6 @@ export default async function SettingsPage() {
             <>
               <SystemHealthCard health={health} metrics={metrics} />
               <UpdateCheckPanel currentVersion={APP_VERSION_LABEL.replace(/^v/, "")} repository={config.githubRepositorySlug} />
-              <PresetsManager
-                presets={providerSettings.presets}
-                fallbackAiBaseUrl={providerSettings.aiBaseUrl}
-                fallbackSource={providerSettings.source}
-              />
               <section className="panel">
                 <div className="panel-header">
                   <h1 className="panel-title">运行设置</h1>
@@ -69,8 +62,8 @@ export default async function SettingsPage() {
                   <div className="actions">
                     <span className="status">版本: {APP_VERSION_LABEL}</span>
                     <span className="status">主题: 顶部菜单自选</span>
-                    <span className="status">默认 Base URL: {providerSettings.aiBaseUrl || "未配置"}</span>
-                    <span className="status">Preset 数量: {providerSettings.presets.length}</span>
+                    <span className="status">模型组: {modelGroups.length} 组</span>
+                    <span className="status">默认组: {defaultGroup?.name ?? "未配置(env 兜底)"}</span>
                     <span className="status">时区: {config.timeZone}</span>
                     <span className="status">存储: {config.storageRoot}</span>
                     <span className="status">并发: {config.maxGenerationConcurrency}</span>
@@ -80,19 +73,7 @@ export default async function SettingsPage() {
               </section>
             </>
           }
-          keys={
-            <AiKeysForm
-              keys={aiKeys.keys}
-              hasEnvFallback={Boolean(config.aiApiKey)}
-              autoDisableEnabled={aiKeys.autoDisableEnabled}
-              autoDisableFailureThreshold={aiKeys.autoDisableFailureThreshold}
-              presets={providerSettings.presets.map((preset) => ({
-                id: preset.id,
-                name: preset.name,
-                isDefault: preset.isDefault
-              }))}
-            />
-          }
+          groups={<ModelGroupsManager groups={modelGroups} />}
           users={
             <>
               <CreateUserForm />

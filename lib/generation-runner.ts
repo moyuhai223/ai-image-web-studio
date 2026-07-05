@@ -23,8 +23,8 @@ export type GenerationRunInput = {
   /** 来自 request_metadata.mask.composite;false 时 provider 跳过合成贴回,直接返回模型编辑图。 */
   maskComposite?: boolean;
   parentImageId?: string;
-  /** 来自 request_metadata.providerPresetId;runner 透传给 provider 用于选 baseUrl + key */
-  presetId?: string | null;
+  /** 来自 request_metadata.providerGroupId;runner 透传给 provider 用于解析该组的 baseUrl + key */
+  groupId?: string | null;
   /** 来自 request_metadata.upscale.targetLongEdge;非空时把模型输出存盘前 sharp 放大到该长边(AI 高清化收尾到 4K) */
   upscaleTargetLongEdge?: number;
   /** 来自 request_metadata.autoRetry.attempts;已自动重试的次数,用于判断是否还能再重试。 */
@@ -212,9 +212,9 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
   const referenceInfo = await getReferenceInfo(job.request_metadata);
   const maskDataUrl = await loadMaskDataUrl(job.request_metadata);
   const maskComposite = loadMaskComposite(job.request_metadata);
-  const presetId =
-    typeof job.request_metadata?.providerPresetId === "string" && job.request_metadata.providerPresetId.trim()
-      ? (job.request_metadata.providerPresetId as string)
+  const groupId =
+    typeof job.request_metadata?.providerGroupId === "string" && job.request_metadata.providerGroupId.trim()
+      ? (job.request_metadata.providerGroupId as string)
       : null;
 
   const upscaleMeta = asRecord(job.request_metadata?.upscale);
@@ -230,7 +230,7 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
     model: job.model,
     size: job.size,
     count: job.count,
-    presetId,
+    groupId,
     upscaleTargetLongEdge,
     autoRetryAttempts,
     maskDataUrl,
@@ -295,8 +295,8 @@ async function markSucceeded(
     keyLabel?: string | null;
     keySource?: "pool" | "env";
     baseUrl?: string;
-    presetId?: string | null;
-    presetName?: string | null;
+    groupId?: string | null;
+    groupName?: string | null;
     images: unknown[];
     raw: Record<string, unknown>;
   }>,
@@ -325,8 +325,8 @@ async function markSucceeded(
           keyLabel: result.keyLabel ?? null,
           keySource: result.keySource ?? null,
           baseUrl: result.baseUrl ?? null,
-          presetId: result.presetId ?? null,
-          presetName: result.presetName ?? null,
+          groupId: result.groupId ?? null,
+          groupName: result.groupName ?? null,
           imageCount: result.images.length,
           raw: sanitizeProviderMetadata(result.raw)
         }))
@@ -615,11 +615,11 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
       const providerResult = await generateWithProvider(
         { ...input, count: 1 },
         {
-          presetId: input.presetId ?? null,
-          // 选中(或 failover 切换到)某个 Provider 时,把进度消息更新为实际 Provider 名。
+          groupId: input.groupId ?? null,
+          // 选中模型组时,把进度消息更新为实际组名。
           onProviderSelected: (info) => {
-            selectedProviderName = info.presetName;
-            void emitRequesting(info.presetName);
+            selectedProviderName = info.groupName;
+            void emitRequesting(info.groupName);
           }
         }
       );

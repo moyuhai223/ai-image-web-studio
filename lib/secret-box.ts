@@ -2,8 +2,8 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import { config } from "./config";
 
 /**
- * 通用密文盒子:与 lib/api-keys.ts 同款 aes-256-gcm + sha256(AUTH_SECRET) 派生密钥,
- * 用于把单条敏感字符串(如提示词优化的独立 API Key)加密存进 app_settings。
+ * 通用密文盒子:aes-256-gcm + sha256(AUTH_SECRET) 派生密钥,
+ * 用于把单条敏感字符串(如模型组 key、提示词优化的独立 API Key)加密存进 app_settings。
  * 注意:AUTH_SECRET 变更会导致旧密文无法解密。
  */
 const CIPHER_ALGORITHM = "aes-256-gcm";

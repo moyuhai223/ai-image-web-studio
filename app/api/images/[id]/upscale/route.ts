@@ -117,14 +117,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     );
   }
 
-  const sourceJob = await query<{ model: string; preset: string | null }>(
-    `select model, request_metadata #>> '{providerPresetId}' as preset
+  const sourceJob = await query<{ model: string; groupId: string | null }>(
+    `select model, request_metadata #>> '{providerGroupId}' as "groupId"
      from generation_jobs where id = $1`,
     [source.job_id]
   );
   const srcModel = sourceJob.rows[0]?.model ?? "";
   const model = srcModel && !srcModel.startsWith("upscale") ? srcModel : config.imageModelGpt;
-  const presetId = sourceJob.rows[0]?.preset ?? null;
+  const groupId = sourceJob.rows[0]?.groupId ?? null;
 
   // 直接请求模型原生 4K(按源图比例算尺寸,满足 gpt-image-2 约束:长边≤3840、/16、像素预算);
   // 模型支持则原生出 4K,代理/模型不支持时由 runner 的 ensureLongEdge sharp 兜底到同一长边。
@@ -159,7 +159,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         count: 1,
         reference,
         references: [reference],
-        providerPresetId: presetId,
+        providerGroupId: groupId,
         upscale: { mode: "ai", sourceImageId: source.id, targetLongEdge: computedLongEdge },
         progress: {
           phase: "queued",

@@ -1,17 +1,12 @@
 import sharp from "sharp";
-import { getNextAiApiKey, reportAiKeyFailure, reportAiKeySuccess } from "./api-keys";
 import { config } from "./config";
 import { assertPublicBaseUrl } from "./egress-guard";
 import { boundedSharp } from "./image-limits";
 import { createLogger } from "./logger";
-import { getProviderSettings, resolveProvider } from "./provider-settings";
-import { isRotatePreset } from "./provider-rotation";
+import { resolveModelGroup } from "./model-groups";
 import { imageSourceToBuffer } from "./storage";
 
 const log = createLogger("provider");
-
-// Provider 自动轮换:进程级轮询游标(单实例部署足够;重启归零无妨)。
-let rotationCursor = 0;
 
 export type ProviderImage = {
   b64?: string;
@@ -25,25 +20,25 @@ export type ProviderResult = {
   keyLabel: string | null;
   keySource: "pool" | "env";
   baseUrl: string;
-  presetId: string | null;
-  presetName: string | null;
+  groupId: string | null;
+  groupName: string | null;
   images: ProviderImage[];
   raw: Record<string, unknown>;
 };
 
 export type ProviderSelectedInfo = {
-  presetId: string | null;
-  presetName: string | null;
+  groupId: string | null;
+  groupName: string | null;
   baseUrl: string;
 };
 
 export type ProviderRequestOptions = {
-  presetId?: string | null;
-  /** 真正向某个 Provider(preset)发起请求前回调;轮换 failover 时每个被尝试的 preset 都会回调一次。 */
+  groupId?: string | null;
+  /** 真正发请求前回调,把进度消息更新为实际模型组名。 */
   onProviderSelected?: (info: ProviderSelectedInfo) => void;
 };
 
-type ProviderPayloadResult = Omit<ProviderResult, "keyId" | "keyLabel" | "keySource" | "baseUrl" | "presetId" | "presetName">;
+type ProviderPayloadResult = Omit<ProviderResult, "keyId" | "keyLabel" | "keySource" | "baseUrl" | "groupId" | "groupName">;
 
 type ProviderDeadline = {
   expiresAt: number;
@@ -69,7 +64,6 @@ type GenerateInput = {
   maskComposite?: boolean;
 };
 
-const MAX_KEY_ATTEMPTS = 3;
 const IMAGE2_REFERENCE_MAX_SIDE = 1536;
 const IMAGE2_REFERENCE_SAFE_BYTES = 4 * 1024 * 1024;
 const IMAGE2_SUPPORTED_MIMES = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -555,15 +549,6 @@ function enrichEditError(error: unknown, diagnostic: string) {
   return enriched;
 }
 
-function shouldTryAnotherKey(error: unknown) {
-  if (isProviderTimeoutError(error)) return false;
-  if (isTransientProviderError(error)) return true;
-
-  const status = (error as Error & { status?: number }).status;
-  if (!status) return false;
-  return status === 401 || status === 403 || status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
-}
-
 async function generateImageGeneration(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
   const imageRequest: Record<string, unknown> = {
     model: input.model,
@@ -743,104 +728,33 @@ async function generateWithSelectedKey(input: GenerateInput, apiKey: string, dea
   return generateChatImage(input, apiKey, deadline, baseUrl);
 }
 
-type PresetContext = { baseUrl: string; presetId: string | null; presetName: string | null };
-
-// 单个 Provider(preset)内的尝试:在该 preset 的多个 key 之间轮换(带失败自动停用)。
-// 成功返回 ProviderResult;该 preset 内全部不可用时抛错(由上层决定是否 failover 到下一个 preset)。
-async function runWithPreset(input: GenerateInput, ctx: PresetContext): Promise<ProviderResult> {
-  const { baseUrl, presetId, presetName } = ctx;
-  const triedKeyIds: string[] = [];
-  let triedEnvKey = false;
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= MAX_KEY_ATTEMPTS; attempt += 1) {
-    let selection: Awaited<ReturnType<typeof getNextAiApiKey>>;
-    try {
-      selection = await getNextAiApiKey(triedKeyIds, presetId);
-    } catch (error) {
-      if (lastError) throw lastError;
-      throw error;
-    }
-
-    if (selection.keyId) {
-      if (triedKeyIds.includes(selection.keyId)) break;
-      triedKeyIds.push(selection.keyId);
-    } else {
-      if (triedEnvKey) break;
-      triedEnvKey = true;
-    }
-
-    try {
-      const result = await generateWithSelectedKey(input, selection.apiKey, createDeadline(), baseUrl);
-      await reportAiKeySuccess(selection.keyId);
-      return {
-        ...result,
-        keyId: selection.keyId,
-        keyLabel: selection.keyLabel,
-        keySource: selection.source,
-        baseUrl,
-        presetId,
-        presetName
-      };
-    } catch (error) {
-      lastError = error;
-      await reportAiKeyFailure(selection.keyId, error);
-
-      if (!shouldTryAnotherKey(error) || attempt === MAX_KEY_ATTEMPTS) {
-        throw error;
-      }
-
-      log.warn("Provider key attempt failed, trying another key", { attempt, presetId, error });
-    }
-  }
-
-  if (lastError) throw lastError;
-  throw new Error(
-    presetName
-      ? `Preset「${presetName}」下没有可用的 AI Key`
-      : "没有可用的 AI Key"
-  );
-}
-
+/**
+ * 用模型组解析出 baseUrl+key 后发起生成。选模型即锁定其组的 baseUrl+key(工作台侧保证)。
+ * 无模型组配置时回退 env(config.aiBaseUrl + config.aiApiKey)。单 key,请求内不再 failover;
+ * 瞬时失败由 runner 的任务级自动重试兜底。
+ */
 export async function generateWithProvider(
   input: GenerateInput,
   options: ProviderRequestOptions = {}
 ): Promise<ProviderResult> {
-  // 自动轮换:按轮询在所有 Provider(preset)间取一个,选中的失败/无可用 key 时顺延下一个(failover)。
-  if (isRotatePreset(options.presetId)) {
-    const presets = (await getProviderSettings()).presets;
-    if (presets.length > 0) {
-      const start = rotationCursor % presets.length;
-      rotationCursor = (rotationCursor + 1) % 1_000_000;
-      let lastError: unknown;
-      for (let i = 0; i < presets.length; i += 1) {
-        const preset = presets[(start + i) % presets.length];
-        options.onProviderSelected?.({ presetId: preset.id, presetName: preset.name, baseUrl: preset.baseUrl });
-        try {
-          return await runWithPreset(input, { baseUrl: preset.baseUrl, presetId: preset.id, presetName: preset.name });
-        } catch (error) {
-          lastError = error;
-          log.warn("Provider 轮换:当前 Provider 失败,顺延下一个", {
-            presetId: preset.id,
-            presetName: preset.name,
-            error
-          });
-        }
-      }
-      throw lastError ?? new Error("所有 Provider 都不可用");
-    }
-    // 没有任何 preset → 退回默认/env 解析(下面统一处理)。
-  }
+  const resolved = await resolveModelGroup(options.groupId ?? null);
+  const groupId = resolved?.group.id ?? null;
+  const groupName = resolved?.group.name ?? null;
+  const baseUrl = resolved?.group.baseUrl || config.aiBaseUrl;
+  const apiKey = resolved?.apiKey || config.aiApiKey;
 
-  const resolved = await resolveProvider(isRotatePreset(options.presetId) ? null : options.presetId);
-  options.onProviderSelected?.({
-    presetId: resolved.preset?.id ?? null,
-    presetName: resolved.preset?.name ?? null,
-    baseUrl: resolved.baseUrl
-  });
-  return runWithPreset(input, {
-    baseUrl: resolved.baseUrl,
-    presetId: resolved.preset?.id ?? null,
-    presetName: resolved.preset?.name ?? null
-  });
+  if (!baseUrl) throw new Error("未配置模型组或 Base URL(请到 设置 → 模型组 添加,或设置 PROVIDER_BASE_URL)");
+  if (!apiKey) throw new Error(groupName ? `模型组「${groupName}」未配置 API Key` : "未配置 API Key");
+
+  options.onProviderSelected?.({ groupId, groupName, baseUrl });
+  const result = await generateWithSelectedKey(input, apiKey, createDeadline(), baseUrl);
+  return {
+    ...result,
+    keyId: null,
+    keyLabel: groupName,
+    keySource: resolved ? "pool" : "env",
+    baseUrl,
+    groupId,
+    groupName
+  };
 }

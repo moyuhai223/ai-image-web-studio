@@ -229,16 +229,16 @@ function keyLabel(job: JobWithImages) {
 }
 
 function presetLabel(job: JobWithImages) {
-  // 优先取 runner 实际跑出来的 preset 名(写在 response_metadata.requests[0].presetName),
-  // 退到任务提交时选的 presetId(在 request_metadata.providerPresetId),都没有则按"默认"展示。
+  // 优先取 runner 实际跑出来的模型组名(写在 response_metadata.requests[0].groupName),
+  // 退到任务提交时选的 groupId(在 request_metadata.providerGroupId),都没有则按"默认"展示。
   const meta = requestMeta(job);
   const actualName =
-    meta && typeof meta.presetName === "string" && meta.presetName.trim() ? meta.presetName.trim() : null;
+    meta && typeof meta.groupName === "string" && meta.groupName.trim() ? meta.groupName.trim() : null;
   if (actualName) return actualName;
 
-  const requested = job.request_metadata?.providerPresetId;
+  const requested = job.request_metadata?.providerGroupId;
   if (typeof requested === "string" && requested.trim()) {
-    return `Preset ${requested.slice(0, 8)}`;
+    return `组 ${requested.slice(0, 8)}`;
   }
   return "默认";
 }

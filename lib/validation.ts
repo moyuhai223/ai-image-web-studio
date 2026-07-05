@@ -1,22 +1,14 @@
 import { z } from "zod";
 import { config } from "./config";
 
-export const modelOptions = [
-  { label: "GPT Image 2", value: config.imageModelGpt },
-  { label: "Nano Banana 2", value: config.imageModelNano },
-  { label: "Gemini 3.1 Flash Image", value: config.imageModelGemini },
-  { label: "Grok Imagine", value: config.imageModelGrok },
-  { label: "Grok Imagine 高清", value: config.imageModelGrokQuality }
-];
-
 export const generateSchema = z.object({
   prompt: z.string().trim().min(1, "请输入提示词").max(4000, "提示词太长"),
   model: z.string().trim().min(1),
   // 接受预设档或自定义 WxH;实际值由服务端 normalizeImageSize 自动裁剪成合规尺寸(/16、限最大、像素预算)
   size: z.string().trim().regex(/^(auto|\d{2,5}x\d{2,5})$/i, "尺寸格式无效"),
   count: z.coerce.number().int().min(1).max(4),
-  /** 可选的 Provider Preset ID;未传或空串等价于使用默认 preset */
-  presetId: z
+  /** 模型所属的模型组 id;未传或空串则服务端回退默认组 */
+  groupId: z
     .string()
     .trim()
     .max(120)

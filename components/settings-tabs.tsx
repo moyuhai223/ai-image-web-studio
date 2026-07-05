@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Cloud, DatabaseZap, FileClock, FileText, ImageIcon, KeyRound, ShieldCheck, Users } from "lucide-react";
+import { Boxes, Cloud, DatabaseZap, FileClock, FileText, ImageIcon, ShieldCheck, Users } from "lucide-react";
 
-type SettingsTabId = "system" | "keys" | "users" | "templates" | "references" | "maintenance" | "cache" | "audit";
+type SettingsTabId = "system" | "groups" | "users" | "templates" | "references" | "maintenance" | "cache" | "audit";
 
 type SettingsTabsProps = Record<SettingsTabId, ReactNode>;
 
 const tabMeta = [
   { id: "system", label: "系统状态", Icon: ShieldCheck },
-  { id: "keys", label: "Key 管理", Icon: KeyRound },
+  { id: "groups", label: "模型组", Icon: Boxes },
   { id: "users", label: "用户管理", Icon: Users },
   { id: "templates", label: "提示词模板", Icon: FileText },
   { id: "references", label: "参考图", Icon: ImageIcon },

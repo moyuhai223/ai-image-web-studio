@@ -1,4 +1,4 @@
-import { listAiKeySummaries } from "./api-keys";
+import { listModelGroups } from "./model-groups";
 import { query } from "./db";
 import type { GenerationStatus } from "./types";
 
@@ -200,21 +200,15 @@ async function loadPhaseTimings(): Promise<PhaseTimingMetrics> {
 }
 
 async function loadAiKeyMetrics(): Promise<AiKeyMetrics> {
-  const summary = await listAiKeySummaries();
-  let totalSuccess = 0;
-  let totalFailure = 0;
-  let enabled = 0;
-  for (const key of summary.keys) {
-    totalSuccess += key.successCount;
-    totalFailure += key.failureCount;
-    if (key.enabled) enabled += 1;
-  }
+  // 模型组化后,凭据以「每组单 key」存储,不再有 per-key 成功/失败健康。这里改报模型组计数。
+  const groups = await listModelGroups();
+  const usable = groups.filter((group) => group.enabled && group.hasKey).length;
   return {
-    total: summary.keys.length,
-    enabled,
-    disabled: summary.keys.length - enabled,
-    totalSuccess,
-    totalFailure
+    total: groups.length,
+    enabled: usable,
+    disabled: groups.length - usable,
+    totalSuccess: 0,
+    totalFailure: 0
   };
 }
 

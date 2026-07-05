@@ -17,7 +17,7 @@ import { formatDateTime } from "@/lib/time";
 import { imageThumbnailUrl } from "@/lib/thumbnails";
 import { resolutionTier } from "@/lib/image-size";
 import { getUiThemePreference } from "@/lib/ui-theme";
-import { modelOptions } from "@/lib/validation";
+import { listDistinctModelValues } from "@/lib/model-groups";
 import { Download, Filter, Heart, Info, RotateCcw, Search } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +57,8 @@ function normalizeFavoriteFilters(params: Record<string, string | string[] | und
   return {
     q: cleanParam(params.q),
     tag: normalizeTag(params.tag),
-    model: modelOptions.some((item) => item.value === model) ? model : undefined,
+    // 模型值动态(来自模型组);直接透传,DB 参数化查询安全。
+    model,
     size: sizeOptions.includes(size ?? "") ? size : undefined,
     period: normalizePeriod(params.period)
   };
@@ -117,7 +118,11 @@ export default async function FavoritesPage({
   const filters = normalizeFavoriteFilters(params);
   const filterQuery = filterQueryString(filters);
   const requestedPage = Number(firstParam(params.page) ?? 1);
-  const [total, themePreference] = await Promise.all([countFavoriteImages(user, filters), getUiThemePreference()]);
+  const [total, themePreference, modelOptions] = await Promise.all([
+    countFavoriteImages(user, filters),
+    getUiThemePreference(),
+    listDistinctModelValues()
+  ]);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Number.isFinite(requestedPage) ? Math.min(Math.max(1, requestedPage), totalPages) : 1;
   const images = await listFavoriteImagesPage(user, page, PAGE_SIZE, filters);

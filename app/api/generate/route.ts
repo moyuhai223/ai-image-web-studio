@@ -115,7 +115,7 @@ export async function POST(request: Request) {
     model: formData.get("model"),
     size: formData.get("size"),
     count: formData.get("count"),
-    presetId: formData.get("presetId")
+    groupId: formData.get("groupId")
   });
 
   if (!parsed.success) {
@@ -288,7 +288,7 @@ export async function POST(request: Request) {
             reference: referenceMetadata,
             references,
             mask: maskMetadata,
-            providerPresetId: parsed.data.presetId ?? null,
+            providerGroupId: parsed.data.groupId ?? null,
             progress: {
               phase: "queued",
               current: 0,

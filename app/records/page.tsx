@@ -20,7 +20,7 @@ import { imageThumbnailUrl, THUMBNAIL_QUERY } from "@/lib/thumbnails";
 import { resolutionTier } from "@/lib/image-size";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import type { GenerationJob, GenerationStatus } from "@/lib/types";
-import { modelOptions } from "@/lib/validation";
+import { listDistinctModelValues } from "@/lib/model-groups";
 import { Filter, Info, Image as ImageIcon, Inbox, RotateCcw } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +92,8 @@ function normalizeRecordsFilters(params: Record<string, string | string[] | unde
   return {
     q: cleanParam(params.q),
     status: normalizeStatus(params.status),
-    model: modelOptions.some((item) => item.value === model) ? model : undefined,
+    // 模型值动态(来自模型组);直接透传,DB 参数化查询安全,未知值只是查不到结果。
+    model,
     size: sizeOptions.includes(size ?? "") ? size : undefined,
     username: cleanParam(params.user),
     tag: normalizeTag(params.tag),
@@ -137,10 +138,11 @@ export default async function RecordsPage({
   const lightboxTarget = normalizeLightboxTarget(params.lightbox);
   // v0.7.30: 列表查询与 count/主题并行(乐观按请求页取);只有请求页越界被夹取时才补一次查询。
   const optimisticPage = Number.isFinite(requestedPage) ? Math.max(1, requestedPage) : 1;
-  const [total, themePreference, optimisticJobs] = await Promise.all([
+  const [total, themePreference, optimisticJobs, modelOptions] = await Promise.all([
     countJobs(user, filtersForQuery),
     getUiThemePreference(),
-    listJobsPage(user, optimisticPage, PAGE_SIZE, filtersForQuery)
+    listJobsPage(user, optimisticPage, PAGE_SIZE, filtersForQuery),
+    listDistinctModelValues()
   ]);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(optimisticPage, totalPages);

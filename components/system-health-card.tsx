@@ -61,7 +61,7 @@ export function SystemHealthCard({ health, metrics }: { health: SystemHealth; me
             <KeyRound size={18} />
             <div>
               <strong className="num">{health.keys.enabled} / {health.keys.total}</strong>
-              <p className="small muted">启用 Key / 总 Key</p>
+              <p className="small muted">可用模型组 / 总组</p>
             </div>
           </div>
           <div className="health-metric">
@@ -69,8 +69,8 @@ export function SystemHealthCard({ health, metrics }: { health: SystemHealth; me
             <div>
               <strong className="break-text">{health.provider.baseUrl || "未配置"}</strong>
               <p className="small muted">
-                默认 Provider · {health.provider.source === "database" ? "设置页" : ".env"}
-                {health.provider.presets.length > 0 ? <> · 共 <span className="num">{health.provider.presets.length}</span> 个 Preset</> : ""}
+                默认组 · {health.provider.source === "database" ? "模型组" : ".env 兜底"}
+                {health.provider.groups.length > 0 ? <> · 共 <span className="num">{health.provider.groups.length}</span> 组</> : ""}
               </p>
             </div>
           </div>
@@ -96,10 +96,10 @@ export function SystemHealthCard({ health, metrics }: { health: SystemHealth; me
 
           <article className="health-check">
             <div className="health-check-head">
-              <span><KeyRound size={16} /> Key 池</span>
+              <span><KeyRound size={16} /> 模型组</span>
               <CheckBadge ok={!health.keys.error} />
             </div>
-            <p className="small muted">总数 <span className="num">{health.keys.total}</span>，启用 <span className="num">{health.keys.enabled}</span>，停用 <span className="num">{health.keys.disabled}</span></p>
+            <p className="small muted">共 <span className="num">{health.keys.total}</span> 组，可用 <span className="num">{health.keys.enabled}</span>，不可用 <span className="num">{health.keys.disabled}</span></p>
             {health.keys.error ? <p className="small health-error">{health.keys.error}</p> : null}
           </article>
 
@@ -123,18 +123,20 @@ export function SystemHealthCard({ health, metrics }: { health: SystemHealth; me
           </article>
         </div>
 
-        {health.provider.presets.length > 0 ? (
+        {health.provider.groups.length > 0 ? (
           <div className="form-stack">
-            <p className="small muted">Provider Preset</p>
+            <p className="small muted">模型组</p>
             <ul className="key-list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
-              {health.provider.presets.map((preset) => (
-                <li key={preset.id} className="key-row">
+              {health.provider.groups.map((group) => (
+                <li key={group.id} className="key-row">
                   <div className="key-meta">
                     <div className="actions">
-                      <strong>{preset.name}</strong>
-                      {preset.isDefault ? <span className="status succeeded">默认</span> : null}
+                      <strong>{group.name}</strong>
+                      {group.isDefault ? <span className="status succeeded">默认</span> : null}
+                      {!group.enabled ? <span className="status failed">停用</span> : null}
+                      {!group.hasKey ? <span className="status failed">无 Key</span> : null}
                     </div>
-                    <span className="small muted break-text">{preset.baseUrl}</span>
+                    <span className="small muted break-text">{group.baseUrl} · {group.models} 个模型</span>
                   </div>
                 </li>
               ))}
@@ -174,12 +176,10 @@ export function SystemHealthCard({ health, metrics }: { health: SystemHealth; me
 
               <article className="health-check">
                 <div className="health-check-head">
-                  <span><KeyRound size={16} /> Key 历史累计</span>
-                  <span className="status"><span className="num">{metrics.aiKeys.totalSuccess + metrics.aiKeys.totalFailure}</span></span>
+                  <span><KeyRound size={16} /> 模型组</span>
+                  <span className="status"><span className="num">{metrics.aiKeys.enabled}</span> / {metrics.aiKeys.total} 可用</span>
                 </div>
-                <p className="small muted">
-                  成功 <span className="num">{metrics.aiKeys.totalSuccess}</span> · 失败 <span className="num">{metrics.aiKeys.totalFailure}</span>
-                </p>
+                <p className="small muted">可用 = 已启用且已配置 Key 的组</p>
               </article>
 
               <article className="health-check">

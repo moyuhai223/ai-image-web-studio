@@ -1,7 +1,6 @@
-import { listAiKeySummaries } from "./api-keys";
 import { config } from "./config";
 import { query } from "./db";
-import { getProviderSettings } from "./provider-settings";
+import { listModelGroups } from "./model-groups";
 import { checkStorageWritable, getStorageRoot } from "./storage";
 import { APP_VERSION, APP_VERSION_LABEL } from "./version";
 
@@ -18,11 +17,14 @@ export type LastGenerationError = {
   updatedAt: string;
 } | null;
 
-export type ProviderPresetHealth = {
+export type ProviderGroupHealth = {
   id: string;
   name: string;
   baseUrl: string;
   isDefault: boolean;
+  enabled: boolean;
+  models: number;
+  hasKey: boolean;
 };
 
 export type SystemHealth = {
@@ -34,13 +36,14 @@ export type SystemHealth = {
   provider: {
     baseUrl: string;
     source: "database" | "env";
-    presets: ProviderPresetHealth[];
-    defaultPresetId: string | null;
+    groups: ProviderGroupHealth[];
+    defaultGroupId: string | null;
   };
   database: HealthCheckResult;
   storage: HealthCheckResult & {
     path: string;
   };
+  // 模型组摘要:total=组数,enabled=启用且已配 key 的组数。
   keys: {
     total: number;
     enabled: number;
@@ -64,8 +67,8 @@ export async function getSystemHealth(): Promise<SystemHealth> {
   let provider: SystemHealth["provider"] = {
     baseUrl: config.aiBaseUrl,
     source: "env",
-    presets: [],
-    defaultPresetId: null
+    groups: [],
+    defaultGroupId: null
   };
 
   try {
@@ -84,35 +87,24 @@ export async function getSystemHealth(): Promise<SystemHealth> {
 
   if (database.ok) {
     try {
-      const providerSettings = await getProviderSettings();
+      const groups = await listModelGroups();
+      const defaultGroup = groups.find((group) => group.isDefault) ?? groups[0] ?? null;
       provider = {
-        baseUrl: providerSettings.aiBaseUrl,
-        source: providerSettings.source,
-        presets: providerSettings.presets.map((preset) => ({
-          id: preset.id,
-          name: preset.name,
-          baseUrl: preset.baseUrl,
-          isDefault: preset.isDefault
+        baseUrl: defaultGroup?.baseUrl || config.aiBaseUrl,
+        source: groups.length > 0 ? "database" : "env",
+        groups: groups.map((group) => ({
+          id: group.id,
+          name: group.name,
+          baseUrl: group.baseUrl,
+          isDefault: group.isDefault,
+          enabled: group.enabled,
+          models: group.models.length,
+          hasKey: group.hasKey
         })),
-        defaultPresetId: providerSettings.presets.find((preset) => preset.isDefault)?.id ?? null
+        defaultGroupId: defaultGroup?.id ?? null
       };
-    } catch {
-      provider = {
-        baseUrl: config.aiBaseUrl,
-        source: "env",
-        presets: [],
-        defaultPresetId: null
-      };
-    }
-
-    try {
-      const summary = await listAiKeySummaries();
-      const enabled = summary.keys.filter((key) => key.enabled).length;
-      keyCount = {
-        total: summary.keys.length,
-        enabled,
-        disabled: summary.keys.length - enabled
-      };
+      const usable = groups.filter((group) => group.enabled && group.hasKey).length;
+      keyCount = { total: groups.length, enabled: usable, disabled: groups.length - usable };
     } catch (error) {
       keyError = errorMessage(error);
     }
