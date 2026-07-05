@@ -412,6 +412,12 @@ function isNanoBananaModel(model: string) {
   return model === config.imageModelNano || model.toLowerCase().includes("banana");
 }
 
+// Grok Imagine 系(xAI 图像模型),经 OpenAI 兼容代理走 /v1/images/generations 文生图;
+// 与 gpt-image 不同,xAI 图像接口通常不吃 size 参数(见 generateImageGeneration 里的省略)。
+function isGrokImageModel(model: string) {
+  return model === config.imageModelGrok || model.toLowerCase().includes("grok");
+}
+
 // Gemini flash-image(本质与 Nano Banana 同源,都是 Google 多模态出图模型),
 // 通过 OpenAI 兼容代理时走 /v1/chat/completions(text + image_url 多模态),
 // 而非 /v1/images/edits。匹配显式配置值或名字里带 "gemini" 的自定义模型。
@@ -559,12 +565,13 @@ function shouldTryAnotherKey(error: unknown) {
 }
 
 async function generateImageGeneration(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
-  const imageRequest = {
+  const imageRequest: Record<string, unknown> = {
     model: input.model,
     prompt: input.prompt,
-    size: input.size,
     n: input.count
   };
+  // Grok/xAI 图像接口通常不支持 size(传了会报 unsupported parameter),对其省略;其余模型带上 size。
+  if (!isGrokImageModel(input.model)) imageRequest.size = input.size;
 
   // 不传 response_format:实测网关带上该参数会返回首页 HTML / 报 Unknown parameter。
   // 返回体由 normalizeImageGenerations 兼容 b64/url;失败如实抛,由任务级自动重试兜底。
@@ -698,6 +705,11 @@ async function generateWithSelectedKey(input: GenerateInput, apiKey: string, dea
     return getReferenceDataUrls(input).length > 0
       ? generateImageEdit(input, apiKey, deadline, baseUrl)
       : generateImageGeneration(input, apiKey, deadline, baseUrl);
+  }
+
+  // Grok 是文生图模型(不做参考图编辑),统一走 /v1/images/generations。
+  if (isGrokImageModel(input.model)) {
+    return generateImageGeneration(input, apiKey, deadline, baseUrl);
   }
 
   if (isNanoBananaModel(input.model) || isGeminiImageModel(input.model)) {

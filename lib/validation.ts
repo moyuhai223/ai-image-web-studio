@@ -4,7 +4,8 @@ import { config } from "./config";
 export const modelOptions = [
   { label: "GPT Image 2", value: config.imageModelGpt },
   { label: "Nano Banana 2", value: config.imageModelNano },
-  { label: "Gemini 3.1 Flash Image", value: config.imageModelGemini }
+  { label: "Gemini 3.1 Flash Image", value: config.imageModelGemini },
+  { label: "Grok Imagine Lite", value: config.imageModelGrok }
 ];
 
 export const generateSchema = z.object({

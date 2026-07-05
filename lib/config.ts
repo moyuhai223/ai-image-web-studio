@@ -46,6 +46,7 @@ export const config = {
   imageModelGpt: process.env.IMAGE_MODEL_GPT ?? "gpt-image-2",
   imageModelNano: process.env.IMAGE_MODEL_NANO_BANANA ?? "Nano Banana 2",
   imageModelGemini: process.env.IMAGE_MODEL_GEMINI ?? "gemini-3.1-flash-image",
+  imageModelGrok: process.env.IMAGE_MODEL_GROK ?? "grok-imagine-image-lite",
   storageRoot: process.env.LOCAL_STORAGE_ROOT ?? "./storage",
   maxUploadMb: numberEnv(process.env.MAX_UPLOAD_MB, 20),
   /** 单个 multipart 请求体总上限(MB):formData() 会先全量缓冲进内存,超此即 413 早退防 OOM。默认 100。 */
