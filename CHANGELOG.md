@@ -2,6 +2,12 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.8.1] - 2026-07-03
+
+### 修复
+
+- **Grok 模型名纠正(修 v0.8.0)**:v0.8.0 用的 `grok-imagine-image-lite` 网关不认识(报 `Model ... is not supported`);网关实际提供的是 `grok-imagine-image`(标准)与 `grok-imagine-image-quality`(高清)。现在模型下拉改为这两项:**「Grok Imagine」**(`grok-imagine-image`)与 **「Grok Imagine 高清」**(`grok-imagine-image-quality`),分发路由不变(文生图走 `/v1/images/generations`、省略 size)。env `IMAGE_MODEL_GROK` / `IMAGE_MODEL_GROK_QUALITY` 可覆盖。
+
 ## [0.8.0] - 2026-07-03
 
 ### 新增
