@@ -157,17 +157,6 @@ additionalProperties:
         zh-Hant: 最大上傳 MB
       required: true
       type: number
-    - default: 2
-      edit: true
-      envKey: MAX_GENERATION_CONCURRENCY
-      labelEn: Generation Concurrency
-      labelZh: 生成并发数
-      label:
-        en: Generation Concurrency
-        zh: 生成并发数
-        zh-Hant: 生成併發數
-      required: true
-      type: number
     - default: 20
       edit: true
       envKey: MAX_GENERATION_QUEUE_SIZE

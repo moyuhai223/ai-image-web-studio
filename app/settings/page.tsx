@@ -2,6 +2,7 @@ import { AppNav } from "@/components/app-nav";
 import { AppFooter } from "@/components/app-footer";
 import { AuditLogPanel } from "@/components/audit-log-panel";
 import { CacheGuidePanel } from "@/components/cache-guide-panel";
+import { ConcurrencyForm } from "@/components/concurrency-form";
 import { CreateUserForm } from "@/components/create-user-form";
 import { DataBackupPanel } from "@/components/data-backup-panel";
 import { ModelGroupsManager } from "@/components/model-groups-manager";
@@ -26,7 +27,7 @@ import {
   DEFAULT_OPTIMIZE_MODEL
 } from "@/lib/prompt-optimize-settings";
 import { getUiThemePreference } from "@/lib/ui-theme";
-import { getDailyGenerationLimit } from "@/lib/usage-limits";
+import { getUsageLimits } from "@/lib/usage-limits";
 import { APP_VERSION_LABEL } from "@/lib/version";
 import type { User } from "@/lib/types";
 
@@ -34,7 +35,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const user = await requireAdmin();
-  const [users, health, modelGroups, promptTemplates, promptOptimize, themePreference, metrics, dailyGenerationLimit] =
+  const [users, health, modelGroups, promptTemplates, promptOptimize, themePreference, metrics, usageLimits] =
     await Promise.all([
       query<User>(`select id, username, role, active, must_change_password, session_epoch, created_at, updated_at from users order by created_at desc`),
       getSystemHealth(),
@@ -43,8 +44,9 @@ export default async function SettingsPage() {
       getPromptOptimizeSummary(),
       getUiThemePreference(),
       getOperationalMetrics(),
-      getDailyGenerationLimit()
+      getUsageLimits()
     ]);
+  const dailyGenerationLimit = usageLimits.dailyGenerationLimit;
   const defaultGroup = modelGroups.find((group) => group.isDefault) ?? modelGroups[0] ?? null;
 
   return (
@@ -68,9 +70,10 @@ export default async function SettingsPage() {
                     <span className="status">默认组: {defaultGroup?.name ?? "未配置(env 兜底)"}</span>
                     <span className="status">时区: {config.timeZone}</span>
                     <span className="status">存储: {config.storageRoot}</span>
-                    <span className="status">并发: {config.maxGenerationConcurrency}</span>
+                    <span className="status">并发: {usageLimits.maxGenerationConcurrency}</span>
                     <span className="status">每日上限: {dailyGenerationLimit > 0 ? dailyGenerationLimit : "不限"}</span>
                   </div>
+                  <ConcurrencyForm concurrency={usageLimits.maxGenerationConcurrency} />
                 </div>
               </section>
             </>

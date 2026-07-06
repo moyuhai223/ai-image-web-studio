@@ -3,6 +3,7 @@ import { config } from "./config";
 import { query } from "./db";
 import { processGenerationJob } from "./generation-runner";
 import { createLogger } from "./logger";
+import { getMaxGenerationConcurrency } from "./usage-limits";
 
 const log = createLogger("queue");
 
@@ -34,8 +35,9 @@ const queueState =
 queueState.runningJobIds ??= new Set<string>();
 queueState.recovered ??= false;
 
-function concurrencyLimit() {
-  return Math.max(1, config.maxGenerationConcurrency);
+// 并发数改由后台设置(usage_limits)提供,60s 缓存,改完最迟下一次 drain 生效。
+async function concurrencyLimit() {
+  return Math.max(1, await getMaxGenerationConcurrency());
 }
 
 function timeoutMessage() {
@@ -330,7 +332,7 @@ async function claimNextJob(runId: string) {
 }
 
 async function claimJob(runId: string, preferredJobId?: string) {
-  if ((await runningCount()) >= concurrencyLimit()) return null;
+  if ((await runningCount()) >= (await concurrencyLimit())) return null;
   if (preferredJobId) {
     const claimed = await claimSpecificJob(preferredJobId, runId);
     if (claimed) return claimed;
@@ -379,7 +381,9 @@ async function drainQueue() {
     releaseLocalJobs(await failTimedOutRunningJobs());
     await syncLocalRunningJobs();
 
-    while (queueState.runningJobIds.size < concurrencyLimit()) {
+    // 一轮 drain 用同一份并发值(claimJob 内还有权威二次检查),避免循环中反复读。
+    const limit = await concurrencyLimit();
+    while (queueState.runningJobIds.size < limit) {
       const pendingJobId = queueState.pending.values().next().value as string | undefined;
       if (pendingJobId) {
         queueState.pending.delete(pendingJobId);

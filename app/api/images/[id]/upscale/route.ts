@@ -8,7 +8,7 @@ import { createJob, getActiveQueueStats, getImageForUser, getJobById } from "@/l
 import { readStoredFile, saveImageBuffer } from "@/lib/storage";
 import { computeUpscaleSize } from "@/lib/image-size";
 import { upscaleBufferToLongEdge } from "@/lib/upscale";
-import { getDailyGenerationLimit } from "@/lib/usage-limits";
+import { getDailyGenerationLimit, getMaxGenerationConcurrency } from "@/lib/usage-limits";
 import { upscaleSchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -54,7 +54,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   // 若不限并发,单用户反复打此端点即可耗尽 CPU/内存(DoS)。用信号量限到与生成同样的并发上限,
   // 满了直接 429(快速失败,不排队占连接)。
   if (mode === "fast") {
-    const release = tryAcquire("fast-upscale", config.maxGenerationConcurrency);
+    const release = tryAcquire("fast-upscale", await getMaxGenerationConcurrency());
     if (!release) {
       return NextResponse.json(
         { error: "高清化服务繁忙,请稍后再试", code: "upscale_busy", retryAfterSeconds: 5 },

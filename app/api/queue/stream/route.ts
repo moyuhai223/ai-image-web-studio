@@ -1,8 +1,8 @@
 import { requireUser } from "@/lib/auth";
-import { config } from "@/lib/config";
 import { startGenerationQueue } from "@/lib/generation-queue";
 import { createLogger } from "@/lib/logger";
 import { getActiveQueueStats, listActiveQueueJobs } from "@/lib/repository";
+import { getMaxGenerationConcurrency } from "@/lib/usage-limits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,12 +33,16 @@ type StreamPayload = {
   jobs: unknown[];
 };
 
-function buildPayload(stats: Awaited<ReturnType<typeof getActiveQueueStats>>, jobs: unknown[]): StreamPayload {
+function buildPayload(
+  stats: Awaited<ReturnType<typeof getActiveQueueStats>>,
+  jobs: unknown[],
+  concurrency: number
+): StreamPayload {
   return {
     ts: new Date().toISOString(),
     queued: stats.queued,
     running: stats.running,
-    concurrency: config.maxGenerationConcurrency,
+    concurrency,
     jobs
   };
 }
@@ -106,11 +110,12 @@ export async function GET(request: Request) {
 
       // 立即推一份初始快照
       try {
-        const [stats, jobs] = await Promise.all([
+        const [stats, jobs, concurrency] = await Promise.all([
           getActiveQueueStats(user),
-          listActiveQueueJobs(user, 8)
+          listActiveQueueJobs(user, 8),
+          getMaxGenerationConcurrency()
         ]);
-        const payload = buildPayload(stats, jobs);
+        const payload = buildPayload(stats, jobs, concurrency);
         lastFingerprint = payloadFingerprint(payload);
         if (!safeEnqueue(sseFormat("snapshot", payload))) return;
       } catch (error) {
@@ -121,11 +126,12 @@ export async function GET(request: Request) {
       const poll = async () => {
         if (closed) return;
         try {
-          const [stats, jobs] = await Promise.all([
+          const [stats, jobs, concurrency] = await Promise.all([
             getActiveQueueStats(user),
-            listActiveQueueJobs(user, 8)
+            listActiveQueueJobs(user, 8),
+            getMaxGenerationConcurrency()
           ]);
-          const payload = buildPayload(stats, jobs);
+          const payload = buildPayload(stats, jobs, concurrency);
           const fingerprint = payloadFingerprint(payload);
           if (fingerprint !== lastFingerprint) {
             lastFingerprint = fingerprint;

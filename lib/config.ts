@@ -61,12 +61,12 @@ export const config = {
   appOrigin: (process.env.APP_ORIGIN ?? "").trim().replace(/\/+$/, ""),
   maxReferenceImages: numberEnv(process.env.MAX_REFERENCE_IMAGES, 4),
   allowedImageMimes: csvEnv(process.env.ALLOWED_IMAGE_MIMES, DEFAULT_ALLOWED_IMAGE_MIMES),
-  maxGenerationConcurrency: numberEnv(process.env.MAX_GENERATION_CONCURRENCY, 2),
+  // 生成并发数已迁到后台设置(lib/usage-limits.ts,app_settings.usage_limits),不再走 env。
   maxGenerationQueueSize: numberEnv(process.env.MAX_GENERATION_QUEUE_SIZE, 20),
   /**
-   * v0.6.1: DB 连接池上限。之前硬编码 10,在 maxGenerationConcurrency 上调
-   * 或并发用户多时会被打满(每个 runner 占 1-2 连接 + SSE long-lived + API 请求)。
-   * 默认 20 可覆盖 8 并发 runner + 中等用户量。
+   * v0.6.1: DB 连接池上限。之前硬编码 10,生成并发(后台「运行设置」可调,上限 32)
+   * 上调或并发用户多时会被打满(每个 runner 占 1-2 连接 + SSE long-lived + API 请求)。
+   * 默认 20 可覆盖 8 并发 runner + 中等用户量;生成并发调到 16+ 时建议同步上调本值。
    */
   dbPoolMax: numberEnv(process.env.DB_POOL_MAX, 20),
   /**

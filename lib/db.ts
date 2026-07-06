@@ -22,7 +22,7 @@ function createPool() {
   const pool = new Pool({
     connectionString: config.databaseUrl,
     // v0.6.1: 上调默认 max 10→20 + 加 connectionTimeoutMillis(pg 默认 0=无穷等)
-    // 当 maxGenerationConcurrency 上调或并发用户多时,旧的 10 个连接很容易撑爆。
+    // 当生成并发(后台可调)上调或并发用户多时,旧的 10 个连接很容易撑爆。
     max: config.dbPoolMax,
     connectionTimeoutMillis: config.dbPoolConnectionTimeoutMs,
     options: postgresTimeZoneOption()

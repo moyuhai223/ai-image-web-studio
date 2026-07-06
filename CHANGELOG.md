@@ -2,6 +2,16 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.8.6] - 2026-07-06
+
+### 变更
+
+- **生成并发数改到后台管理,env 变量移除**:原 `MAX_GENERATION_CONCURRENCY` 环境变量取消,并发数与每日上限一样存数据库(同一 `usage_limits` 设置行),在 **设置 → 系统状态 → 运行设置** 里直接修改,无需重启:新提交的任务立即按新并发调度;已在排队的任务最迟约 30 秒(队列看门狗周期)后跟上;正在跑的任务不受影响、不会被中断。默认 **2**,范围 **1~32**(硬上限防误设拖垮机器);并发调到 16+ 时建议同步上调 `DB_POOL_MAX`(默认 20)。
+  - 生效范围:生成队列取活(`drainQueue`/`claimJob`)、快速高清化并发闸、队列状态接口与 SSE 推流的 `concurrency` 字段。
+  - 实现:`lib/usage-limits.ts` 扩展 `maxGenerationConcurrency` 字段与 `getMaxGenerationConcurrency()`/`getUsageLimits()`/`updateUsageLimits()`;`PATCH /api/settings/usage-limits` 支持两个字段任意组合更新(审计记 from/to);新增 `components/concurrency-form.tsx`。
+  - 部署文件同步清理:`docker-compose.yml`、1Panel 模板(含安装表单项)、`.env.example`、README 移除该变量。
+  - **升级须知**:env 里的 `MAX_GENERATION_CONCURRENCY` 不再读取;如之前改过(非 2),请升级后到 运行设置 重新设置。
+
 ## [0.8.5] - 2026-07-06
 
 ### 变更

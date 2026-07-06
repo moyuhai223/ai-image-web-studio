@@ -103,7 +103,6 @@ IMAGE_MODEL_NANO_BANANA=Nano Banana 2
 IMAGE_MODEL_GEMINI=gemini-3.1-flash-image
 LOCAL_STORAGE_ROOT=./storage
 MAX_UPLOAD_MB=20
-MAX_GENERATION_CONCURRENCY=2
 MAX_GENERATION_QUEUE_SIZE=20
 GENERATION_TIMEOUT_MS=900000
 ```
@@ -123,7 +122,7 @@ GENERATION_TIMEOUT_MS=900000
 | `PROVIDER_API_KEY` | 默认备用 API Key，设置页可继续添加多 Key |
 | `LOCAL_STORAGE_ROOT` | 图片、缩略图和备份包保存目录 |
 | `MAX_UPLOAD_MB` | 参考图上传大小限制 |
-| `MAX_GENERATION_CONCURRENCY` | 后台生成并发数 |
+| ~~`MAX_GENERATION_CONCURRENCY`~~ | 已移除：生成并发数改在 设置 → 系统状态 → 运行设置 里配置（默认 2，范围 1~32） |
 | `MAX_GENERATION_QUEUE_SIZE` | 队列最大排队数量 |
 | ~~`DAILY_GENERATION_LIMIT`~~ | 已移除：每日生成上限改在 设置 → 用户 里配置（默认 50，`0` 表示不限） |
 | `GENERATION_TIMEOUT_MS` | 单次模型请求硬超时时间，默认 15 分钟 |
