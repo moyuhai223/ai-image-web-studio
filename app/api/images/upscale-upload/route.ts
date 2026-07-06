@@ -9,6 +9,7 @@ import { createJob, findReferenceByChecksum, getActiveQueueStats, getJobById, ge
 import { readStoredFile, saveImageBuffer } from "@/lib/storage";
 import { computeUpscaleSize } from "@/lib/image-size";
 import { requestBodyTooLarge } from "@/lib/request-guard";
+import { getDailyGenerationLimit } from "@/lib/usage-limits";
 import { allowedImageTypes } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -44,13 +45,14 @@ export async function POST(request: Request) {
       { status: 429, headers: { "retry-after": "30" } }
     );
   }
-  if (config.dailyGenerationLimit > 0) {
+  const dailyGenerationLimit = await getDailyGenerationLimit();
+  if (dailyGenerationLimit > 0) {
     const daily = await query<{ count: string }>(
       `select count(*)::text as count from generation_jobs where user_id = $1 and created_at >= current_date`,
       [user.id]
     );
-    if (Number(daily.rows[0]?.count ?? 0) + 1 > config.dailyGenerationLimit) {
-      return NextResponse.json({ error: `今日生成次数已达上限（${config.dailyGenerationLimit} 次）` }, { status: 429 });
+    if (Number(daily.rows[0]?.count ?? 0) + 1 > dailyGenerationLimit) {
+      return NextResponse.json({ error: `今日生成次数已达上限（${dailyGenerationLimit} 次）` }, { status: 429 });
     }
   }
 

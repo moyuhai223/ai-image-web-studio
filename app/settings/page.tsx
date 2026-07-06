@@ -26,6 +26,7 @@ import {
   DEFAULT_OPTIMIZE_MODEL
 } from "@/lib/prompt-optimize-settings";
 import { getUiThemePreference } from "@/lib/ui-theme";
+import { getDailyGenerationLimit } from "@/lib/usage-limits";
 import { APP_VERSION_LABEL } from "@/lib/version";
 import type { User } from "@/lib/types";
 
@@ -33,7 +34,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const user = await requireAdmin();
-  const [users, health, modelGroups, promptTemplates, promptOptimize, themePreference, metrics] =
+  const [users, health, modelGroups, promptTemplates, promptOptimize, themePreference, metrics, dailyGenerationLimit] =
     await Promise.all([
       query<User>(`select id, username, role, active, must_change_password, session_epoch, created_at, updated_at from users order by created_at desc`),
       getSystemHealth(),
@@ -41,7 +42,8 @@ export default async function SettingsPage() {
       listPromptTemplates(),
       getPromptOptimizeSummary(),
       getUiThemePreference(),
-      getOperationalMetrics()
+      getOperationalMetrics(),
+      getDailyGenerationLimit()
     ]);
   const defaultGroup = modelGroups.find((group) => group.isDefault) ?? modelGroups[0] ?? null;
 
@@ -67,7 +69,7 @@ export default async function SettingsPage() {
                     <span className="status">时区: {config.timeZone}</span>
                     <span className="status">存储: {config.storageRoot}</span>
                     <span className="status">并发: {config.maxGenerationConcurrency}</span>
-                    <span className="status">每日上限: {config.dailyGenerationLimit > 0 ? config.dailyGenerationLimit : "不限"}</span>
+                    <span className="status">每日上限: {dailyGenerationLimit > 0 ? dailyGenerationLimit : "不限"}</span>
                   </div>
                 </div>
               </section>
@@ -77,7 +79,7 @@ export default async function SettingsPage() {
           users={
             <>
               <CreateUserForm />
-              <UserSecurityPanel users={users.rows} currentUserId={user.id} dailyLimit={config.dailyGenerationLimit} />
+              <UserSecurityPanel users={users.rows} currentUserId={user.id} dailyLimit={dailyGenerationLimit} />
             </>
           }
           templates={

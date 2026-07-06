@@ -8,6 +8,7 @@ import { createJob, getActiveQueueStats, getImageForUser, getJobById } from "@/l
 import { readStoredFile, saveImageBuffer } from "@/lib/storage";
 import { computeUpscaleSize } from "@/lib/image-size";
 import { upscaleBufferToLongEdge } from "@/lib/upscale";
+import { getDailyGenerationLimit } from "@/lib/usage-limits";
 import { upscaleSchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -16,13 +17,14 @@ export const maxDuration = 300;
 const AI_UPSCALE_PROMPT =
   "在不改变画面内容、构图、主体、色彩和风格的前提下,将这张图片高清化:增强细节与清晰度、去除模糊与噪点、提升纹理质感,输出更高分辨率的同一张图。不要添加、删除或改动任何元素。";
 
-async function dailyLimitExceeded(userId: string) {
-  if (config.dailyGenerationLimit <= 0) return false;
+async function dailyLimitExceeded(userId: string): Promise<number | false> {
+  const limit = await getDailyGenerationLimit();
+  if (limit <= 0) return false;
   const daily = await query<{ count: string }>(
     `select count(*)::text as count from generation_jobs where user_id = $1 and created_at >= current_date`,
     [userId]
   );
-  return Number(daily.rows[0]?.count ?? 0) + 1 > config.dailyGenerationLimit;
+  return Number(daily.rows[0]?.count ?? 0) + 1 > limit ? limit : false;
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -40,8 +42,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "图片不存在或无权访问" }, { status: 404 });
   }
 
-  if (await dailyLimitExceeded(user.id)) {
-    return NextResponse.json({ error: `今日生成次数已达上限（${config.dailyGenerationLimit} 次）` }, { status: 429 });
+  const exceededLimit = await dailyLimitExceeded(user.id);
+  if (exceededLimit !== false) {
+    return NextResponse.json({ error: `今日生成次数已达上限（${exceededLimit} 次）` }, { status: 429 });
   }
 
   const targetLongEdge = config.upscaleLongEdge;

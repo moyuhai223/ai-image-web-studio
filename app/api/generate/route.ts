@@ -16,6 +16,7 @@ import {
 } from "@/lib/repository";
 import { saveImageBuffer } from "@/lib/storage";
 import { normalizeImageSize } from "@/lib/image-size";
+import { getDailyGenerationLimit } from "@/lib/usage-limits";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -143,15 +144,16 @@ export async function POST(request: Request) {
     );
   }
 
-  if (config.dailyGenerationLimit > 0) {
+  const dailyGenerationLimit = await getDailyGenerationLimit();
+  if (dailyGenerationLimit > 0) {
     const daily = await query<{ count: string }>(
       `select count(*)::text as count
        from generation_jobs
        where user_id = $1 and created_at >= current_date`,
       [user.id]
     );
-    if (Number(daily.rows[0]?.count ?? 0) + requestedCount > config.dailyGenerationLimit) {
-      return NextResponse.json({ error: `今日生成次数已达上限（${config.dailyGenerationLimit} 次）` }, { status: 429 });
+    if (Number(daily.rows[0]?.count ?? 0) + requestedCount > dailyGenerationLimit) {
+      return NextResponse.json({ error: `今日生成次数已达上限（${dailyGenerationLimit} 次）` }, { status: 429 });
     }
   }
 
@@ -256,13 +258,13 @@ export async function POST(request: Request) {
         { "retry-after": "30" }
       );
     }
-    if (config.dailyGenerationLimit > 0) {
+    if (dailyGenerationLimit > 0) {
       const dailyRes = await client.query<{ count: string }>(
         `select count(*)::text as count from generation_jobs where user_id = $1 and created_at >= current_date`,
         [user.id]
       );
-      if (Number(dailyRes.rows[0]?.count ?? 0) + requestedCount > config.dailyGenerationLimit) {
-        throw new QuotaError({ error: `今日生成次数已达上限（${config.dailyGenerationLimit} 次）` });
+      if (Number(dailyRes.rows[0]?.count ?? 0) + requestedCount > dailyGenerationLimit) {
+        throw new QuotaError({ error: `今日生成次数已达上限（${dailyGenerationLimit} 次）` });
       }
     }
 

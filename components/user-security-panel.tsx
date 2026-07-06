@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyRound, Save, ShieldCheck, Trash2, UserX } from "lucide-react";
+import { Gauge, KeyRound, Save, ShieldCheck, Trash2, UserX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { User } from "@/lib/types";
@@ -18,11 +18,49 @@ export function UserSecurityPanel({
   const router = useRouter();
   const [busyId, setBusyId] = useState("");
   const [message, setMessage] = useState("");
+  const [limitInput, setLimitInput] = useState(String(dailyLimit));
+  const [limitSaving, setLimitSaving] = useState(false);
+  const [limitMessage, setLimitMessage] = useState("");
+  const [limitError, setLimitError] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   // 默认保留图片、转给当前管理员接管(较不破坏);可切换为一并删除。
   const [transferImages, setTransferImages] = useState(true);
+
+  async function saveDailyLimit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const num = Number(limitInput.trim());
+    if (!Number.isInteger(num) || num < 0) {
+      setLimitError(true);
+      setLimitMessage("请输入不小于 0 的整数(0 = 不限)");
+      return;
+    }
+    setLimitSaving(true);
+    setLimitMessage("");
+    setLimitError(false);
+    try {
+      const response = await fetch("/api/settings/usage-limits", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ dailyGenerationLimit: num })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setLimitInput(String(data.dailyGenerationLimit ?? num));
+        setLimitMessage(num > 0 ? `已保存:每人每日 ${data.dailyGenerationLimit ?? num} 次` : "已保存:不限次数");
+        router.refresh();
+      } else {
+        setLimitError(true);
+        setLimitMessage(data.error ?? "保存失败");
+      }
+    } catch {
+      setLimitError(true);
+      setLimitMessage("网络错误,请重试");
+    } finally {
+      setLimitSaving(false);
+    }
+  }
 
   async function confirmDelete() {
     if (!deleteTarget) return;
@@ -88,6 +126,35 @@ export function UserSecurityPanel({
         <span className="status">每日生成上限: {dailyLimit > 0 ? `${dailyLimit} 次/人` : "不限"}</span>
       </div>
       <div className="panel-body form-stack">
+        <form className="inline-user-form user-security-action-row" onSubmit={saveDailyLimit}>
+          <label className="small muted" htmlFor="daily-generation-limit" style={{ whiteSpace: "nowrap" }}>
+            <Gauge size={13} style={{ verticalAlign: "-2px" }} /> 每人每日生成上限
+          </label>
+          <input
+            className="input"
+            id="daily-generation-limit"
+            name="dailyGenerationLimit"
+            type="number"
+            min={0}
+            max={100000}
+            step={1}
+            value={limitInput}
+            onChange={(event) => setLimitInput(event.target.value)}
+            style={{ maxWidth: 120 }}
+            disabled={limitSaving}
+            required
+          />
+          <button className="status action-button action-save" type="submit" disabled={limitSaving}>
+            <Save size={13} />
+            {limitSaving ? "保存中" : "保存"}
+          </button>
+          <span className="small muted">0 = 不限;对所有用户生效,含高清化任务</span>
+        </form>
+        {limitMessage ? (
+          <p className={limitError ? "small form-error" : "small muted"} role={limitError ? "alert" : undefined}>
+            {limitMessage}
+          </p>
+        ) : null}
         {message ? <p className="small muted">{message}</p> : null}
         <div className="user-security-list">
           {users.map((item) => (

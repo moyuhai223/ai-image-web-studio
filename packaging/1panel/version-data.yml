@@ -179,17 +179,6 @@ additionalProperties:
         zh-Hant: 佇列最大數量
       required: true
       type: number
-    - default: 50
-      edit: true
-      envKey: DAILY_GENERATION_LIMIT
-      labelEn: Daily Generation Limit
-      labelZh: 每日生成限制
-      label:
-        en: Daily Generation Limit
-        zh: 每日生成限制
-        zh-Hant: 每日生成限制
-      required: true
-      type: number
     - default: 900000
       edit: true
       envKey: GENERATION_TIMEOUT_MS

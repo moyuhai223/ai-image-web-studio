@@ -2,6 +2,15 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.8.5] - 2026-07-06
+
+### 变更
+
+- **每日生成上限改到后台管理,env 变量移除**:原 `DAILY_GENERATION_LIMIT` 环境变量取消,上限改存数据库(app_settings 的 `usage_limits` 行),在 **设置 → 用户 → 账号管理** 顶部直接修改,保存即时生效(无需重启)。默认 **50 次/人/天**,`0` = 不限;对生成、AI 高清化、上传高清化统一生效(口径与之前一致:按当日创建的任务数计)。
+  - 实现:新增 `lib/usage-limits.ts`(60s 读缓存 + 写路径主动失效,沿用 settings 范式)与 `PATCH /api/settings/usage-limits`(仅管理员,写审计日志);`/api/generate`、两个 upscale 路由与设置页全部改读数据库,`lib/config.ts` 删除该项。
+  - **升级须知**:env 里的 `DAILY_GENERATION_LIMIT` 不再读取,可从部署配置中删掉;如之前改过该值,请升级后到 设置 → 用户 重新设置(否则按默认 50)。
+  - 部署文件同步清理:`docker-compose.yml`、1Panel 应用模板(`packaging/1panel/`)已移除该变量与安装表单项;`.env.example`、README 同步更新。
+
 ## [0.8.4] - 2026-07-06
 
 ### 变更

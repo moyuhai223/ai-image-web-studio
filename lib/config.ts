@@ -74,7 +74,7 @@ export const config = {
    * 改为 10s 失败快返回,前端能拿到 5xx 而不是浏览器自己 timeout。
    */
   dbPoolConnectionTimeoutMs: numberEnv(process.env.DB_POOL_CONNECTION_TIMEOUT_MS, 10000),
-  dailyGenerationLimit: numberEnv(process.env.DAILY_GENERATION_LIMIT, 50, 0),
+  // 每日生成上限已迁到后台设置(lib/usage-limits.ts,app_settings.usage_limits),不再走 env。
   generationTimeoutMs: numberEnv(process.env.GENERATION_TIMEOUT_MS, DEFAULT_GENERATION_TIMEOUT_MS),
   /** 4K 高清化的目标长边像素(快速放大与 AI 收尾共用)。默认 3840(4K UHD)。 */
   upscaleLongEdge: numberEnv(process.env.UPSCALE_LONG_EDGE, 3840),
