@@ -3,7 +3,7 @@ import { config } from "./config";
 import { assertPublicBaseUrl } from "./egress-guard";
 import { boundedSharp } from "./image-limits";
 import { createLogger } from "./logger";
-import { resolveModelGroup } from "./model-groups";
+import { resolveGroupForModel } from "./model-groups";
 import { imageSourceToBuffer } from "./storage";
 
 const log = createLogger("provider");
@@ -729,15 +729,17 @@ async function generateWithSelectedKey(input: GenerateInput, apiKey: string, dea
 }
 
 /**
- * 用模型组解析出 baseUrl+key 后发起生成。选模型即锁定其组的 baseUrl+key(工作台侧保证)。
+ * 用模型组解析出 baseUrl+key 后发起生成:
+ * - 手动指定 groupId → 锁定该组;
+ * - 未指定 → 在「列出了该模型」的启用组之间自动轮询(同名模型多组分摊)。
  * 无模型组配置时回退 env(config.aiBaseUrl + config.aiApiKey)。单 key,请求内不再 failover;
- * 瞬时失败由 runner 的任务级自动重试兜底。
+ * 瞬时失败由 runner 的任务级自动重试兜底(重试会再次轮询,天然换组)。
  */
 export async function generateWithProvider(
   input: GenerateInput,
   options: ProviderRequestOptions = {}
 ): Promise<ProviderResult> {
-  const resolved = await resolveModelGroup(options.groupId ?? null);
+  const resolved = await resolveGroupForModel(input.model, options.groupId ?? null);
   const groupId = resolved?.group.id ?? null;
   const groupName = resolved?.group.name ?? null;
   const baseUrl = resolved?.group.baseUrl || config.aiBaseUrl;

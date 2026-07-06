@@ -21,7 +21,7 @@ import { resolutionTier } from "@/lib/image-size";
 import type { GroupModelOption } from "@/lib/model-groups";
 import type { GeneratedImage, GenerationJob, JobWithImages, PromptTemplate, ReferenceImage } from "@/lib/types";
 
-/** 下拉一项的 value 编码:groupId::model。同名模型跨组时用组名后缀消歧。 */
+/** 选择记忆的编码:groupId::model。groupId 为空串 = 自动轮询。 */
 function optionKey(groupId: string, model: string) {
   return `${groupId}::${model}`;
 }
@@ -272,31 +272,33 @@ export function Workspace({
   recentReferenceImages: RecentReferenceImage[];
   promptOptimizeEnabled?: boolean;
 }) {
-  // 同名模型跨组时,下拉 label 后缀组名消歧。
-  const modelValueCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const o of groupModelOptions) counts.set(o.model, (counts.get(o.model) ?? 0) + 1);
-    return counts;
-  }, [groupModelOptions]);
-  const optionLabel = (o: GroupModelOption) =>
-    (modelValueCounts.get(o.model) ?? 0) > 1 ? `${o.label} · ${o.groupName}` : o.label;
-  // 初始:默认组的首个模型,否则第一项。
-  const initialSelection = useMemo(() => {
-    return (
-      groupModelOptions.find((o) => o.groupId === defaultGroupId) ??
-      groupModelOptions[0] ??
-      null
-    );
+  // 同名模型跨组合并为一项;label 取默认组的,否则第一处出现的。
+  const dedupedModels = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const o of groupModelOptions) {
+      if (!map.has(o.model) || o.groupId === defaultGroupId) map.set(o.model, o.label);
+    }
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
   }, [groupModelOptions, defaultGroupId]);
-  // 把裸 model 映射到某个能服务它的组(优先默认组)。
-  const groupForModel = (modelValue: string): string => {
+  // 服务某模型的组列表(去重)。多组时可手动指定线路,默认自动轮询。
+  const servingGroupsFor = (modelValue: string) => {
+    const seen = new Set<string>();
+    const groups: Array<{ groupId: string; groupName: string }> = [];
+    for (const o of groupModelOptions) {
+      if (o.model !== modelValue || seen.has(o.groupId)) continue;
+      seen.add(o.groupId);
+      groups.push({ groupId: o.groupId, groupName: o.groupName });
+    }
+    return groups;
+  };
+  // 初始:默认组的首个模型,否则第一项;线路默认自动轮询(groupId 空串)。
+  const initialModel = useMemo(() => {
     return (
-      groupModelOptions.find((o) => o.model === modelValue && o.groupId === defaultGroupId)?.groupId ??
-      groupModelOptions.find((o) => o.model === modelValue)?.groupId ??
-      initialSelection?.groupId ??
+      groupModelOptions.find((o) => o.groupId === defaultGroupId)?.model ??
+      groupModelOptions[0]?.model ??
       ""
     );
-  };
+  }, [groupModelOptions, defaultGroupId]);
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [queueLoading, setQueueLoading] = useState(true);
@@ -307,8 +309,9 @@ export function Workspace({
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [prompt, setPrompt] = useState("");
-  const [model, setModel] = useState(initialSelection?.model ?? "");
-  const [groupId, setGroupId] = useState(initialSelection?.groupId ?? "");
+  const [model, setModel] = useState(initialModel);
+  // 线路:空串 = 自动(在服务该模型的组之间轮询);指定组 id = 锁定该组。
+  const [groupId, setGroupId] = useState("");
   const [size, setSize] = useState("auto");
   const [customWidth, setCustomWidth] = useState("2048");
   const [customHeight, setCustomHeight] = useState("2048");
@@ -371,8 +374,13 @@ export function Workspace({
     const timings = activePhaseTimingsFromJobs(activeJobs);
     return formatPhaseTimings(timings);
   }, [activeJobs]);
-  const selectedOption = groupModelOptions.find((o) => o.groupId === groupId && o.model === model) ?? null;
-  const modelLabel = selectedOption ? optionLabel(selectedOption) : model;
+  // 当前模型可用的线路(组);≥2 条时显示线路选择。
+  const servingGroups = servingGroupsFor(model);
+  const pinnedGroup = groupId ? servingGroups.find((g) => g.groupId === groupId) ?? null : null;
+  const modelLabel = (() => {
+    const base = dedupedModels.find((m) => m.value === model)?.label ?? model;
+    return pinnedGroup ? `${base} · ${pinnedGroup.groupName}` : base;
+  })();
   const referenceSummary = selectedReferences.length > 0 ? `${selectedReferences.length} 张参考图` : "无参考图";
   // 局部重绘蒙版画在第一张参考图上(上传用 objectUrl,生成/库用 imageSrc)。
   const primaryReferenceSrc = selectedReferences[0]?.objectUrl ?? selectedReferences[0]?.imageSrc ?? "";
@@ -456,14 +464,13 @@ export function Workspace({
     const nextPrompt = params.get("prompt") ?? "";
     const urlModel = params.get("model");
     const nextModel = urlModel && groupModelOptions.some((o) => o.model === urlModel) ? urlModel : model;
-    const nextGroupId = groupForModel(nextModel);
     const sizeSel = pickSizeSelection(params.get("size"));
     const nextCount = normalizeCount(params.get("count"));
 
     if (nextPrompt) setPrompt(nextPrompt);
     if (nextModel) {
       setModel(nextModel);
-      setGroupId(nextGroupId);
+      setGroupId(""); // URL 复用不带组:走自动轮询
     }
     setSize(sizeSel.size);
     if (sizeSel.size === "custom") {
@@ -496,7 +503,7 @@ export function Workspace({
       const formData = new FormData();
       formData.set("prompt", nextPrompt);
       formData.set("model", nextModel);
-      formData.set("groupId", nextGroupId);
+      formData.set("groupId", ""); // 自动轮询
       formData.set("size", normalizeImageSize(params.get("size") ?? ""));
       formData.set("count", nextCount);
       if (urlReferences.length > 0) {
@@ -553,28 +560,36 @@ export function Workspace({
     return () => controller.abort();
   }, []);
 
-  // 模型选择(groupId::model)记忆:挂载时若 localStorage 里存的选择仍存在于当前组选项,则恢复。
+  // 模型选择记忆(groupId::model,groupId 空串 = 自动轮询):挂载时若存的模型仍在选项里则恢复;
+  // 存的指定组已不再服务该模型时,只恢复模型、线路退回自动。
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const stored = window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY);
       if (!stored) return;
-      const match = groupModelOptions.find((o) => optionKey(o.groupId, o.model) === stored);
-      if (match) {
-        setModel(match.model);
-        setGroupId(match.groupId);
-      }
+      const separator = stored.indexOf("::");
+      if (separator < 0) return;
+      const storedGroupId = stored.slice(0, separator);
+      const storedModel = stored.slice(separator + 2);
+      if (!storedModel || !groupModelOptions.some((o) => o.model === storedModel)) return;
+      setModel(storedModel);
+      // 仅当存的组仍服务该模型、且该模型仍有多条线路(线路下拉可见,用户能改回自动)时才保留锁定。
+      const servingIds = new Set(
+        groupModelOptions.filter((o) => o.model === storedModel).map((o) => o.groupId)
+      );
+      const keepPin = Boolean(storedGroupId) && servingIds.has(storedGroupId) && servingIds.size > 1;
+      setGroupId(keepPin ? storedGroupId : "");
     } catch {
       // localStorage 不可用,忽略
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 选择变化时持久化。
+  // 选择变化时持久化(groupId 可为空串 = 自动)。
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      if (groupId && model) window.localStorage.setItem(MODEL_SELECTION_STORAGE_KEY, optionKey(groupId, model));
+      if (model) window.localStorage.setItem(MODEL_SELECTION_STORAGE_KEY, optionKey(groupId, model));
     } catch {
       // 忽略 localStorage 异常
     }
@@ -979,10 +994,10 @@ export function Workspace({
 
   function applyTaskParams(recent: RecentJob) {
     setPrompt(recent.prompt);
-    // 复用历史任务的模型:若某组仍服务它则选中并锁定其组,否则保持当前选择。
+    // 复用历史任务的模型:仍有组服务它则选中,线路走自动轮询;否则保持当前选择。
     if (recent.model && groupModelOptions.some((o) => o.model === recent.model)) {
       setModel(recent.model);
-      setGroupId(groupForModel(recent.model));
+      setGroupId("");
     }
     const recentSel = pickSizeSelection(recent.size);
     setSize(recentSel.size);
@@ -1445,23 +1460,22 @@ export function Workspace({
               <span>参数</span>
               <span className="small muted">{model} · {size} · {count} 张</span>
             </div>
-            <div className="generation-controls">
+            <div className={servingGroups.length > 1 ? "generation-controls generation-controls-4" : "generation-controls"}>
               <div className="field">
                 <label htmlFor="model">模型</label>
-                {groupModelOptions.length > 0 ? (
+                {dedupedModels.length > 0 ? (
                   <select
                     className="select"
                     id="model"
-                    value={optionKey(groupId, model)}
+                    value={model}
                     onChange={(event) => {
-                      const [nextGroupId, nextModel] = event.target.value.split("::");
-                      setGroupId(nextGroupId ?? "");
-                      setModel(nextModel ?? "");
+                      setModel(event.target.value);
+                      setGroupId(""); // 换模型后线路回到自动轮询
                     }}
                   >
-                    {groupModelOptions.map((o) => (
-                      <option key={optionKey(o.groupId, o.model)} value={optionKey(o.groupId, o.model)}>
-                        {optionLabel(o)}
+                    {dedupedModels.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
                       </option>
                     ))}
                   </select>
@@ -1470,10 +1484,28 @@ export function Workspace({
                     还没有配置模型组,请到 <a href="/settings#settings-groups">设置 → 模型组</a> 添加。
                   </p>
                 )}
-                {/* 提交用:模型值 + 所属组,由后端锁定该组的 baseUrl+key */}
+                {/* 提交用:模型值 + 线路(空 = 服务端在各组间自动轮询) */}
                 <input type="hidden" name="model" value={model} />
                 <input type="hidden" name="groupId" value={groupId} />
               </div>
+              {servingGroups.length > 1 ? (
+                <div className="field">
+                  <label htmlFor="model-route">线路</label>
+                  <select
+                    className="select"
+                    id="model-route"
+                    value={groupId}
+                    onChange={(event) => setGroupId(event.target.value)}
+                  >
+                    <option value="">自动轮询({servingGroups.length} 条线路)</option>
+                    {servingGroups.map((g) => (
+                      <option key={g.groupId} value={g.groupId}>
+                        {g.groupName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               <div className="field">
                 <label htmlFor="size">尺寸</label>
                 <select className="select" id="size" name="size" value={size} onChange={(event) => setSize(event.target.value)}>

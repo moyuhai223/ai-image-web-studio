@@ -244,6 +244,18 @@ export type ResolvedModelGroup = {
   apiKey: string; // 明文;仅服务端。无 key 时为空串,由调用方走 env 兜底。
 };
 
+function toResolved(group: StoredModelGroup): ResolvedModelGroup {
+  let apiKey = "";
+  if (groupHasKey(group)) {
+    try {
+      apiKey = decryptSecret({ iv: group.iv, tag: group.tag, ciphertext: group.ciphertext });
+    } catch {
+      apiKey = "";
+    }
+  }
+  return { group: { id: group.id, name: group.name, baseUrl: group.baseUrl }, apiKey };
+}
+
 /**
  * 服务端解析:groupId → {baseUrl, 明文 apiKey}。找不到指定组则回退默认启用组、再回退任一启用组;
  * 无任何启用组返回 null(调用方走 env 兜底)。
@@ -255,16 +267,37 @@ export async function resolveModelGroup(groupId?: string | null): Promise<Resolv
     groups.find((g) => g.isDefault) ??
     groups[0] ??
     null;
-  if (!group) return null;
-  let apiKey = "";
-  if (groupHasKey(group)) {
-    try {
-      apiKey = decryptSecret({ iv: group.iv, tag: group.tag, ciphertext: group.ciphertext });
-    } catch {
-      apiKey = "";
+  return group ? toResolved(group) : null;
+}
+
+// 每个模型一个轮询游标(进程内存,重启归零即可)。同名模型分布在多个组时按序轮流取组。
+const rotationCursors = new Map<string, number>();
+
+/**
+ * 模型感知解析(生成链路用):
+ * - 传了 groupId(手动指定)且该组仍启用 → 锁定该组;
+ * - 否则(自动)在「列出了该模型」的启用组之间轮询;
+ * - 该模型不在任何组里 → 回退默认启用组/首个启用组(兼容 env 场景的旧行为);
+ * - 无任何启用组 → null(调用方走 env 兜底)。
+ */
+export async function resolveGroupForModel(model: string, groupId?: string | null): Promise<ResolvedModelGroup | null> {
+  const groups = (await getModelGroupsSettings()).groups.filter((g) => g.enabled);
+  const serving = groups.filter((g) => g.models.some((m) => m.value === model));
+  if (groupId) {
+    const pinned = groups.find((g) => g.id === groupId);
+    // 指定组仍启用且仍列出该模型 → 锁定;(该模型已不在任何组时也尊重指定,等同兜底)
+    // 组还在但已不服务该模型 → 落回自动轮询,防止把模型发给不支持它的网关。
+    if (pinned && (serving.length === 0 || serving.some((g) => g.id === pinned.id))) {
+      return toResolved(pinned);
     }
   }
-  return { group: { id: group.id, name: group.name, baseUrl: group.baseUrl }, apiKey };
+  if (serving.length > 0) {
+    const cursor = rotationCursors.get(model) ?? 0;
+    rotationCursors.set(model, cursor + 1);
+    return toResolved(serving[cursor % serving.length]);
+  }
+  const fallback = groups.find((g) => g.isDefault) ?? groups[0] ?? null;
+  return fallback ? toResolved(fallback) : null;
 }
 
 function applyKey(group: StoredModelGroup, apiKey: string) {

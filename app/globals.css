@@ -1143,6 +1143,11 @@ html[data-theme="gallery-dark"] body {
   gap: 10px;
 }
 
+/* 多线路时多出「线路」下拉(共 4 个控件):2x2 布局,第一行 模型|线路,第二行 尺寸|数量 */
+.generation-controls-4 {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr);
+}
+
 .generation-controls .select {
   min-height: var(--control-h);
   padding: 0 9px;
@@ -5146,7 +5151,8 @@ code {
     padding-inline: 10px;
   }
 
-  .generation-controls {
+  .generation-controls,
+  .generation-controls-4 {
     grid-template-columns: 1fr;
   }
 
