@@ -20,8 +20,8 @@ const AI_UPSCALE_PROMPT =
 
 type UpscaleReference = { source: "library"; referenceImageId?: string; localPath: string; mimeType: string; byteSize: number };
 
-// 对一张参考图(新上传文件 或 已存在的参考图 id)做 AI 4K 高清化:固定 gpt-image-2,当作参考走
-// 编辑接口在模型原生 4K 重画;模型没出够分辨率由 runner 直接判失败(不 sharp 拉伸)。结果为新记录(无 parent)。
+// 对一张参考图(新上传文件 或 已存在的参考图 id)做 AI 高清化:固定 gpt-image-2,当作参考走
+// 编辑接口请求原生 4K;模型返回什么分辨率就存什么(不 sharp 拉伸、不因分辨率判失败)。结果为新记录(无 parent)。
 export async function POST(request: Request) {
   const user = await requireUser();
   if (requestBodyTooLarge(request)) {
@@ -123,12 +123,8 @@ export async function POST(request: Request) {
   } catch {
     // 忽略:用回退尺寸
   }
-  const targetLongEdge = config.upscaleLongEdge;
-  const size = width && height ? computeUpscaleSize(width, height, targetLongEdge) : "2880x2880";
-  const computedLongEdge = (() => {
-    const [tw, th] = size.split("x").map((n) => Number(n));
-    return Math.max(tw || targetLongEdge, th || targetLongEdge);
-  })();
+  // 只是「请求」模型原生 4K——返回什么分辨率就存什么,不再校验或兜底。
+  const size = width && height ? computeUpscaleSize(width, height, config.upscaleLongEdge) : "2880x2880";
 
   const now = new Date().toISOString();
   const job = await transaction(async (client) =>
@@ -144,7 +140,7 @@ export async function POST(request: Request) {
         count: 1,
         reference,
         references: [reference],
-        upscale: { mode: "ai", targetLongEdge: computedLongEdge },
+        upscale: { mode: "ai" },
         progress: {
           phase: "queued",
           current: 0,

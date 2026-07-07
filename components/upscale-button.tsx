@@ -6,8 +6,8 @@ import { Sparkles } from "lucide-react";
 import { DangerConfirmDialog } from "./danger-confirm-dialog";
 
 /**
- * 对单张生成图做 AI 4K 高清化(固定 gpt-image-2,以源图为参考走编辑接口在模型原生 4K 重画;
- * 模型没出够分辨率直接判失败,不做 sharp 拉伸)。确认弹窗防误触,确认后入队,结果作为新版本进版本链。
+ * 对单张生成图做 AI 高清化(固定 gpt-image-2,以源图为参考走编辑接口请求原生 4K;
+ * 模型返回什么就存什么,不做 sharp 拉伸兜底)。确认弹窗防误触,确认后入队,结果作为新版本进版本链。
  */
 export function UpscaleButton({ imageId }: { imageId: string }) {
   const router = useRouter();
@@ -59,7 +59,7 @@ export function UpscaleButton({ imageId }: { imageId: string }) {
       <DangerConfirmDialog
         open={confirmOpen}
         title="确认高清化"
-        description="将用 gpt-image-2 对这张图做 AI 4K 高清重绘:会消耗一次生成额度,可能轻微改变画面;若模型未能输出 4K 会直接失败(不出假 4K)。"
+        description="将用 gpt-image-2 对这张图做 AI 高清重绘(请求原生 4K):会消耗一次生成额度,可能轻微改变画面;实际清晰度提升取决于模型返回。"
         confirmLabel="确认重绘"
         loadingLabel="提交中"
         loading={busy}

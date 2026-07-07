@@ -25,8 +25,8 @@ async function dailyLimitExceeded(userId: string): Promise<number | false> {
 }
 
 /**
- * AI 4K 高清重绘:固定用 gpt-image-2(不继承源模型),以源图为参考走编辑接口请求模型原生 4K。
- * 不做 sharp 拉伸兜底——模型没返回足够分辨率时由 runner 直接判失败(诚实失败,不出「假 4K」)。
+ * AI 高清重绘:固定用 gpt-image-2(不继承源模型),以源图为参考走编辑接口请求模型原生 4K。
+ * 不做 sharp 拉伸兜底,也不因分辨率判失败——模型返回什么就存什么,有图即成功,提升与否用户自行判断。
  * 模型组按 gpt-image-2 自动路由(在列出该模型的启用组间轮询)。
  */
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -60,17 +60,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     );
   }
 
-  const targetLongEdge = config.upscaleLongEdge;
-
-  // 按源图比例请求模型原生 4K(满足 gpt-image-2 约束:长边≤3840、/16、像素预算)
+  // 按源图比例请求模型原生 4K(满足 gpt-image-2 约束:长边≤3840、/16、像素预算)。
+  // 只是「请求」——模型返回什么分辨率就存什么,不再校验或兜底。
   const size =
     source.width && source.height
-      ? computeUpscaleSize(source.width, source.height, targetLongEdge)
+      ? computeUpscaleSize(source.width, source.height, config.upscaleLongEdge)
       : "2880x2880";
-  const computedLongEdge = (() => {
-    const [tw, th] = size.split("x").map((n) => Number(n));
-    return Math.max(tw || targetLongEdge, th || targetLongEdge);
-  })();
 
   const reference = {
     source: "generated" as const,
@@ -95,7 +90,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         count: 1,
         reference,
         references: [reference],
-        upscale: { mode: "ai", sourceImageId: source.id, targetLongEdge: computedLongEdge },
+        upscale: { mode: "ai", sourceImageId: source.id },
         progress: {
           phase: "queued",
           current: 0,

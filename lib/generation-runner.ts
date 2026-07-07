@@ -5,7 +5,6 @@ import { query } from "./db";
 import { createLogger } from "./logger";
 import { generateWithProvider } from "./provider";
 import { formatProviderErrorInfo, mapProviderError } from "./provider-error-map";
-import { boundedSharp } from "./image-limits";
 import { deleteStoredImageFiles, imageSourceToBuffer, readStoredFile, saveImageBuffer } from "./storage";
 import type { GenerationJob, GenerationPhaseTimings, GenerationProgress } from "./types";
 
@@ -25,8 +24,6 @@ export type GenerationRunInput = {
   parentImageId?: string;
   /** 来自 request_metadata.providerGroupId;runner 透传给 provider 用于解析该组的 baseUrl + key */
   groupId?: string | null;
-  /** 来自 request_metadata.upscale.targetLongEdge;非空时校验模型输出长边达标(±5%),不达标直接判失败(不再 sharp 拉伸凑数) */
-  upscaleTargetLongEdge?: number;
   /** 来自 request_metadata.autoRetry.attempts;已自动重试的次数,用于判断是否还能再重试。 */
   autoRetryAttempts?: number;
 };
@@ -217,11 +214,6 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
       ? (job.request_metadata.providerGroupId as string)
       : null;
 
-  const upscaleMeta = asRecord(job.request_metadata?.upscale);
-  const upscaleTargetRaw = upscaleMeta ? Number(upscaleMeta.targetLongEdge) : NaN;
-  const upscaleTargetLongEdge =
-    Number.isFinite(upscaleTargetRaw) && upscaleTargetRaw > 0 ? Math.trunc(upscaleTargetRaw) : undefined;
-
   const autoRetryMeta = asRecord(job.request_metadata?.autoRetry);
   const autoRetryAttempts = autoRetryMeta ? Math.max(0, Math.trunc(Number(autoRetryMeta.attempts) || 0)) : 0;
 
@@ -231,7 +223,6 @@ async function loadGenerationInput(jobId: string): Promise<GenerationRunInput> {
     size: job.size,
     count: job.count,
     groupId,
-    upscaleTargetLongEdge,
     autoRetryAttempts,
     maskDataUrl,
     maskComposite,
@@ -668,17 +659,8 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
             phaseTimings
           })
         );
-        if (input.upscaleTargetLongEdge) {
-          // AI 高清化:只认模型原生分辨率。长边不足目标的 95% 说明模型/网关没真出 4K,
-          // 直接判失败(不再 sharp 拉伸凑「假 4K」)。此错误不属可重试类,不会自动重试烧额度。
-          const meta = await boundedSharp(source.buffer).metadata().catch(() => null);
-          const actualLongEdge = Math.max(meta?.width ?? 0, meta?.height ?? 0);
-          if (actualLongEdge < Math.floor(input.upscaleTargetLongEdge * 0.95)) {
-            throw new Error(
-              `高清化失败:模型返回的分辨率不足(实际 ${meta?.width ?? "?"}×${meta?.height ?? "?"},目标长边 ${input.upscaleTargetLongEdge})。当前网关可能不支持原生 4K 输出,请稍后重试或更换模型组`
-            );
-          }
-        }
+        // 高清化不做任何分辨率兜底:模型返回什么就存什么(有图即成功,提升与否由用户自行判断);
+        // 完全没返回图片的情况由上游「无图」失败路径处理。
         const stored = await saveImageBuffer(source.buffer, source.mimeType, "images", `${jobId}-${index + 1}`);
         addPhaseTiming(phaseTimings, "download_decode_ms", performance.now() - downloadDecodeStart);
         try {
