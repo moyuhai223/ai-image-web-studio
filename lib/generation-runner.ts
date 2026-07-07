@@ -5,8 +5,8 @@ import { query } from "./db";
 import { createLogger } from "./logger";
 import { generateWithProvider } from "./provider";
 import { formatProviderErrorInfo, mapProviderError } from "./provider-error-map";
+import { boundedSharp } from "./image-limits";
 import { deleteStoredImageFiles, imageSourceToBuffer, readStoredFile, saveImageBuffer } from "./storage";
-import { ensureLongEdge } from "./upscale";
 import type { GenerationJob, GenerationPhaseTimings, GenerationProgress } from "./types";
 
 const log = createLogger("runner");
@@ -25,7 +25,7 @@ export type GenerationRunInput = {
   parentImageId?: string;
   /** 来自 request_metadata.providerGroupId;runner 透传给 provider 用于解析该组的 baseUrl + key */
   groupId?: string | null;
-  /** 来自 request_metadata.upscale.targetLongEdge;非空时把模型输出存盘前 sharp 放大到该长边(AI 高清化收尾到 4K) */
+  /** 来自 request_metadata.upscale.targetLongEdge;非空时校验模型输出长边达标(±5%),不达标直接判失败(不再 sharp 拉伸凑数) */
   upscaleTargetLongEdge?: number;
   /** 来自 request_metadata.autoRetry.attempts;已自动重试的次数,用于判断是否还能再重试。 */
   autoRetryAttempts?: number;
@@ -668,18 +668,18 @@ export async function processGenerationJob(jobId: string, claimedRunId?: string)
             phaseTimings
           })
         );
-        let outputBuffer: Buffer = source.buffer;
-        let outputMime = source.mimeType;
         if (input.upscaleTargetLongEdge) {
-          // AI 高清化的 4K 收尾(兜底):模型已原生出到目标长边则保留不动,
-          // 仅当代理/模型没给够时才 sharp 放大,保证最终落 4K 像素。
-          const upscaled = await ensureLongEdge(source.buffer, input.upscaleTargetLongEdge);
-          if (upscaled) {
-            outputBuffer = upscaled.buffer;
-            outputMime = upscaled.mimeType;
+          // AI 高清化:只认模型原生分辨率。长边不足目标的 95% 说明模型/网关没真出 4K,
+          // 直接判失败(不再 sharp 拉伸凑「假 4K」)。此错误不属可重试类,不会自动重试烧额度。
+          const meta = await boundedSharp(source.buffer).metadata().catch(() => null);
+          const actualLongEdge = Math.max(meta?.width ?? 0, meta?.height ?? 0);
+          if (actualLongEdge < Math.floor(input.upscaleTargetLongEdge * 0.95)) {
+            throw new Error(
+              `高清化失败:模型返回的分辨率不足(实际 ${meta?.width ?? "?"}×${meta?.height ?? "?"},目标长边 ${input.upscaleTargetLongEdge})。当前网关可能不支持原生 4K 输出,请稍后重试或更换模型组`
+            );
           }
         }
-        const stored = await saveImageBuffer(outputBuffer, outputMime, "images", `${jobId}-${index + 1}`);
+        const stored = await saveImageBuffer(source.buffer, source.mimeType, "images", `${jobId}-${index + 1}`);
         addPhaseTiming(phaseTimings, "download_decode_ms", performance.now() - downloadDecodeStart);
         try {
           failureStage = "写入图片记录";

@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, Boxes, CheckCircle2, Pencil, Plus, Star, Trash2, X } from "lucide-react";
+import { Activity, Boxes, CheckCircle2, ListRestart, Pencil, Plus, Star, Trash2, X } from "lucide-react";
 import type { ModelGroupSummary, ModelOption } from "@/lib/model-groups";
 import { DangerConfirmDialog } from "./danger-confirm-dialog";
 
@@ -13,30 +13,76 @@ type TestResultState = { ok: boolean; latencyMs: number; status: number | null; 
 
 const emptyModelRow = (): ModelOption => ({ value: "", label: "" });
 
-/** 模型列表编辑器:一行 = {value, label},可增删。 */
+/**
+ * 模型列表编辑器:一行 = {value, label},可增删。
+ * 模型 id 输入框挂 datalist:点「获取模型列表」从网关 /v1/models 拉候选后可下拉选择,也始终可手动输入。
+ */
 function ModelsEditor({
   models,
   onChange,
-  idPrefix
+  idPrefix,
+  fetchPayload
 }: {
   models: ModelOption[];
   onChange: (next: ModelOption[]) => void;
   idPrefix: string;
+  /** 拉取模型列表用的请求体:已存组传 {id}(编辑时改了地址/key 则带上覆盖),新组传 {baseUrl, apiKey};null = 还没填地址,禁用按钮。 */
+  fetchPayload: Record<string, unknown> | null;
 }) {
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [fetching, setFetching] = useState(false);
+  const [fetchMessage, setFetchMessage] = useState("");
+  const [fetchFailed, setFetchFailed] = useState(false);
+  const listId = `${idPrefix}-model-list`;
+
   const update = (index: number, patch: Partial<ModelOption>) => {
     onChange(models.map((m, i) => (i === index ? { ...m, ...patch } : m)));
   };
+
+  async function fetchModels() {
+    if (!fetchPayload) return;
+    setFetching(true);
+    setFetchMessage("");
+    setFetchFailed(false);
+    try {
+      const response = await fetch("/api/settings/model-groups/list-models", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(fetchPayload)
+      });
+      const data = (await response.json().catch(() => ({}))) as { models?: string[] } & ApiResponse;
+      if (response.ok && Array.isArray(data.models)) {
+        setSuggestions(data.models.filter((m): m is string => typeof m === "string"));
+        setFetchMessage(`已获取 ${data.models.length} 个模型,点模型 id 输入框可下拉选择(仍可手动输入)`);
+      } else {
+        setFetchFailed(true);
+        setFetchMessage(data.error ?? "获取失败,请手动输入模型 id");
+      }
+    } catch {
+      setFetchFailed(true);
+      setFetchMessage("网络错误,请手动输入模型 id");
+    } finally {
+      setFetching(false);
+    }
+  }
+
   return (
     <div className="field">
       <label>该网关支持的模型(模型 id + 显示名)</label>
+      <datalist id={listId}>
+        {suggestions.map((id) => (
+          <option key={id} value={id} />
+        ))}
+      </datalist>
       <div className="model-rows">
         {models.map((model, index) => (
           <div className="model-row" key={`${idPrefix}-${index}`}>
             <input
               className="input"
-              placeholder="模型 id,如 grok-imagine-image"
+              placeholder={suggestions.length > 0 ? "点击下拉选择,或手动输入" : "模型 id,如 grok-imagine-image"}
               value={model.value}
               maxLength={120}
+              list={listId}
               onChange={(event) => update(index, { value: event.target.value })}
             />
             <input
@@ -58,9 +104,21 @@ function ModelsEditor({
           </div>
         ))}
       </div>
-      <button className="status action-button action-neutral" type="button" onClick={() => onChange([...models, emptyModelRow()])}>
-        <Plus size={14} /> 添加模型
-      </button>
+      <div className="actions">
+        <button className="status action-button action-neutral" type="button" onClick={() => onChange([...models, emptyModelRow()])}>
+          <Plus size={14} /> 添加模型
+        </button>
+        <button
+          className="status action-button action-neutral"
+          type="button"
+          disabled={fetching || !fetchPayload}
+          onClick={fetchModels}
+          title={fetchPayload ? "从该网关的 /v1/models 拉取可用模型作为下拉候选" : "先填 Base URL"}
+        >
+          <ListRestart size={14} /> {fetching ? "获取中…" : "获取模型列表"}
+        </button>
+      </div>
+      {fetchMessage ? <p className={`small ${fetchFailed ? "health-error" : "muted"}`} style={{ margin: 0 }}>{fetchMessage}</p> : null}
     </div>
   );
 }
@@ -252,7 +310,17 @@ export function ModelGroupsManager({ groups }: Props) {
                         <label htmlFor={`mg-key-${group.id}`}>API Key(留空=不修改,当前 {group.keyPreview || "未设置"})</label>
                         <input className="input" id={`mg-key-${group.id}`} type="password" value={editKey} onChange={(e) => setEditKey(e.target.value)} placeholder="替换密钥…" autoComplete="off" />
                       </div>
-                      <ModelsEditor models={editModels} onChange={setEditModels} idPrefix={`edit-${group.id}`} />
+                      <ModelsEditor
+                        models={editModels}
+                        onChange={setEditModels}
+                        idPrefix={`edit-${group.id}`}
+                        fetchPayload={{
+                          id: group.id,
+                          // 编辑中改了地址/换了 key 就用输入框里的新值探测,否则用已存的
+                          ...(editBaseUrl.trim() ? { baseUrl: editBaseUrl } : {}),
+                          ...(editKey.trim() ? { apiKey: editKey.trim() } : {})
+                        }}
+                      />
                     </div>
                   ) : (
                     <div className="key-meta">
@@ -330,7 +398,12 @@ export function ModelGroupsManager({ groups }: Props) {
             <label htmlFor="mg-new-key">API Key</label>
             <input className="input" id="mg-new-key" type="password" placeholder="该网关的 key" value={newKey} onChange={(e) => setNewKey(e.target.value)} autoComplete="off" required />
           </div>
-          <ModelsEditor models={newModels} onChange={setNewModels} idPrefix="new" />
+          <ModelsEditor
+            models={newModels}
+            onChange={setNewModels}
+            idPrefix="new"
+            fetchPayload={newBaseUrl.trim() ? { baseUrl: newBaseUrl, ...(newKey.trim() ? { apiKey: newKey.trim() } : {}) } : null}
+          />
           <div className="field">
             <label className="status" htmlFor="mg-new-default">
               <input id="mg-new-default" type="checkbox" checked={newIsDefault} onChange={(e) => setNewIsDefault(e.target.checked)} />

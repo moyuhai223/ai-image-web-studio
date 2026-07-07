@@ -1733,7 +1733,7 @@ export function Workspace({
           <DangerConfirmDialog
             open={Boolean(upscaleConfirmKey)}
             title="确认高清化"
-            description="将对这张参考图做 AI 4K 高清重绘:会消耗一次生成额度,且可能轻微改变画面。"
+            description="将用 gpt-image-2 对这张参考图做 AI 4K 高清重绘:会消耗一次生成额度,可能轻微改变画面;若模型未能输出 4K 会直接失败(不出假 4K)。"
             confirmLabel="确认重绘"
             loadingLabel="提交中"
             loading={Boolean(upscalingKey)}

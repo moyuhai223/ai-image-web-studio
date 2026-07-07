@@ -80,7 +80,7 @@ export async function getDailyGenerationLimit(): Promise<number> {
   return (await getStored()).dailyGenerationLimit;
 }
 
-/** 生成并发数(1..32);生成队列与快速高清化并发闸共用。 */
+/** 生成并发数(1..32);生成队列取活上限。 */
 export async function getMaxGenerationConcurrency(): Promise<number> {
   return (await getStored()).maxGenerationConcurrency;
 }

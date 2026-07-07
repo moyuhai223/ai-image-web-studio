@@ -76,7 +76,7 @@ export const config = {
   dbPoolConnectionTimeoutMs: numberEnv(process.env.DB_POOL_CONNECTION_TIMEOUT_MS, 10000),
   // 每日生成上限已迁到后台设置(lib/usage-limits.ts,app_settings.usage_limits),不再走 env。
   generationTimeoutMs: numberEnv(process.env.GENERATION_TIMEOUT_MS, DEFAULT_GENERATION_TIMEOUT_MS),
-  /** 4K 高清化的目标长边像素(快速放大与 AI 收尾共用)。默认 3840(4K UHD)。 */
+  /** AI 高清化请求的目标长边像素(模型原生输出,不足即判失败)。默认 3840(4K UHD)。 */
   upscaleLongEdge: numberEnv(process.env.UPSCALE_LONG_EDGE, 3840),
   /** v0.7.25: 生成失败自动重试上限——仅对瞬时错误(上游 5xx/无图/超时/网络/auth_unavailable)。0 = 关闭。默认 2。 */
   generationAutoRetryMax: numberEnv(process.env.GENERATION_AUTO_RETRY_MAX, 2, 0),

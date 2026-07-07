@@ -27,8 +27,9 @@ export const changePasswordSchema = z.object({
 });
 
 export const upscaleSchema = z.object({
-  // fast = sharp 本地插值放大;ai = 走编辑接口 AI 高清重绘 + sharp 收尾
-  mode: z.enum(["fast", "ai"])
+  // 仅 ai:走编辑接口 AI 高清重绘(固定 gpt-image-2,原生 4K,不足直接失败)。
+  // fast(sharp 插值放大)已于 v0.8.7 移除——插值不产生新细节,只会出「假 4K」。
+  mode: z.enum(["ai"])
 });
 
 export const createUserSchema = z.object({

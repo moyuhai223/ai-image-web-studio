@@ -70,7 +70,7 @@ export function ConcurrencyForm({ concurrency }: { concurrency: number }) {
           <Save size={13} />
           {saving ? "保存中" : "保存"}
         </button>
-        <span className="small muted">同时进行的生成任务数(1~32);快速高清化并发闸共用此值;调到 16+ 建议同步上调 DB_POOL_MAX</span>
+        <span className="small muted">同时进行的生成任务数(1~32);调到 16+ 建议同步上调 DB_POOL_MAX</span>
       </form>
       {message ? (
         <p className={error ? "small form-error" : "small muted"} role={error ? "alert" : undefined}>
