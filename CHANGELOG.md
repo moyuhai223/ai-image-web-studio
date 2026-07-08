@@ -2,6 +2,14 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.8.9] - 2026-07-07
+
+### 变更(借鉴 codegrazier/cpa-image)
+
+- **响应提图器加固**:`findImagesInValue` 递归提图新增识别 `image_base64 / base64 / image / result` 等 base64 图字段与 `output_url` URL 字段,并对多义字段做「像不像 base64 图」校验(严格 base64:无空白、长度为 4 的倍数、字符集合规;避免把长英文/JSON 文本误当图出损坏图);输出经去重(同一张图可能被多个字段分支各收一次)。只影响 chat/responses/局部重绘的解析,不碰 generations/edits。
+- **新增 Responses API 出图端点**(`/v1/responses`):给模型挂内置 `image_generation` 工具、`tool_choice` 强制出图。作为**未知/自定义模型**的兜底端点——仅当前一个端点(generations/edits)「有响应但没给图」时才探;端点直接 4xx 不支持则跳过、直落 chat(不对只支持 chat 的网关白打请求)。已知模型(gpt-image / Grok / Nano Banana / Gemini)的显式路由不变、不受影响。
+- 兜底级联重构为 `tryEndpoint` 助手(区分「4xx 不支持」与「无图」两种降级原因,并记日志便于排查),行为与旧的内联 try/catch 等价。
+
 ## [0.8.8] - 2026-07-07
 
 ### 变更

@@ -357,15 +357,61 @@ function findImagesInValue(value: unknown, images: ProviderImage[]) {
     const source = asRecord(record.source);
     if (source) pushInlineImage(source, images);
 
+    // Responses API 的图像结果:{ type: "image_generation_call", result: "<base64>" }
     if (record.type === "image_generation_call" && typeof record.result === "string") {
       images.push({ b64: record.result, mimeType: "image/png" });
     }
 
+    // 各家网关的裸 base64 图字段。b64_json 无前缀、约定就是图,直接收;
+    // image_base64/base64/image/result 是多义字段,须先校验「看起来是 base64 图」再收,
+    // 免得把 image:"a cat" / result:"ok" 这类文本误当图(借鉴 codegrazier/cpa-image)。
     if (typeof record.b64_json === "string") images.push({ b64: record.b64_json, mimeType: "image/png" });
-    if (typeof record.image_url === "string") images.push({ url: record.image_url });
-    if (typeof record.url === "string" && /^https?:\/\//.test(record.url)) images.push({ url: record.url });
+    for (const key of BASE64_IMAGE_KEYS) {
+      const candidate = record[key];
+      if (typeof candidate === "string" && looksLikeBase64Image(candidate)) {
+        const text = candidate.trim();
+        images.push(text.startsWith("data:image/") ? { b64: text } : { b64: text, mimeType: "image/png" });
+      }
+    }
+
+    // URL 形态的图字段(含 data: 前缀的内联图)
+    for (const key of URL_IMAGE_KEYS) {
+      const candidate = record[key];
+      if (typeof candidate !== "string") continue;
+      if (candidate.startsWith("data:image/")) images.push({ b64: candidate });
+      else if (/^https?:\/\//.test(candidate)) images.push({ url: candidate });
+    }
+
     for (const nested of Object.values(record)) findImagesInValue(nested, images);
   }
+}
+
+// 多义的图字段名(须配合 looksLikeBase64Image 校验)。
+const BASE64_IMAGE_KEYS = ["image_base64", "base64", "image", "result"] as const;
+const URL_IMAGE_KEYS = ["image_url", "output_url", "url"] as const;
+
+/**
+ * 判断字符串「看起来是一张 base64 图」:data:image 前缀,或足够长的严格 base64。
+ * 严格 base64:无空白、长度为 4 的倍数、只含 base64 字符集且 = 只在结尾——
+ * 这样能挡掉「只有字母数字和空格」的长英文散文/JSON(否则会被误当图,出损坏图)。
+ */
+function looksLikeBase64Image(value: string): boolean {
+  const text = value.trim();
+  if (text.startsWith("data:image/")) return true;
+  return text.length > 80 && text.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(text);
+}
+
+/** 按图内容(b64 或 url)去重——递归遍历同一张图可能被多个 key/字符串分支各收一次。 */
+function dedupeImages(images: ProviderImage[]): ProviderImage[] {
+  const seen = new Set<string>();
+  const out: ProviderImage[] = [];
+  for (const image of images) {
+    const identity = image.b64 ?? image.url ?? "";
+    if (!identity || seen.has(identity)) continue;
+    seen.add(identity);
+    out.push(image);
+  }
+  return out;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -393,7 +439,7 @@ function normalizeChatResult(raw: Record<string, unknown>): ProviderPayloadResul
   findImagesInValue(raw, images);
   return {
     requestId: typeof raw.id === "string" ? raw.id : null,
-    images,
+    images: dedupeImages(images),
     raw
   };
 }
@@ -593,6 +639,41 @@ async function generateChatImage(input: GenerateInput, apiKey: string, deadline:
   return normalized;
 }
 
+/**
+ * Responses API(/v1/responses)出图:给(文本/推理)模型挂内置的 image_generation 工具,
+ * 用 tool_choice 强制它必须调该工具出图。图像参数放进工具定义(不是顶层)。
+ * 返回体里图像在 { type:"image_generation_call", result:"<base64>" },由 findImagesInValue 认出。
+ * 借鉴 codegrazier/cpa-image;作为某些网关只经 Responses API 暴露出图能力时的兜底端点。
+ */
+async function generateResponsesImage(input: GenerateInput, apiKey: string, deadline: ProviderDeadline, baseUrl: string) {
+  const content: Array<Record<string, unknown>> = [
+    { type: "input_text", text: `${input.prompt}\n\nTarget image size: ${input.size}. Keep the final image dimensions divisible by 16.` }
+  ];
+  for (const dataUrl of getReferenceDataUrls(input)) {
+    content.push({ type: "input_image", image_url: dataUrl });
+  }
+
+  const raw = await retryProvider("responses image generation", deadline, () =>
+    postJson(
+      "/v1/responses",
+      {
+        model: input.model,
+        input: [{ role: "user", content }],
+        tools: [{ type: "image_generation", size: input.size }],
+        tool_choice: { type: "image_generation" }
+      },
+      apiKey,
+      deadline,
+      baseUrl
+    )
+  );
+  const normalized = normalizeChatResult(raw);
+  if (normalized.images.length === 0) {
+    throw Object.assign(new Error("Provider response did not contain an image"), { raw });
+  }
+  return normalized;
+}
+
 const MASK_EDIT_INSTRUCTION = [
   "你将收到两张图片:第一张为原图,第二张为遮罩。",
   "编辑规则(必须严格遵守):",
@@ -701,31 +782,47 @@ async function generateWithSelectedKey(input: GenerateInput, apiKey: string, dea
     return generateChatImage(input, apiKey, deadline, baseUrl);
   }
 
+  // 未知/自定义模型:按端点逐个尝试,某端点降级时落到下一个,直到 chat-completions 兜底。
+  // Responses API(/v1/responses)只在前一个端点「有响应但没给图」时才探——若前一个端点直接 4xx
+  // 「不支持」,说明这网关不认这套形态,直接落 chat,免得对只支持 chat 的网关白打一次 responses。
   if (getReferenceDataUrls(input).length > 0) {
-    try {
-      return await generateImageEdit(input, apiKey, deadline, baseUrl);
-    } catch (error) {
-      if (isProviderTimeoutError(error) || isTransientProviderError(error)) {
-        throw error;
-      }
-      const status = (error as Error & { status?: number }).status;
-      if (status && ![400, 404, 405, 422].includes(status)) throw error;
+    const edited = await tryEndpoint("image edit", () => generateImageEdit(input, apiKey, deadline, baseUrl));
+    if (edited.ok) return edited.result;
+    if (edited.reason === "no-image") {
+      const viaResponses = await tryEndpoint("responses", () => generateResponsesImage(input, apiKey, deadline, baseUrl));
+      if (viaResponses.ok) return viaResponses.result;
     }
-
     return generateChatImage(input, apiKey, deadline, baseUrl);
   }
 
+  const generated = await tryEndpoint("image generation", () => generateImageGeneration(input, apiKey, deadline, baseUrl));
+  if (generated.ok) return generated.result;
+  if (generated.reason === "no-image") {
+    const viaResponses = await tryEndpoint("responses", () => generateResponsesImage(input, apiKey, deadline, baseUrl));
+    if (viaResponses.ok) return viaResponses.result;
+  }
+  return generateChatImage(input, apiKey, deadline, baseUrl);
+}
+
+type EndpointOutcome =
+  | { ok: true; result: ProviderPayloadResult }
+  | { ok: false; reason: "no-image" | "unsupported" };
+
+/**
+ * 跑一个出图端点:成功 → {ok:true}。失败若是「4xx 不支持/不认参数」→ {ok:false, reason:"unsupported"};
+ * 「模型有响应但没图」(无 HTTP status 的 no-image 错误)→ {ok:false, reason:"no-image"}——
+ * 调用方据此决定是否值得再探下一个端点。超时/瞬时/其它状态如实抛(交给任务级重试)。
+ */
+async function tryEndpoint(label: string, fn: () => Promise<ProviderPayloadResult>): Promise<EndpointOutcome> {
   try {
-    return await generateImageGeneration(input, apiKey, deadline, baseUrl);
+    return { ok: true, result: await fn() };
   } catch (error) {
-    if (isProviderTimeoutError(error) || isTransientProviderError(error)) {
-      throw error;
-    }
+    if (isProviderTimeoutError(error) || isTransientProviderError(error)) throw error;
     const status = (error as Error & { status?: number }).status;
     if (status && ![400, 404, 405, 422].includes(status)) throw error;
+    log.warn("Provider endpoint degraded, cascading to next", { label, status: status ?? null, error });
+    return { ok: false, reason: status ? "unsupported" : "no-image" };
   }
-
-  return generateChatImage(input, apiKey, deadline, baseUrl);
 }
 
 /**
