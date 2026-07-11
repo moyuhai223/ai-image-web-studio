@@ -2,6 +2,23 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.8.10] - 2026-07-11
+
+### 新增
+
+- **对外 API 生图(OpenAI 兼容)**:第三方程序可用 API Key 直接调用本站生图——任何支持自定义 Base URL 的 OpenAI 客户端/SDK 把地址指向本站即可。
+  - **`POST /v1/images/generations`**(同步):`{model, prompt, n?, size?, response_format?("b64_json" 默认 | "url"), user?}`;请求内等待出图后返回 `{created, data:[{b64_json}|{url}]}`。`n` 夹紧 1~4;`size` 支持 `auto` 与任意 `宽x高`(自动裁剪成合规值);`model` 必须是模型组里配置过的(见 `/v1/models`),线路自动轮询。部分成功返回已产出的图;全失败 500(带具体错误);等待超 280 秒返回 504(任务继续在后台跑,可登录网页在「记录」中查看)。
+  - **`GET /v1/models`**:列出可用模型,兼作 Key 连接测试。
+  - **`response_format:"url"`**:返回带 HMAC 限时签名的图片直链(24 小时有效,免登录可下,零存储);大图/多图建议用 url 模式(b64 响应可达几十 MB)。
+  - **每用户自助 API Key**:顶部导航新增「API」页,登录用户可创建(明文只显示一次)/吊销自己的 Key(每人最多 10 个有效),管理员可查看全站全部 Key。生成记录与每日配额计入 Key 所属用户,与网页端共用同一把并发配额锁(双通道也无法超额);吊销/停用账号即时生效。
+  - 安全:Key 只存 sha256 哈希(明文零落地,审计只记前缀);配额超限返回 OpenAI 风格 429(`queue_full` 带 `retry-after` / `insufficient_quota`);无效 Key 返回 401 JSON。
+  - 数据库:新增 `api_keys` 表(迁移 `004_api_keys.sql`,`npm run db:migrate` 自动应用)。
+  - **部署提示**:反代需将 `/v1/images/generations` 的读超时调到 ≥300s(nginx `proxy_read_timeout`;否则同步等待会被反代掐断);使用 url 模式建议配置 `APP_ORIGIN` 环境变量(生成正确域名的图片直链)。
+
+### 变更
+
+- **界面美化主题包(玻璃拟态 + 黑曜石霓虹)**:浅色主题升级为弥散渐变背景 + 玻璃态面板;深色/画廊夜间主题升级为黑曜石霓虹配色;标题字体引入 Plus Jakarta Sans。修正深色 token 选择器特异性(统一用 `.shell[data-theme=…]`,避免 dark 与 gallery-dark 配色分家),html 首屏兜底色同步为新深色底。
+
 ## [0.8.9] - 2026-07-07
 
 ### 变更(借鉴 codegrazier/cpa-image)

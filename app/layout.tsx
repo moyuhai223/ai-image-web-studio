@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Noto_Sans_SC } from "next/font/google";
+import { Inter, JetBrains_Mono, Noto_Sans_SC, Plus_Jakarta_Sans } from "next/font/google";
 import { Suspense } from "react";
 import { NavigationProgress } from "@/components/navigation-progress";
 import { getUiThemePreference } from "@/lib/ui-theme";
@@ -25,6 +25,12 @@ const inter = Inter({
   variable: "--font-sans-latin",
   display: "swap",
   axes: ["opsz"]
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-jakarta",
+  display: "swap"
 });
 
 const notoSansSC = Noto_Sans_SC({
@@ -54,7 +60,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       lang="zh-CN"
       data-theme={theme}
       data-theme-mode={mode}
-      className={`${inter.variable} ${notoSansSC.variable} ${jetbrainsMono.variable}`}
+      className={`${inter.variable} ${notoSansSC.variable} ${jetbrainsMono.variable} ${plusJakartaSans.variable}`}
     >
       <body>
         {/* useSearchParams 在 App Router 里必须包 Suspense,否则整个 body 会
