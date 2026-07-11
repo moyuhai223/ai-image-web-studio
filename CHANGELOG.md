@@ -2,6 +2,15 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.8.11] - 2026-07-11
+
+### 变更
+
+- **美化主题包生效修复 + 抽成独立文件**:v0.8.10 的主题包实际大半没生效——约一半选择器打的是不存在的类名(`.button.primary`、`.recent-records-panel`、`.skeleton` 等在页面里都没有),玻璃态也没打在真正的面板载体 `.panel` 上。本版:
+  - 选择器全部对齐真实 DOM:玻璃态直接升级 `.panel`(全站面板通用)+ `.topbar`;主 CTA 悬浮发光改挂 `.generation-submit .button`;卡片动效挂 `.history-item`;去掉整批落空规则与多余的 `!important`。
+  - 主题包抽成**独立文件 `app/theme-pack.css`**,在 `layout.tsx` 里于 globals.css 之后引入(靠源序覆盖基础 token)。不想要这套皮肤时注释掉 `import "./theme-pack.css"` 一行即回默认主题。
+  - 浏览器实测:浅色弥散渐变 + 玻璃面板(blur 20px)、深色黑曜石(`--bg #070a12`、blur 24px)、Plus Jakarta Sans 标题字体均已生效。
+
 ## [0.8.10] - 2026-07-11
 
 ### 新增

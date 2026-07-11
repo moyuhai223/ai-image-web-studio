@@ -4,6 +4,9 @@ import { Suspense } from "react";
 import { NavigationProgress } from "@/components/navigation-progress";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import "./globals.css";
+// 独立美化主题包(玻璃拟态+黑曜石霓虹):必须在 globals.css 之后引入,靠源序覆盖基础 token;
+// 不想要这套皮肤时注释掉这一行即回默认主题。
+import "./theme-pack.css";
 
 /**
  * 字体加载策略(v0.5.x UI 美化):
