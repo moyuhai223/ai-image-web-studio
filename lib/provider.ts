@@ -454,8 +454,17 @@ function isNanoBananaModel(model: string) {
 
 // Grok Imagine 系(xAI 图像模型),经 OpenAI 兼容代理走 /v1/images/generations 文生图;
 // 与 gpt-image 不同,xAI 图像接口通常不吃 size 参数(见 generateImageGeneration 里的省略)。
+// 注意只匹配 grok-imagine 系,不能宽匹配 "grok"——grok-4.20-fast 等 Grok 对话模型也能出图,
+// 但走 chat completions(claw 网关实测 images/generations 会报 not an image model);
+// 收窄后它们落到未知模型级联:先探 images/generations(400 即跳过)再降级 chat,恰好走对线路。
 function isGrokImageModel(model: string) {
-  return model === config.imageModelGrok || model.toLowerCase().includes("grok");
+  const lower = model.toLowerCase();
+  return (
+    model === config.imageModelGrok ||
+    model === config.imageModelGrokQuality ||
+    lower.includes("grok-imagine") ||
+    lower.includes("grok_imagine")
+  );
 }
 
 // Gemini flash-image(本质与 Nano Banana 同源,都是 Google 多模态出图模型),

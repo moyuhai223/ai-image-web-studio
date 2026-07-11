@@ -2,6 +2,13 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
+## [0.8.12] - 2026-07-11
+
+### 修复
+
+- **Grok 对话模型(如 `grok-4.20-fast`)出图报「not an image model」**:此前模型名 pattern 宽匹配任何带 "grok" 的名字都当成 Grok 图像模型、强走 `/v1/images/generations`,而 `grok-4.20-fast` 这类 Grok **对话**模型在网关(claw)上要走 chat completions 出图。现在收窄为只匹配 `grok-imagine` 系(`grok-imagine-image` / `grok-imagine-image-quality` / 未来 `grok-imagine-*` 变体);其它 grok-* 模型落到未知模型级联——先探 `images/generations`(网关报 400 即自动跳过)→ `responses` → **chat completions 兜底**,不再整单失败。
+  - `grok-imagine` 系、gpt-image、Gemini、Nano Banana 的既有线路完全不变。
+
 ## [0.8.11] - 2026-07-11
 
 ### 变更
