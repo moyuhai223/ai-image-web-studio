@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Noto_Sans_SC, Plus_Jakarta_Sans } from "next/font/google";
+import { Inter, JetBrains_Mono, Noto_Sans_SC } from "next/font/google";
 import { Suspense } from "react";
 import { NavigationProgress } from "@/components/navigation-progress";
 import { getUiThemePreference } from "@/lib/ui-theme";
 import "./globals.css";
-// 独立美化主题包(玻璃拟态+黑曜石霓虹):必须在 globals.css 之后引入,靠源序覆盖基础 token;
-// 不想要这套皮肤时注释掉这一行即回默认主题。
-import "./theme-pack.css";
 
 /**
  * 字体加载策略(v0.5.x UI 美化):
@@ -28,12 +25,6 @@ const inter = Inter({
   variable: "--font-sans-latin",
   display: "swap",
   axes: ["opsz"]
-});
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  variable: "--font-jakarta",
-  display: "swap"
 });
 
 const notoSansSC = Noto_Sans_SC({
@@ -63,7 +54,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       lang="zh-CN"
       data-theme={theme}
       data-theme-mode={mode}
-      className={`${inter.variable} ${notoSansSC.variable} ${jetbrainsMono.variable} ${plusJakartaSans.variable}`}
+      className={`${inter.variable} ${notoSansSC.variable} ${jetbrainsMono.variable}`}
     >
       <body>
         {/* useSearchParams 在 App Router 里必须包 Suspense,否则整个 body 会

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, Heart, Image, KeyRound, LogOut, Settings, Table2 } from "lucide-react";
+import { FileText, Heart, Image, LogOut, Settings, Table2 } from "lucide-react";
 import { JobNotificationCenter } from "./job-notification-center";
 import { NotifyToggle } from "./notify-toggle";
 import { ReferenceBasketTray } from "./reference-basket";
@@ -34,10 +34,6 @@ export function AppNav({ user, themeMode }: { user: User; themeMode: UiThemeMode
           <Link href="/changelog" prefetch={false} aria-label="日志" title="日志">
             <FileText size={16} />
             <span className="nav-label">日志</span>
-          </Link>
-          <Link href="/api-keys" prefetch={false} aria-label="API Key" title="API Key">
-            <KeyRound size={16} />
-            <span className="nav-label">API</span>
           </Link>
           {user.role === "admin" ? (
             <Link href="/settings" prefetch={false} aria-label="设置" title="设置">

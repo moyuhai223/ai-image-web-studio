@@ -41,13 +41,11 @@ function requestIp(request: Request | undefined) {
   return forwarded || request.headers.get("x-real-ip") || null;
 }
 
-// 敏感键名过滤(纵深防御,主防线是调用方不传敏感值)。覆盖下划线/驼峰两种写法;
-// keyPrefix 不在其列(列表本就展示前缀,非敏感)。
-const SENSITIVE_DETAIL_KEY_RE = /password|api_?key|secret|token|ciphertext|plaintext/i;
-
 function safeDetail(detail: Record<string, unknown> | undefined) {
   if (!detail) return {};
-  return Object.fromEntries(Object.entries(detail).filter(([key]) => !SENSITIVE_DETAIL_KEY_RE.test(key)));
+  return Object.fromEntries(
+    Object.entries(detail).filter(([key]) => !key.toLowerCase().includes("password") && !key.toLowerCase().includes("api_key"))
+  );
 }
 
 export async function writeAuditLog(input: WriteAuditLogInput) {

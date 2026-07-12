@@ -16,20 +16,6 @@ export const generateSchema = z.object({
     .transform((value) => (value && value.length > 0 ? value : undefined))
 });
 
-/**
- * 对外 OpenAI 兼容接口 POST /v1/images/generations 的请求体。
- * 可选字段用 nullish(缺失/显式 null 都等同未传——OpenAI 语义,不少第三方客户端会把未填字段序列化为 null);
- * n 由调用方夹紧 1..4(宽容兼容)。多余字段(quality/style 等)被 z.object 默认 strip,不报错。
- */
-export const openAiImagesGenerationsSchema = z.object({
-  prompt: z.string().trim().min(1, "prompt 不能为空").max(4000, "prompt 太长"),
-  model: z.string().trim().min(1).max(120).nullish().transform((value) => value ?? undefined),
-  n: z.number().int().nullish().transform((value) => value ?? undefined),
-  size: z.string().trim().max(20).nullish().transform((value) => value ?? "auto"),
-  response_format: z.enum(["b64_json", "url"]).nullish().transform((value) => value ?? "b64_json"),
-  user: z.string().max(256).nullish().transform((value) => value ?? undefined)
-});
-
 export const loginSchema = z.object({
   username: z.string().trim().min(1),
   password: z.string().min(1)

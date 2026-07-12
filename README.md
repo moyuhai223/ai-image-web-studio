@@ -146,45 +146,6 @@ GENERATION_TIMEOUT_MS=900000
 
 自定义尺寸时建议宽高都能被 8 整除；`gpt-image-2` 实测对尺寸更敏感，遇到 provider 报错时优先使用内置预设或 `auto`。
 
-## 对外 API（OpenAI 兼容）
-
-v0.8.10 起，第三方程序可用 API Key 调用本站生图。任何支持自定义 Base URL 的 OpenAI 客户端/SDK 把地址指向本站即可。
-
-**创建 Key**：登录后点顶部导航「API」→ 创建 Key（明文只显示一次，立即保存）。生成记录与每日配额计入你的账号。
-
-**端点**：
-
-| 端点 | 说明 |
-| --- | --- |
-| `POST /v1/images/generations` | 同步生图。请求内等待出图后返回（最长约 280s） |
-| `GET /v1/models` | 可用模型列表，兼作 Key 连接测试 |
-
-**curl 示例**：
-
-```bash
-curl -X POST https://你的域名/v1/images/generations \
-  -H "Authorization: Bearer sk-aiws-..." \
-  -H "content-type: application/json" \
-  -d '{"model":"gpt-image-2","prompt":"a cat in a spacesuit","size":"1024x1024","n":1}'
-```
-
-**OpenAI SDK 示例**（Node）：
-
-```js
-import OpenAI from "openai";
-const client = new OpenAI({ baseURL: "https://你的域名/v1", apiKey: "sk-aiws-..." });
-const result = await client.images.generate({ model: "gpt-image-2", prompt: "a cat", size: "1024x1024" });
-```
-
-**参数**：`prompt` 必填；`model` 必须是「设置 → 模型组」里配置过的模型（`GET /v1/models` 可查）；`n` 1~4；`size` 支持 `auto` 与任意 `宽x高`（自动裁剪成合规值）；`response_format` 默认 `b64_json`，传 `"url"` 返回 24 小时有效的图片直链（大图/多图建议用 url，b64 响应可达几十 MB）。
-
-**注意**：
-
-- 反代（nginx/1Panel）需将读超时调到 **≥300 秒**（`proxy_read_timeout 300s;`），否则同步等待会被反代掐断。
-- 使用 `response_format:"url"` 时建议配置 `APP_ORIGIN` 环境变量（如 `https://你的域名`），保证直链域名正确。
-- 配额与网页端共用：每日上限、队列上限同样生效，超限返回 429。
-- 建议在反代层对 `/v1/` 加 IP 限速（如 nginx `limit_req`）作为额外防护。
-
 ## 生产部署
 
 ### 用 Docker Compose 从源码部署

@@ -481,18 +481,6 @@ export async function getJobById(id: string, user: User): Promise<JobWithImages 
   return { ...job, images: images.rows };
 }
 
-/**
- * 无 user scope 的最小图片查询,仅供 /v1 签名图片下载路由使用——
- * HMAC 签名本身即授权凭证(生成签名的前提是持有效 API Key 完成了生成)。
- */
-export async function getImageById(imageId: string) {
-  const result = await query<Pick<GeneratedImage, "id" | "local_path" | "mime_type">>(
-    `select id, local_path, mime_type from generated_images where id = $1`,
-    [imageId]
-  );
-  return result.rows[0] ?? null;
-}
-
 export async function getImageForUser(imageId: string, user: User) {
   const result = await query<GeneratedImage & { user_id: string }>(
     `select i.*,

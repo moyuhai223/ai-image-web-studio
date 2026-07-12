@@ -2,38 +2,18 @@
 
 所有重要改动都会记录在这里。后续每次更新代码、配置、部署包或可见行为时，都同步增加版本号并补充本文件。
 
-## [0.8.12] - 2026-07-11
+## [0.8.13] - 2026-07-12
 
-### 修复
+### 变更(Studio Console 改造 V1/4:创作页三栏 + 底部 Composer)
 
-- **Grok 对话模型(如 `grok-4.20-fast`)出图报「not an image model」**:此前模型名 pattern 宽匹配任何带 "grok" 的名字都当成 Grok 图像模型、强走 `/v1/images/generations`,而 `grok-4.20-fast` 这类 Grok **对话**模型在网关(claw)上要走 chat completions 出图。现在收窄为只匹配 `grok-imagine` 系(`grok-imagine-image` / `grok-imagine-image-quality` / 未来 `grok-imagine-*` 变体);其它 grok-* 模型落到未知模型级联——先探 `images/generations`(网关报 400 即自动跳过)→ `responses` → **chat completions 兜底**,不再整单失败。
-  - `grok-imagine` 系、gpt-image、Gemini、Nano Banana 的既有线路完全不变。
+- **创作页重构为「专业创作台」布局**:左 = 参数面板(模型/尺寸/数量 + 「高级」折叠区:线路、自定义宽高、局部重绘合成开关)| 中 = 图片画布(结果预览为绝对视觉中心,画布底色更沉凸显图片;任务队列暂留画布列,V2 将移入全局任务中心)| 右 = 上下文面板(参考图管理 + 最近记录)| **底部固定 Prompt Composer**(模板/最近提示词/优化工具行 + 提示词输入 + 参数摘要 + 开始生成;优化对比卡浮层出现在 Composer 上方)。
+  - **左右面板可折叠**(44px 竖条 rail,点击展开);>1320px 整页不滚、三栏各自内滚;≤1320 两栏(右栏通栏落底)、≤1100 单列、≤680 移动端收紧(V4 将上底部 Sheet)。
+  - **中性视觉收敛**:面板改实底(`--surface`),玻璃模糊 16→6px、描边改中性 border 系,弱化玻璃拟态与大面积渐变;新增 `--canvas-bg` 画布沉底色,让图片成为最高视觉层级;图卡 hover 阴影减档。四主题(studio/gallery/dark/gallery-dark)同步适配。
+  - 功能与旧版完全等价:生成链路(乐观占位/轮询/批量/失败提示)、参考图三源(上传/生成图/图库)、局部重绘蒙版、模板占位符 Tab 跳转、提示词优化对比、rerun URL 回填、`?basket=1`/`autorun=1`、模型选择记忆全部保留。提交从表单 DOM 收集改为受控构造(提交字段逐一相同)。
+  - 实现:`components/workspace.tsx`(2054 行)拆分为 `components/studio/` 8 个文件(provider Context 中心 + 参数/画布/上下文/Composer 区块组件 + 纯函数模块),状态与副作用逐字搬迁;创作页容器 `.workspace` → `.studio`(gallery 主题旧两栏特化自然失活,V4 清理)。
 
-## [0.8.11] - 2026-07-11
-
-### 变更
-
-- **美化主题包生效修复 + 抽成独立文件**:v0.8.10 的主题包实际大半没生效——约一半选择器打的是不存在的类名(`.button.primary`、`.recent-records-panel`、`.skeleton` 等在页面里都没有),玻璃态也没打在真正的面板载体 `.panel` 上。本版:
-  - 选择器全部对齐真实 DOM:玻璃态直接升级 `.panel`(全站面板通用)+ `.topbar`;主 CTA 悬浮发光改挂 `.generation-submit .button`;卡片动效挂 `.history-item`;去掉整批落空规则与多余的 `!important`。
-  - 主题包抽成**独立文件 `app/theme-pack.css`**,在 `layout.tsx` 里于 globals.css 之后引入(靠源序覆盖基础 token)。不想要这套皮肤时注释掉 `import "./theme-pack.css"` 一行即回默认主题。
-  - 浏览器实测:浅色弥散渐变 + 玻璃面板(blur 20px)、深色黑曜石(`--bg #070a12`、blur 24px)、Plus Jakarta Sans 标题字体均已生效。
-
-## [0.8.10] - 2026-07-11
-
-### 新增
-
-- **对外 API 生图(OpenAI 兼容)**:第三方程序可用 API Key 直接调用本站生图——任何支持自定义 Base URL 的 OpenAI 客户端/SDK 把地址指向本站即可。
-  - **`POST /v1/images/generations`**(同步):`{model, prompt, n?, size?, response_format?("b64_json" 默认 | "url"), user?}`;请求内等待出图后返回 `{created, data:[{b64_json}|{url}]}`。`n` 夹紧 1~4;`size` 支持 `auto` 与任意 `宽x高`(自动裁剪成合规值);`model` 必须是模型组里配置过的(见 `/v1/models`),线路自动轮询。部分成功返回已产出的图;全失败 500(带具体错误);等待超 280 秒返回 504(任务继续在后台跑,可登录网页在「记录」中查看)。
-  - **`GET /v1/models`**:列出可用模型,兼作 Key 连接测试。
-  - **`response_format:"url"`**:返回带 HMAC 限时签名的图片直链(24 小时有效,免登录可下,零存储);大图/多图建议用 url 模式(b64 响应可达几十 MB)。
-  - **每用户自助 API Key**:顶部导航新增「API」页,登录用户可创建(明文只显示一次)/吊销自己的 Key(每人最多 10 个有效),管理员可查看全站全部 Key。生成记录与每日配额计入 Key 所属用户,与网页端共用同一把并发配额锁(双通道也无法超额);吊销/停用账号即时生效。
-  - 安全:Key 只存 sha256 哈希(明文零落地,审计只记前缀);配额超限返回 OpenAI 风格 429(`queue_full` 带 `retry-after` / `insufficient_quota`);无效 Key 返回 401 JSON。
-  - 数据库:新增 `api_keys` 表(迁移 `004_api_keys.sql`,`npm run db:migrate` 自动应用)。
-  - **部署提示**:反代需将 `/v1/images/generations` 的读超时调到 ≥300s(nginx `proxy_read_timeout`;否则同步等待会被反代掐断);使用 url 模式建议配置 `APP_ORIGIN` 环境变量(生成正确域名的图片直链)。
-
-### 变更
-
-- **界面美化主题包(玻璃拟态 + 黑曜石霓虹)**:浅色主题升级为弥散渐变背景 + 玻璃态面板;深色/画廊夜间主题升级为黑曜石霓虹配色;标题字体引入 Plus Jakarta Sans。修正深色 token 选择器特异性(统一用 `.shell[data-theme=…]`,避免 dark 与 gallery-dark 配色分家),html 首屏兜底色同步为新深色底。
+> 说明:本版为 Studio Console 四阶段改造第 1 版(V1 桌面骨架)。后续 V2 = 顶部四 tab 导航 + 全局任务中心 + 资产合并页;V3 = 右栏上下文面板完全态;V4 = 移动端底部 Sheet + 清理。
+> 另:v0.8.10-0.8.12(对外 API / 主题包 / Grok 分发)已回退,本版基于 v0.8.9 代码线;远端历史里的这三个版本被本版覆盖。
 
 ## [0.8.9] - 2026-07-07
 
