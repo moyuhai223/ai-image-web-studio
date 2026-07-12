@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Brush, ImagePlus, PanelRightClose, RefreshCcw, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Brush, ChevronDown, ImagePlus, PanelRightClose, RefreshCcw, Sparkles, X } from "lucide-react";
 import { CopyPromptButton } from "../copy-prompt-button";
 import { DangerConfirmDialog } from "../danger-confirm-dialog";
 import { DeleteRecordButton } from "../delete-record-button";
@@ -26,6 +26,8 @@ export function ContextPanel({ onCollapse }: { onCollapse: () => void }) {
     referenceSummary,
     recentReferenceImages,
     selectedReferences,
+    referencesOpen,
+    setReferencesOpen,
     referenceFileInputRef,
     handleReferenceFileChange,
     toggleLibraryReference,
@@ -57,16 +59,29 @@ export function ContextPanel({ onCollapse }: { onCollapse: () => void }) {
   return (
     <div className="studio-context-stack">
       <section className="panel studio-panel">
-        <div className="panel-header">
-          <h2 className="panel-title">参考图</h2>
-          <div className="actions">
-            <span className="small muted">{referenceSummary} · 最多 {limits.maxReferenceImages} 张</span>
-            <button className="status studio-collapse-btn" type="button" onClick={onCollapse} title="收起面板" aria-label="收起面板">
-              <PanelRightClose size={15} />
-            </button>
-          </div>
+        <div className="panel-header studio-ref-header">
+          <button
+            className="reference-section-toggle studio-ref-toggle"
+            type="button"
+            aria-expanded={referencesOpen}
+            aria-controls="studio-reference-body"
+            onClick={() => setReferencesOpen((current) => !current)}
+          >
+            <span className="panel-title">参考图</span>
+            <span className="reference-section-toggle-meta">
+              <span className="small muted">{referenceSummary}</span>
+              <span className="status action-button action-neutral reference-section-toggle-status">
+                <ChevronDown size={14} />
+                {referencesOpen ? "收起" : "展开"}
+              </span>
+            </span>
+          </button>
+          <button className="status studio-collapse-btn" type="button" onClick={onCollapse} title="收起面板" aria-label="收起面板">
+            <PanelRightClose size={15} />
+          </button>
         </div>
-        <div className="panel-body studio-panel-body">
+        {referencesOpen ? (
+        <div className="panel-body studio-panel-body" id="studio-reference-body">
           <div className="reference-picker">
             <label
               className={`reference-option upload-reference-option ${selectedReferences.some((reference) => reference.type === "upload") ? "selected" : ""}`}
@@ -195,6 +210,7 @@ export function ContextPanel({ onCollapse }: { onCollapse: () => void }) {
             )}
           </div>
         </div>
+        ) : null}
       </section>
 
       <DangerConfirmDialog

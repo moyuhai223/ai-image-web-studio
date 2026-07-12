@@ -5628,14 +5628,20 @@ button.action-button:active:not(:disabled),
   box-shadow: var(--shadow-md);
 }
 
-/* —— Studio 布局骨架 —— */
+/* —— Studio 布局骨架:自然文档流 + 底部 sticky Composer。
+   用 flex column + min-height 把 Composer 推到视口底部(内容不满屏时也贴底),
+   内容多时页面正常滚动、Composer sticky 跟随。不整页锁高——避免空态画布被撑成大空洞。 —— */
 .studio-main {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 56px);
   padding: 14px 20px 0;
 }
 
 .studio {
+  flex: 1 0 auto;
   display: grid;
-  grid-template-columns: var(--studio-left, minmax(264px, 320px)) minmax(0, 1fr) var(--studio-right, minmax(280px, 380px));
+  grid-template-columns: var(--studio-left, minmax(260px, 300px)) minmax(0, 1fr) var(--studio-right, minmax(280px, 360px));
   gap: 14px;
   width: 100%;
   max-width: 1760px;
@@ -5663,10 +5669,15 @@ button.action-button:active:not(:disabled),
   align-content: start;
 }
 
-/* 画布面板背景更沉,凸显图片 */
-.studio-canvas .panel-body {
-  background: var(--canvas-bg);
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
+/* 画布空态:居中简洁提示,给合理最小高度(不撑满整页),去掉装饰性占位块避免大深色块 */
+.studio-canvas .preview-empty-state {
+  min-height: 300px;
+  display: grid;
+  place-items: center;
+}
+
+.studio-canvas .preview-placeholder {
+  display: none;
 }
 
 /* 折叠 rail:44px 竖条,只留展开按钮 + 竖排文字 */
@@ -5692,6 +5703,16 @@ button.action-button:active:not(:disabled),
 .studio-collapse-btn {
   min-height: 28px;
   padding: 0 6px;
+}
+
+/* 右栏参考图折叠 header:整块可点展开/收起,右侧留独立的「收起面板」按钮 */
+.studio-ref-header {
+  gap: 8px;
+}
+
+.studio-ref-toggle {
+  flex: 1;
+  min-width: 0;
 }
 
 /* —— 底部 Prompt Composer —— */
@@ -5800,39 +5821,6 @@ button.action-button:active:not(:disabled),
 /* 参考图篮 fixed bottom 避让 Composer(仅创作页) */
 .studio-shell .reference-basket-tray {
   bottom: calc(var(--studio-composer-h, 96px) + 14px);
-}
-
-/* —— 桌面应用式布局:>1320 整页不滚,三栏各自内滚,Composer 常驻底部 —— */
-@media (min-width: 1321px) {
-  .studio-shell {
-    display: flex;
-    flex-direction: column;
-    height: 100dvh;
-    overflow: hidden;
-  }
-
-  .studio-main {
-    flex: 1;
-    min-height: 0;
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
-  }
-
-  .studio {
-    min-height: 0;
-    height: 100%;
-  }
-
-  .studio-col {
-    overflow-y: auto;
-    min-height: 0;
-    max-height: 100%;
-    scrollbar-width: thin;
-  }
-
-  .studio-composer {
-    margin-top: 10px;
-  }
 }
 
 /* ≤1320:两栏,右栏(参考图/最近记录)通栏落底 */
