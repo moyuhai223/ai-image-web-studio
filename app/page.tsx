@@ -1,5 +1,6 @@
 import { AppNav } from "@/components/app-nav";
-import { StudioWorkspace } from "@/components/studio/studio-workspace";
+import { AppFooter } from "@/components/app-footer";
+import { Workspace } from "@/components/workspace";
 import { requireUser } from "@/lib/auth";
 import { listPromptTemplates } from "@/lib/prompt-templates";
 import { getPromptOptimizeSummary } from "@/lib/prompt-optimize-settings";
@@ -25,13 +26,11 @@ export default async function HomePage() {
     byte_size: reference.byte_size
   }));
 
-  // Studio Console 布局:整页不滚(>1320 三栏各自内滚 + 底部 Composer),不渲染页脚
-  // (版本信息顶栏 version-pill 已有)。
   return (
-    <div className="shell studio-shell" data-theme={themePreference.theme}>
+    <div className="shell" data-theme={themePreference.theme}>
       <AppNav user={user} themeMode={themePreference.mode} />
-      <main className="main studio-main">
-        <StudioWorkspace
+      <main className="main">
+        <Workspace
           groupModelOptions={groupModelOptions}
           defaultGroupId={defaultGroupId}
           promptTemplates={templates}
@@ -39,6 +38,7 @@ export default async function HomePage() {
           promptOptimizeEnabled={promptOptimize.enabled && promptOptimize.hasApiKey}
         />
       </main>
+      <AppFooter />
     </div>
   );
 }

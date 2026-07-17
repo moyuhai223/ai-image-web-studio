@@ -72,6 +72,25 @@ const PATTERNS: Pattern[] = [
     })
   },
 
+  // 中文错误文案的网关(如 grok2api):瞬时上游问题归 upstream(可自动重试),
+  // 速率限制归 quota。不加这组的话这些失败会落 failed 且不触发任务级自动重试。
+  {
+    test: /上游服务暂不可用|当前没有可用的上游账号|上游账号.*(冷却|不可用)/i,
+    build: () => ({
+      friendly: "上游服务暂时不可用(网关无可用账号或上游临时故障)",
+      suggestion: "通常稍后自动重试即可恢复;若持续出现请检查网关后台的账号状态",
+      category: "upstream"
+    })
+  },
+  {
+    test: /速率限制中|请求过于频繁/i,
+    build: () => ({
+      friendly: "上游速率限制中",
+      suggestion: "请稍后重试,或降低并发/生成频率",
+      category: "quota"
+    })
+  },
+
   // 上游返回结构异常(本项目内部抛的) --------------------------------------------
   {
     test: /Provider returned no edited image/i,
